@@ -43,7 +43,6 @@ class DiameterRouter() extends Actor {
 	
 	DiameterDictionary.show()
 	
-	/*
 	// For deserialization of Json
   implicit val formats = DefaultFormats
   
@@ -106,7 +105,6 @@ class DiameterRouter() extends Actor {
     }
 
   })
-*/
 
 	def receive  = {
 		case any: Any => Nil
