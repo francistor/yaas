@@ -147,7 +147,7 @@ class RoR(val avpList: List[AVPNameWithBounds])
 class Request(avpList: List[AVPNameWithBounds]) extends RoR(avpList)
 class Response(avpList: List[AVPNameWithBounds]) extends RoR(avpList)
 class Command(val code: Int, val name: String, val request: Request, val response: Response)
-class Application(val code: Int, val name: String, val commands: List[Command])
+class Application(val id: Int, val name: String, val commands: List[Command])
 
 // A RequestOrResponse is a JSON object with attribute names as properties, and
 // Bounds as values
@@ -193,7 +193,7 @@ object DiameterDictionary {
   // Holds a map (appName --> Application)
   val appMapByCode = for {
     application <- (dictionaryJson \ "applications").extract[List[Application]]
-  } yield (application.code -> application)
+  } yield (application.id -> application)
   
   def show() = println(appMapByCode) 
 
