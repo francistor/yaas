@@ -3,7 +3,6 @@ package diameterServer
 import org.json4s._
 import akka.util.{ByteString, ByteStringBuilder}
 import scala.collection.mutable.ArrayBuffer
-import java.nio.ByteOrder.BIG_ENDIAN
 
 object DiameterMessage {
   val DIAMETER_SUCCESS: Int = 2001
@@ -25,13 +24,13 @@ object DiameterMessage {
     // 4 byte Hop-by-Hop Identifier
     // ... AVP
     
-    val messageLength = bytes.slice(1, 2).toByteBuffer.getShort*65536 + bytes.slice(2, 4).toByteBuffer.getInt
+    val messageLength = UByteString.getUnsigned24(bytes.slice(1, 4))
     val flags = bytes.slice(4, 5).toByteBuffer.get
     val isRequest = (flags & 128) > 0
     val isProxyable = (flags & 64) > 0
     val isError = (flags & 32) > 0
     val isRetransmission = (flags & 16) > 0
-    val commandCode = bytes.slice(5, 6).toByteBuffer.getShort*65536 + bytes.slice(6, 8).toByteBuffer.getInt
+    val commandCode = UByteString.getUnsigned24(bytes.slice(5, 8))
     val applicationId = bytes.slice(8, 12).toByteBuffer.getInt
     val endToEndId = bytes.slice(12, 16).toByteBuffer.getInt
     val hopByHopId = bytes.slice(16, 20).toByteBuffer.getInt
@@ -40,7 +39,7 @@ object DiameterMessage {
     val avps = ArrayBuffer[DiameterAVP]()
     var idx = 20
     while(idx < bytes.length){
-      val l = bytes.slice(idx + 5, idx + 6).toByteBuffer.get()*65535 + bytes.slice(idx + 6, idx + 8).toByteBuffer.getShort()
+      val l = UByteString.getUnsigned24(bytes.slice(idx + 5, idx + 8))
       avps += DiameterAVP(bytes.slice(idx, idx +  l))
       idx += l + l%4
     }
@@ -73,7 +72,7 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     // flags
     builder.putByte((0 + (if(isRequest) 128 else 0) + (if(isProxyable) 64 else 0) + (if(isError) 32 else 0) + (if(isRetransmission) 16 else 0)).toByte)
     // command code
-    builder.putByte((commandCode / 65536).toByte).putShort(commandCode % 65536)
+    UByteString.putUnsigned24(builder, commandCode)
     // application id
     builder.putInt(applicationId)
     // End-to-End identifier
@@ -81,7 +80,14 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     // Hop-by-hop identifier
     builder.putInt(hopByHopId)
     
-    builder.result
+    val result = builder.result
+    println("1 "+result)
+    
+    // Write length now
+    val length = result.length
+    val lBuilder = new ByteStringBuilder()
+    UByteString.putUnsigned24(lBuilder, length)
+    result.patch(1, lBuilder.result, 3)
   }
 }
 
@@ -98,14 +104,14 @@ object DiameterAVP {
     //    vendorId: 0 / 4 byte
     //    data: rest of bytes
     
-    val code = bytes.slice(0, 2).toByteBuffer.getShort*65536 + bytes.slice(2, 4).toByteBuffer.getShort
+    val code = bytes.toByteBuffer.getInt
     val flags = bytes.slice(4, 5).toByteBuffer.get()
     val isMandatory : Boolean = (flags & 128) > 0 
     val isVendorSpecific : Boolean = (flags & 64) > 0
-    val avpLength : Int = bytes.slice(5, 6).toByteBuffer.get()*65535 + bytes.slice(6, 8).toByteBuffer.getShort()
+    val avpLength : Int = UByteString.getUnsigned24(bytes.slice(5, 8))
     val dataOffset = if (isVendorSpecific) 8 else 12 
     val vendorCode = isVendorSpecific match {
-          case true => bytes.slice(5, 1).toByteBuffer.get()*256 + bytes.slice(6, 8).toByteBuffer.getInt
+          case true => bytes.slice(8, 12).toByteBuffer.getInt
           case false => 0
     }
     
@@ -205,7 +211,8 @@ abstract class DiameterAVP(val code: Int, val isVendorSpecific: Boolean, val isM
     val result = builder.result
     // Write length now
     val length = if(vendorId == 0) 8 + payloadBytes.length else 12 + payloadBytes.length
-    val lBuilder = new ByteStringBuilder().putInt(length / 65536).putShort(length % 65536)
+    val lBuilder = new ByteStringBuilder()
+    UByteString.putUnsigned24(lBuilder, length)
     result.patch(5, lBuilder.result, 3)
   }
   
@@ -299,7 +306,7 @@ class GroupedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
         val avps = ArrayBuffer[DiameterAVP]()
         var idx = 0
         while(idx < bytes.length){
-          val l = bytes.slice(idx + 5, idx + 6).toByteBuffer.get()*65535 + bytes.slice(idx + 6, idx + 8).toByteBuffer.getShort()
+          val l = UByteString.getUnsigned24(bytes.slice(idx + 5, idx + 8))
           avps += DiameterAVP(bytes.slice(idx, idx +  l))
           idx += l + l%4
         }

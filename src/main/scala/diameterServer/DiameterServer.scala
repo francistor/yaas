@@ -15,7 +15,7 @@ import scala.reflect.runtime.universe
 // Main Diameter Object and application
 ////////////////////////////////////////////////////////////////////////
 
-object Diameter /*extends App*/ {
+object Diameter extends App {
   
   val config = ConfigFactory.load()
 

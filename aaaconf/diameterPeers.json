@@ -1,0 +1,18 @@
+[
+	{
+		"name": "fistPeer",
+        "diameterHost": "host1.realm",
+        "IPAddress": "127.0.0.1",
+        "port": 3868,
+		"connectionPolicy": "passive",
+		"watchdogIntervalMillis": 10000
+	},
+	{
+		"name": "secondPeer",
+        "diameterHost": "host2.realm",
+        "IPAddress": "192.168.1.19",
+        "port": 3868,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 10000
+	}
+]

@@ -20,4 +20,9 @@ libraryDependencies ++=
     "ch.qos.logback" 	%  "logback-classic" % "1.2.3",
     "org.json4s" 		%% "json4s-jackson"  % "3.5.2"
   )
+  
+ mappings in Universal ++= directory("aaaconf")
+ 
+ mappings in Universal ++= directory("conf")
+
 
