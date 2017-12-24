@@ -1,5 +1,0 @@
-[
-	{"realm": "all", "applicationId": "*", "peers": ["host1.realm", "host2.realm"], "policy": "fixed"},
-	{"realm": "metaRealm", "applicationId": "*", "peers": ["host3.realm"], "policy": "fixed"},
-	{"realm": "*", "applicationId": "Credit-Control", "peers": ["host1.realm", "host2.realm"], "policy": "fixed"}
-]

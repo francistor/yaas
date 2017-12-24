@@ -10,9 +10,9 @@
 	{
 		"name": "secondPeer",
         "diameterHost": "host2.realm",
-        "IPAddress": "127.0.0.1",
+        "IPAddress": "192.168.1.19",
         "port": 3868,
-		"connectionPolicy": "passive",
+		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 10000
 	}
 ]

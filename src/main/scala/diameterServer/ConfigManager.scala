@@ -9,31 +9,31 @@ import org.json4s.jackson.JsonMethods._
 import scala.util.{Try, Success, Failure}
 
 // TODO: Turn this into another Actor
+/**
+ * Reads and caches configuration files
+ * 
+ * getConfigObject retrieves the contents of the specified configuration file from the cache, or reads it
+ * if not available there, and caches it.
+ */
 object ConfigManager {
   
+  // To be used later. We'll get the configuration file directory from application.conf
 	val config = ConfigFactory.load()
 	
+	// Cache of read files
 	val configObjects = scala.collection.mutable.Map[String, JValue]()
-    
-  // Try local directory, relative to code location 
-	val codePath = ConfigManager.getClass.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()
-	// If code is in .jar, go up twice
-  val baseDir = if (codePath.endsWith(".jar")) new File(codePath).getParentFile().getParentFile() else new File(codePath).getParentFile()
-  val baseConfigURI = baseDir.toURI().resolve("aaaconf/")
-  println(baseDir)
 	  
   // Read mandatory configuration objects
-  val basicObjectNames = Array(
+  Array(
       "diameterDictionary.json", 
       "diameterHandlers.json",
       "diameterPeers.json",
       "diameterRoutes.json",
       "diameterServer.json"
-      )
-  basicObjectNames.foreach(objectName => readConfigObject(objectName))
+      ).foreach(_ => readConfigObject(_))
   
-  def readConfigObject(objectName: String): JValue = {
-    val source = Source.fromURL(baseConfigURI.resolve(objectName).toURL, "UTF-8")
+  private def readConfigObject(objectName: String): JValue = {
+    val source = Source.fromResource(objectName)
   			
   	// Parse JSON
   	Try(parse(source.mkString)) match {
@@ -45,18 +45,11 @@ object ConfigManager {
   	}
   }
 
+	/**
+	 * To be used by the applications to get a configuration file
+	 */
 	def getConfigObject(objectName: String):JValue = {
 	  if(configObjects.contains(objectName)) configObjects(objectName)
 	  else readConfigObject(objectName)
 	}
-
-	// Print results
-	// for((objectName, json) <- configObjects) printf("%s -> %s %n", objectName, pretty(render(json)))
-	
-	/*
-	// Find values
-	implicit val formats = DefaultFormats
-	
-	val a = (configObjects("dos") \ "a").extract[Int]
-	* */
 }

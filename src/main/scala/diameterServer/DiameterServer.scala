@@ -16,9 +16,8 @@ import scala.reflect.runtime.universe
 ////////////////////////////////////////////////////////////////////////
 
 object Diameter extends App {
-  
   val config = ConfigFactory.load()
-
+  
 	val actorSystem = ActorSystem("AAA")
 	val diameterRouterActor = actorSystem.actorOf(DiameterRouter.props())
 }
@@ -31,7 +30,6 @@ case class DiameterConfig(bindAddress: String, bindPort: Int)
 
 // Best practise
 object DiameterRouter {
-  
   def props() = Props(new DiameterRouter())
 }
 
@@ -41,50 +39,29 @@ class DiameterRouter() extends Actor {
 	// Initialize logger
 	val logger = Logging.getLogger(context.system, this)
 	
-	DiameterDictionary.show()
-	
 	// For deserialization of Json
   implicit val formats = DefaultFormats
   
   // General config
   val diameterConfig = ConfigManager.getConfigObject("diameterServer.json").extract[DiameterConfig]
-  
-  // Read peers configuration, build peer tables and create actors
-  val peerHostsMap = scala.collection.mutable.Map[String, DiameterPeerPointer]()
-  val peerIpAddressMap = scala.collection.mutable.Map[String, DiameterPeerPointer]()
-  for(peer <- ConfigManager.getConfigObject("diameterPeers.json").extract[Seq[DiameterPeerConfig]]) {
-    // This creates the DiameterPeer actors
-    val diameterPeerPointer = DiameterPeerPointer(peer, context.actorOf(DiameterPeer.props(peer), peer.diameterHost))
-    // Create the tables for indirection to peers
-    peerHostsMap(peer.diameterHost) = diameterPeerPointer
-    peerIpAddressMap(peer.IPAddress) = diameterPeerPointer
-    
-    logger.debug("Created Peer {}", diameterPeerPointer)
-  }
+	
+	// diameterHost -> peerPointer(peerConfig, peerActor)
+	val peerHostsMap = (for{
+	  peer <- ConfigManager.getConfigObject("diameterPeers.json").extract[Seq[DiameterPeerConfig]]
+	} yield (peer.diameterHost -> DiameterPeerPointer(peer, context.actorOf(DiameterPeer.props(peer), peer.diameterHost)))).toMap
+	
+	// ipAddress -> peerPointer(peerConfig, peerActor)
+	val peerIpAddressMap = for {
+	  (host, pointer) <- peerHostsMap
+	} yield (pointer.config.IPAddress -> pointer)
 
   // Read routes and build routing table
   val routes = ConfigManager.getConfigObject("diameterRoutes.json").extract[Seq[DiameterRoute]]
-  for(route <- routes){
-    logger.debug("Added route: {}", route)
-  }
-  
-  // Utility function to get a route
-  def findRoute(realm: String, applicationId: String) : Option[DiameterRoute] = {
-    for(route <- routes){
-      if(route.realm == "*" || route.realm == realm) 
-        if(route.applicationId == "*" || route.applicationId == applicationId) 
-          return Some(route) // God forgives me
-    }
-    
-    None
-  }
-  
-  // Build handler table
-  val handlersMap = scala.collection.mutable.Map[String, ActorRef]()
-  for(handler <- ConfigManager.getConfigObject("diameterHandlers.json").extract[Seq[DiameterHandlerConfig]]){
-    handlersMap(handler.applicationName) =  context.actorOf(DiameterMessageHandler.props(handler.handlerObject), handler.applicationName)
-    logger.debug("Created handler {}", handler)
-  }
+  for(route <- routes) logger.debug("Added route: {}", route)
+	
+	val handlersMap = for{
+	  handler <- ConfigManager.getConfigObject("diameterHandlers.json").extract[Seq[DiameterHandlerConfig]]
+	} yield (handler.applicationName -> context.actorOf(DiameterMessageHandler.props(handler.handlerObject), handler.applicationName))
   
   // Server socket
   implicit val actorSytem = context.system
@@ -109,6 +86,17 @@ class DiameterRouter() extends Actor {
 	def receive  = {
 		case any: Any => Nil
 	}
+  
+  // Utility function to get a route
+  def findRoute(realm: String, applicationId: String) : Option[DiameterRoute] = {
+    for(route <- routes){
+      if(route.realm == "*" || route.realm == realm) 
+        if(route.applicationId == "*" || route.applicationId == applicationId) 
+          return Some(route) // God forgives me
+    }
+    
+    None
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -118,12 +106,11 @@ class DiameterRouter() extends Actor {
 // This class represents a diameter peer as read from the configuration file
 case class DiameterPeerConfig(diameterHost: String, IPAddress: String, port: Int, connectionPolicy: String, watchdogIntervalMillis: Int)
 
-// Peer tables are made of this items
+// Peer tables are made of these items
 case class DiameterPeerPointer(config: DiameterPeerConfig, actorRef: ActorRef)
 
 // Best practise
 object DiameterPeer {
-  
   def props(config: DiameterPeerConfig) = Props(new DiameterPeer(config))
 }
 
@@ -136,8 +123,8 @@ class DiameterPeer(config: DiameterPeerConfig) extends Actor {
   
   val echo = Flow[ByteString].via(Framing.delimiter(ByteString("\n"), 256, allowTruncation = true))
       .viaMat(KillSwitches.single)(Keep.right)
-      .map(s =>s.utf8String)
-      .map(_+"!")
+      .map(s => s.utf8String)
+      .map(_ + "!")
       .map(line => {println(line); line})
       .map(ByteString(_))
   
@@ -165,7 +152,6 @@ trait DiameterApplicationHandler {
 }
 
 object DiameterMessageHandler {
-  
   def props(handlerObjectName: String) = Props(new DiameterMessageHandler(handlerObjectName))
 }
 

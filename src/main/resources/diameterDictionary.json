@@ -362,8 +362,114 @@
 		[
 			{
 				"code": 1,
-				"name": "myparameter",
+				"name": "myOctetString",
+				"type": "OctetString"
+			},
+			{
+				"code": 2,
+				"name": "myInteger32",
+				"type": "Integer32"
+			},
+			{
+				"code": 3,
+				"name": "myInteger64",
+				"type": "Integer64"
+			},
+			{
+				"code": 4,
+				"name": "myUnsigned32",
+				"type": "Unsigned32"
+			},
+			{
+				"code": 5,
+				"name": "myUnsigned64",
+				"type": "Unsigned64"
+			},
+			{
+				"code": 6,
+				"name": "myFloat32",
+				"type": "Float32"
+			},
+			{
+				"code": 7,
+				"name": "myFloat64",
+				"type": "Float64"
+			},
+			{
+				"code": 8,
+				"name": "myAddress4",
+				"type": "Address"
+			},
+			{
+				"code": 9,
+				"name": "myTime",
+				"type": "Time"
+			},
+			{
+				"code": 10,
+				"name": "myString",
 				"type": "UTF8String"
+			},
+			{
+				"code": 11,
+				"name": "myDiameterIdentity",
+				"type": "DiamIdent"
+			},
+			{
+				"code": 12,
+				"name": "myDiameterURI",
+				"type": "DiameterURI"
+			},
+			{
+				"code": 13,
+				"name": "myIPFilterRule",
+				"type": "IPFilterRule"
+			},
+			{
+				"code": 14,
+				"name": "myIPv4Address",
+				"type": "IPv4Address"
+			},
+			{
+				"code": 15,
+				"name": "myIPv6Address",
+				"type": "IPv6Address"
+			},
+			{
+				"code": 16,
+				"name": "myIPv6Prefix",
+				"type": "IPv6Prefix"
+			},
+			{
+				"code": 17,
+				"name": "myEnumerated",
+				"type": "Enumerated",
+				"enumValues": {
+                    "zero": 0,
+                    "one": 1,
+                    "two": 2
+                }
+			},
+			{
+				"code": 18,
+				"name": "myGrouped",
+				"type": "Grouped",
+				"group":
+                {
+                    "myInteger32":{"minOccurs": 1, "maxOccurs": 1},
+                    "myString":{"maxOccurs": 1}
+                }
+			},
+			{
+				"code": 19,
+				"name": "myGroupedinGrouped",
+				"type": "Grouped",
+				"group":
+                {
+                    "myInteger32":{"minOccurs": 1, "maxOccurs": 1},
+                    "myString":{"maxOccurs": 1},
+                    "myGrouped":{"maxOccurs": 1}
+                }
 			}
 		],
 
@@ -595,6 +701,35 @@
                             "CC-Request-Type":{"minOccurs": 1, "maxOccurs": 1},
                             "CC-Request-Number":{"minOccurs": 1, "maxOccurs": 1},
                             "AVP":{}
+                        }
+                    }
+                ]
+        },
+        {
+            "name":"TestApplication",
+            "code": 1000,
+            "type": "auth",
+            "commands":
+                [
+                    {
+                        "code": 2000,
+                        "name": "TestRequest",
+                        "request":
+                        {
+                            "Session-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                            "Origin-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                            "Origin-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                            "Destination-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                            "Destination-Host":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                            "Auth-Application-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                            "Vendor-Id":{},
+                            "Subscription-Id":{},
+                            "User-Name":{},
+                            "Framed-IP-Address":{}
+                            
+                        },
+                        "response":
+                        {
                         }
                     }
                 ]
