@@ -1,14 +1,12 @@
-package diameterServer
+package diameterServer.config
 
 import com.typesafe.config.ConfigFactory
 import java.nio.file._
-import java.io.File
 import scala.io.Source
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import scala.util.{Try, Success, Failure}
 
-// TODO: Turn this into another Actor
 /**
  * Reads and caches configuration files
  * 

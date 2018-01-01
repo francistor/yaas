@@ -16,9 +16,9 @@
 	<root level="DEBUG">          
     	<appender-ref ref="STDOUT" />
     	<appender-ref ref="FILE" />
-  	</root> 
-
-  	<logger name="DiameterServer" level="INFO" additivity="false">
+  	</root>
+  	
+  	<logger name="diameterServer" level="DEBUG" additivity="false">
   		<appender-ref ref="STDOUT" />
   	</logger>
 

@@ -1,3 +1,5 @@
+import scala.collection.mutable.Queue
+
 import akka.actor.ActorSystem
 import akka.util.{ByteStringBuilder, ByteString}
 import akka.testkit.{TestKit}
@@ -11,6 +13,8 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
   
   implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
+  implicit val idGen = new diameterServer.util.IDGenerator
+  import diameterServer.coding.DiameterConversions._
   
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -104,13 +108,13 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   }
   
   "Grouped serialization and deserialization" in {
-    val groupedAVP = new GroupedAVP(18, true, false, 1001, Seq(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
+    val groupedAVP = new GroupedAVP(18, true, false, 1001, Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
     DiameterAVP(groupedAVP.getBytes) mustEqual groupedAVP
   }
   
   "Diameter Message serialization and deserialization" in {
-    val groupedAVP = new GroupedAVP(18, true, false, 1001, Seq(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
-    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, Seq(groupedAVP) /* value */, true /* isRequest */)
+    val groupedAVP = new GroupedAVP(18, true, false, 1001, Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
+    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, Queue(groupedAVP) /* value */, true /* isRequest */)
     val serializedMessage = diameterMessage.getBytes
     val unserializedDiameterMessage = DiameterMessage(serializedMessage)
     unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)
@@ -118,5 +122,31 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     unserializedDiameterMessage.hopByHopId must be (diameterMessage.hopByHopId)
     unserializedDiameterMessage.endToEndId must be (diameterMessage.endToEndId)
     unserializedDiameterMessage.avps mustEqual(Seq(groupedAVP))
+  }
+  
+  "Adding and retrieving simple avp to Diameter Message" in {
+    val message = DiameterMessage.request("Base", "Capabilities-Exchange")
+    
+    // Add AVP to Diameter message
+    message << ("Result-Code" -> DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString)
+    
+    // Get AVP from Diameter message
+    val resultCode : String = message >> "Result-Code"
+    // Implicit conversion
+    resultCode mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
+    // Forced conversion
+    (message >> "Result-Code").get.toString mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
+  }
+  
+  "Adding and retrieving grouped avp to Diameter Message" in {
+    val message = DiameterMessage.request("Gx", "Credit-Control")
+    val userIMSI = "99999"
+    
+    // Add AVP to Diameter message
+    val gavp = ("Subscription-Id", Seq(("Subscription-Id-Type" -> "EndUserIMSI"), ("Subscription-Id-Data", userIMSI)))
+    message << gavp
+    
+    // Retrieve value
+    ((message >>> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
   }
 }

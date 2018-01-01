@@ -179,7 +179,7 @@
             },
             {
                 "code": 444,
-                "name": "Subsription-Id-Data",
+                "name": "Subscription-Id-Data",
                 "type": "UTF8String"
             },
             {
