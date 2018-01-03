@@ -6,6 +6,7 @@ import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
 import scala.collection.mutable.Queue
 
 import diameterServer.dictionary._
+import diameterServer.config.DiameterConfigManager
 import diameterServer.util.IDGenerator
 
 class DiameterCodingException(val msg: String) extends java.lang.Exception(msg: String)
@@ -501,8 +502,9 @@ class IPv6PrefixAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
     this(code, isVendorSpecific, isMandatory, vendorId, {
       // rfc3162
       val it = bytes.iterator
+      //println(it.length)
       val prefixLen = it.drop(1).getByte
-      val prefix = java.net.InetAddress.getByAddress(it.getBytes(16).toArray)
+      val prefix = java.net.InetAddress.getByAddress(it.getBytes(it.len).padTo[Byte, Array[Byte]](16, 0))
       prefix.getHostAddress + "/" + prefixLen
     })
   }
@@ -527,6 +529,7 @@ class IPv6PrefixAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
  */
 object DiameterMessage {
   
+  import DiameterConversions._
   implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
   
   // Success
@@ -607,8 +610,12 @@ object DiameterMessage {
    * Builds a Diameter Answer to the specified request with empty attribute list
    */
   def reply(request: DiameterMessage) = {
+    val diameterConfig = DiameterConfigManager.getDiameterConfig
+    val replyMessage = new DiameterMessage(request.applicationId, request.commandCode, request.hopByHopId, request.endToEndId, Queue(), false, true, false, false)
+    replyMessage << ("Origin-Host" -> diameterConfig.diameterHost)
+    replyMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
     
-    new DiameterMessage(request.applicationId, request.commandCode, request.hopByHopId, request.endToEndId, Queue(), false, true, false, false)
+    replyMessage
   }
 }
 

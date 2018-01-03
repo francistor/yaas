@@ -11,6 +11,7 @@ import diameterServer.coding.DiameterConversions._
 import diameterServer.config.{DiameterPeerConfig}
 import akka.stream._
 import akka.stream.scaladsl._
+import scala.concurrent.duration._
 import akka.util.ByteString
 
 
@@ -21,6 +22,7 @@ case class DiameterPeerPointer(config: DiameterPeerConfig, actorRef: ActorRef)
 object DiameterPeer {
   def props(config: DiameterPeerConfig) = Props(new DiameterPeer(config))
   case class Disconnect()
+  case class Clean()
 }
 
 class DiameterPeer(config: DiameterPeerConfig) extends Actor with ActorLogging {
@@ -36,7 +38,6 @@ class DiameterPeer(config: DiameterPeerConfig) extends Actor with ActorLogging {
     .via(Framing.lengthField(3, 1, 10000, java.nio.ByteOrder.BIG_ENDIAN, (offsetBytes, calcFrameSize) => {calcFrameSize}))
     .viaMat(KillSwitches.single)(Keep.right)
     .map(frame => {
-      // TODO: what happens in case of framing error?
       // Decode message
       try{
         val decodedMessage = diameterServer.coding.DiameterMessage(frame)
@@ -44,7 +45,8 @@ class DiameterPeer(config: DiameterPeerConfig) extends Actor with ActorLogging {
         if(decodedMessage.applicationId == 0) handleDiameterBase(decodedMessage)
         else context.parent ! decodedMessage
       } catch {
-        case e: Exception => e.printStackTrace()
+        case e: Exception =>
+          log.error(e, "Frame decoding error")
       }
     })
     .to(Sink.onComplete((f) => {
@@ -81,18 +83,60 @@ class DiameterPeer(config: DiameterPeerConfig) extends Actor with ActorLogging {
       }
       else log.warning("Discarding message to unconnected peer")
       
+    // Message to send request to peer
+    case RoutedDiameterMessage(message, originActor) =>
+      if(inputQueue.isDefined){
+        cacheIn(message.hopByHopId, originActor)
+        inputQueue.get.offer(message.getBytes)
+      }
+      else log.warning("Discarding message to unconnected peer")
+      
+    // This user initiated disconnect
     case Disconnect() => 
       log.info("Disconnecting peer")
       killSwitch.map(_.shutdown())
       killSwitch = None
       inputQueue = None
       remoteAddress = None
+      
+    case Clean() => 
+      cacheClean
+      context.system.scheduler.scheduleOnce(200 milliseconds, self, Clean())
   }
+  
+  override def preStart = {
+    // Send first cleaning
+    context.system.scheduler.scheduleOnce(200 milliseconds, self, Clean())
+  }
+  
+  ////////////////////////////////////////////////////////////////////////////
+  // Cache
+  ////////////////////////////////////////////////////////////////////////////
+  
+  val requestCache = scala.collection.mutable.Map[Int, (Long, ActorRef)]()
+  
+  def cacheIn(hopByHopId: Int, sendingActor: ActorRef) = {
+    requestCache(hopByHopId) = (hopByHopId, sendingActor)
+  }
+  
+  def cacheOut(hopByHopId : Int) = {
+    requestCache.remove(hopByHopId)
+  }
+  
+  def cacheClean = {
+    val targetTimestamp = System.currentTimeMillis() -10000
+    requestCache.retain((h, v) => v._1 > targetTimestamp)
+  }
+  
+  ////////////////////////////////////////////////////////////////////////////
+  // Handlers
+  ////////////////////////////////////////////////////////////////////////////
   
   def handleDiameterBase(message: DiameterMessage) = {
     
     message.command match {
       case "Capabilities-Exchange" => handleCER(message)
+      case "Disconnect-Peer" => handleDPR(message)
     }
   }
   
@@ -123,9 +167,7 @@ class DiameterPeer(config: DiameterPeerConfig) extends Actor with ActorLogging {
       // Add basic parameters
       val diameterConfig = DiameterConfigManager.getDiameterConfig
       val bindAddress = diameterConfig.bindAddress
-      
-      reply << ("Origin-Host" -> diameterConfig.diameterHost)
-      reply << ("Origin-Realm" -> diameterConfig.diameterRealm)    
+          
       if(diameterConfig.bindAddress != "0.0.0.0") reply << ("Host-IP-Address" -> diameterConfig.bindAddress)
       reply << ("Vendor-Id" -> diameterConfig.vendorId)
       reply << ("Firmware-Revision" -> diameterConfig.firmwareRevision)
@@ -145,6 +187,14 @@ class DiameterPeer(config: DiameterPeerConfig) extends Actor with ActorLogging {
       self ! reply
       log.info("Sent CEA")
     }
-    
   }
+    
+  def handleDPR(message: DiameterMessage) = {
+      val reply = DiameterMessage.reply(message)
+      
+      reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+      
+      self ! reply
+      self ! Disconnect()
+    }
 }

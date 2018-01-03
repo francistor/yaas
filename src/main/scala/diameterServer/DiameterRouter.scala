@@ -8,11 +8,11 @@ import akka.stream.scaladsl._
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
-import diameterServer.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
+import diameterServer.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig, DiameterHandlerConfig}
 import diameterServer.coding.DiameterMessage
 import diameterServer.coding.DiameterConversions._
 
-case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handlerActor: Option[ActorRef])
+case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
 
 // Best practise
 object DiameterRouter {
@@ -32,6 +32,7 @@ class DiameterRouter() extends Actor with ActorLogging {
 	var serverPort = 0
 	var peerHostMap : Map[String, DiameterPeerPointer] = Map()
 	var peerIPAddressMap : Map[String, DiameterPeerPointer] = Map()
+	var handlerMap: Map[String, ActorRef] = Map()
 	var diameterRoutes : Seq[DiameterRoute] = Seq()
 	
 	// First update of configuration
@@ -48,20 +49,18 @@ class DiameterRouter() extends Actor with ActorLogging {
 	
 	/**
 	 * Will create the actors for the configured peers and shutdown the ones not configured anymore.
-	 * Returns the new peerMap
 	 */
 	def updatePeerMap(conf: Map[String, DiameterPeerConfig]) = {
 	  
 	  // Shutdown unconfigured peers and return clean list  
 	  val cleanPeersHostMap = peerHostMap.flatMap { case (hostName, peerPointer) => 
-	    if(!conf.values.toList.contains(peerPointer)){context.stop(peerPointer.actorRef); Seq()} else Seq((hostName, peerPointer))
+	    if(conf.get(hostName) == None){context.stop(peerPointer.actorRef); Seq()} else Seq((hostName, peerPointer))
 	    }
 	  
 	  // Create new peers if needed
-	  val cleanHostList = cleanPeersHostMap.keys.toList
 	  val newPeerHostMap = conf.map { case (hostName, peerConfig) => 
 	    // Create if needed
-	    if(!cleanHostList.contains(hostName)) (hostName, DiameterPeerPointer(peerConfig, context.actorOf(DiameterPeer.props(peerConfig), hostName)))
+	    if(cleanPeersHostMap.get(hostName) == None) (hostName, DiameterPeerPointer(peerConfig, context.actorOf(DiameterPeer.props(peerConfig), hostName)))
 	    // Was already created
 	    else (hostName, cleanPeersHostMap(hostName))
 	  }
@@ -70,32 +69,30 @@ class DiameterRouter() extends Actor with ActorLogging {
 	  peerHostMap = newPeerHostMap
 	  peerIPAddressMap = newPeerHostMap.map {case (peerHost, peerPointer) => (peerPointer.config.IPAddress, peerPointer)}
 	}
+  
+  def updateHandlerMap(conf: Map[String, String]) = {
+    // Shutdown unconfigured handlers
+    val cleanHandlerMap = handlerMap.flatMap { case (handlerName, handlerActor) =>
+      if(conf.get(handlerName) == None) {context.stop(handlerActor); Seq()} else Seq((handlerName, handlerActor))
+    }
+    
+    // Create new handlers if needed
+    val newHandlerMap = conf.map { case (name, clazz) => 
+      if(cleanHandlerMap.get(name) == None) (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], name+"-handler")))
+      // Already created
+      else (name, cleanHandlerMap(name))
+    }
+    
+    handlerMap = newHandlerMap
+  }
 	
 	def updateDiameterRoutes(conf: Seq[DiameterRouteConfig]){
-	  // Recreate all the handlers
+	  // Just copy
 	  val newDiameterRoutes = for {
 	    route <- conf
-	    actorRef = route.handlerObject match {
-	      case Some(hObj) => 
-	        log.info("Instantating Actor for {}", hObj)
-	        Some(context.actorOf(DiameterMessageHandler.props(hObj), route.realm+"-"+route.applicationId))
-	      case None => None
-	    }
-	  } yield DiameterRoute(route.realm, route.applicationId, route.peers, route.policy, actorRef)
-	  
-	  // Swap
-	  val oldDiameterRoutes = diameterRoutes
+	  } yield DiameterRoute(route.realm, route.applicationId, route.peers, route.policy, route.handler)
+	      
 	  diameterRoutes = newDiameterRoutes
-	  
-	  // Shutdown old handlers
-	  log.info("Shutting down handlers")
-	  oldDiameterRoutes.map(route => {
-	    route.handlerActor match {
-	      case Some(actorRef) => 
-	        context.stop(actorRef)
-	      case None => Unit
-	    }
-	  })
 	}
 	
 	// Utility function to get a route
@@ -149,13 +146,22 @@ class DiameterRouter() extends Actor with ActorLogging {
 	  case message : DiameterMessage =>
 	    // Diameter message received without actorRef => requires routing
 	    findRoute(message >> "Destination-Realm", message.application) match {
-	      case Some(DiameterRoute(realm, application, peers, policy, handler)) =>
-	        // Route found
-	        handler match {
-	          case Some(actorRef) => actorRef ! RoutedDiameterMessage(message, context.sender)
-	          case None => log.error("Route to another server: not yet implemented") // Route to another server
+	      // Local handler
+	      case Some(DiameterRoute(realm, application, peers, policy, Some(handler))) =>
+	        // Handle locally
+	        handlerMap.get(handler) match {
+	          case Some(handlerActor) =>  handlerActor ! RoutedDiameterMessage(message, context.sender)
+	          case None => log.warning("Attempt to rotue message to a non exising handler {}", handler)
 	        }
-	      case None =>
+	      
+	      // Send to Peer
+	      case Some(DiameterRoute(realm, application, Some(peers), policy, _)) => 
+	        peerHostMap.get(peers(0)) match { // Only one peer supported
+	          case Some(peerPointer) => peerPointer.actorRef ! RoutedDiameterMessage(message, context.sender)
+	          case None => log.warning("Attempt to rotue message to a non exising peer {}", peers(0))
+	        }
+	      // No route
+	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
 	    }
 

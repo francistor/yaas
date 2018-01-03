@@ -1,5 +1,4 @@
 [
-	{"realm": "all", "applicationId": "*", "peers": ["host1.realm", "host2.realm"], "policy": "fixed", "handlerObject": "handlers.GxHandler"},
-	{"realm": "metaRealm", "applicationId": "*", "peers": ["host3.realm"], "policy": "fixed", "handlerObject": "handlers.GxHandler"},
-	{"realm": "*", "applicationId": "Gx", "peers": ["host1.realm", "host2.realm"], "policy": "fixed", "handlerObject": "handlers.GxHandler"}
+	{"realm": "8950AAA", "applicationId": "Gx", "peers": ["8950AAA"], "policy": "fixed"},
+	{"realm": "yaas", "applicationId": "Gx", "handler": "handlers.GxHandler"}
 ]

@@ -14,7 +14,8 @@ SET DIAMETER=%BINDIR%\aaa-dt
 
 SET ORIGIN_HOST=testHost
 SET APPLICATION_ID=3GPP-Gx
-SET DESTINATION_HOST=yaas
+SET DESTINATION_HOST=host1.yaas
+SET DESTINATION_REALM=yaas
 SET DESTINATION_ADDRESS=127.0.0.1:3868
 
 REM Test parameters
@@ -41,5 +42,5 @@ echo 3GPP-QoS-Information = "3GPP-QoS-Class-Identifier = CLASS0, 3GPP-Max-Reques
 
 
 REM Send the packet
-%DIAMETER% -debug verbose -count %COUNT% -oh %ORIGIN_HOST% -dh %DESTINATION_HOST% -destinationAddress %DESTINATION_ADDRESS% -Application %APPLICATION_ID% -command Credit-Control -request "@%REQUESTFILE%"
+%DIAMETER% -debug verbose -count %COUNT% -oh %ORIGIN_HOST% -dh %DESTINATION_HOST% -dr %DESTINATION_REALM% -destinationAddress %DESTINATION_ADDRESS% -Application %APPLICATION_ID% -command Credit-Control -request "@%REQUESTFILE%"
 
