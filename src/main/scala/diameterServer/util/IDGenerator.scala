@@ -1,8 +1,8 @@
 package diameterServer.util
 
 class IDGenerator {
-  var hopByHopId = 0
-  var endToEndId = 0
+  var hopByHopId = (Math.random() * 2147483647).toInt
+  var endToEndId = hopByHopId
   
   def nextHopByHopId : Int = {
     hopByHopId += 1

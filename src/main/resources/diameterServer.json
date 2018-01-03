@@ -1,4 +1,10 @@
 {
 	"bindAddress": "0.0.0.0",
-	"bindPort": 3868
+	"bindPort": 3868,
+	"diameterHost": "yaas",
+	"diameterRealm": "realm",
+	"vendorId": 1101,
+	"productName": "Lever",
+	"firmwareRevision": 1,
+	"connectionInterval": 10000
 }

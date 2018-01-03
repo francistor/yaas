@@ -17,7 +17,6 @@ object DiameterMessageHandler {
   case class CancelRequest(e2eId: Long)
   
   def sendReply(message: DiameterMessage, originActor: ActorRef) = {
-    println("-------------> sending reply")
     originActor ! message
   }
 }
@@ -61,7 +60,7 @@ class DiameterMessageHandler(handlerObjectName: String) extends Actor with Actor
     } else log.warning("Unsolicited or cancelled reply with e2eId: {}", e2eId)
   }
   
-  def receive  = {
+  def receive  = LoggingReceive {
     case CancelRequest(e2eId) => 
       pull(e2eId, None)
     

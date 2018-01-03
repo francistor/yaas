@@ -1,6 +1,5 @@
 [
-	{"realm": "*", "applicationId": "Base", "handlerObject": "handlers.BaseHandler"},
-	{"realm": "all", "applicationId": "*", "peers": ["host1.realm", "host2.realm"], "policy": "fixed", "handlerObject": "handlers.BaseHandler"},
-	{"realm": "metaRealm", "applicationId": "*", "peers": ["host3.realm"], "policy": "fixed", "handlerObject": "handlers.BaseHandler"},
-	{"realm": "*", "applicationId": "Credit-Control", "peers": ["host1.realm", "host2.realm"], "policy": "fixed", "handlerObject": "handlers.BaseHandler"}
+	{"realm": "all", "applicationId": "*", "peers": ["host1.realm", "host2.realm"], "policy": "fixed", "handlerObject": "handlers.GxHandler"},
+	{"realm": "metaRealm", "applicationId": "*", "peers": ["host3.realm"], "policy": "fixed", "handlerObject": "handlers.GxHandler"},
+	{"realm": "*", "applicationId": "Gx", "peers": ["host1.realm", "host2.realm"], "policy": "fixed", "handlerObject": "handlers.GxHandler"}
 ]

@@ -315,7 +315,7 @@ class GroupedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
           val l = UByteString.getUnsigned24(bytes.slice(idx + 5, idx + 8))
           val theNextAVP = DiameterAVP(bytes.slice(idx, idx +  l))
           avps += theNextAVP
-          idx += l + l%4
+          idx += (l + (4 - l % 4) % 4)
         }
         avps
     })
@@ -338,7 +338,7 @@ class GroupedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
     for(avp <- value){
       builder.append(avp.getBytes)
       // Padding
-      builder.putBytes(new Array[Byte](((4 - builder.length) % 4) % 4))
+      if(builder.length % 4 != 0) builder.putBytes(new Array[Byte](4  - (builder.length % 4)))
     }
     builder.result
   }
@@ -711,7 +711,6 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     val applicationName = application.map(_.name).getOrElse("Unknown")
     val commandName = application.map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
     val prettyAVPList = avps.foldRight("")((avp, acc) => acc + avp.pretty + " ")
-    
     s"{$header\napplication: $applicationName, command: $commandName\navps: $prettyAVPList}"
   }
 }
@@ -799,6 +798,78 @@ object DiameterConversions {
 
       case DiameterTypes.RADIUS_IPV6PREFIX =>
         new IPv6PrefixAVP(code, isVendorSpecific, isMandatory, vendorId, attrValue)
+    }
+  }
+  
+  implicit def TupleInt2AVP(tuple : (String, Int)) : DiameterAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    TupleLong2AVP((attrName, attrValue.toLong))
+  }
+  
+  implicit def TupleLong2AVP(tuple : (String, Long)) : DiameterAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    
+    val dictItem = DiameterDictionary.avpMapByName(attrName)
+    val code = dictItem.code
+    val isVendorSpecific = dictItem.vendorId != 0
+    val isMandatory = false
+    val vendorId = dictItem.vendorId
+    
+    dictItem.diameterType match {
+      case DiameterTypes.OCTETSTRING => 
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+        
+      case DiameterTypes.INTEGER_32 =>
+        new Integer32AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue.toInt)
+      
+      case DiameterTypes.INTEGER_64 =>
+        new Integer64AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue)
+      
+      case DiameterTypes.UNSIGNED_32 =>
+        new Unsigned32AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue)
+      
+      case DiameterTypes.UNSIGNED_64 =>
+        // Problem here. Only signed is supported
+        new Unsigned64AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue)
+      
+      case DiameterTypes.FLOAT_32 =>
+        new Float32AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue.toFloat)
+      
+      case DiameterTypes.FLOAT_64 =>
+        new Float64AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue.toDouble)
+      
+      case DiameterTypes.GROUPED =>
+        throw new DiameterCodingException("Tried to set a grouped attribute with a single value")
+      
+      case DiameterTypes.ADDRESS =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+      
+      case DiameterTypes.TIME =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+      
+      case DiameterTypes.UTF8STRING =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+        
+      case DiameterTypes.DIAMETERIDENTITY =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+        
+      case DiameterTypes.DIAMETERURI =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+        
+      case DiameterTypes.ENUMERATED =>
+        new EnumeratedAVP(code, isVendorSpecific, isMandatory, vendorId, attrValue.toInt)
+        
+      case DiameterTypes.IPFILTERRULE =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+      
+      case DiameterTypes.RADIUS_IPV4ADDRESS =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+
+      case DiameterTypes.RADIUS_IPV6ADDRESS =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
+
+      case DiameterTypes.RADIUS_IPV6PREFIX =>
+        throw new DiameterCodingException(s"Invalid value $attrValue for attribute $attrName")
     }
   }
   

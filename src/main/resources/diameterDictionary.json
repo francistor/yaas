@@ -572,7 +572,7 @@
 		{
 			"name":"Accounting",
 			"code": 3,
-			"type": "acct",
+			"appType": "acct",
 			"commands":
 			[
 				{
@@ -628,7 +628,7 @@
 		{
 			"name":"Credit-Control",
 			"code": 4,
-			"type": "auth",
+			"appType": "auth",
 			"commands":
 			[
 				{
@@ -668,7 +668,7 @@
         {
             "name":"Gx",
             "code": 16777238,
-            "type": "auth",
+            "appType": "auth",
             "commands":
                 [
                     {
@@ -708,7 +708,7 @@
         {
             "name":"TestApplication",
             "code": 1000,
-            "type": "auth",
+            "appType": "auth",
             "commands":
                 [
                     {

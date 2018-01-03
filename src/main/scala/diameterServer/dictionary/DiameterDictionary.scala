@@ -169,8 +169,8 @@ class RoRDictItem(avpList: List[AVPNameWithBounds])
 class RequestDictItem(val avpList: List[AVPNameWithBounds]) extends RoRDictItem(avpList)
 class ResponseDictItem(val avpList: List[AVPNameWithBounds]) extends RoRDictItem(avpList)
 class CommandDictItem(val code: Int, val name: String, val request: RequestDictItem, val response: ResponseDictItem)
-class ApplicationAttributes(val code: Int, val name: String, val commands: List[CommandDictItem])
-class ApplicationDictItem(val code: Int, val name: String, val commandMapByName: Map[String, CommandDictItem], val commandMapByCode: Map[Int, CommandDictItem])
+class ApplicationAttributes(val code: Int, val name: String, val appType: Option[String], val commands: List[CommandDictItem])
+class ApplicationDictItem(val code: Int, val name: String, val appType: Option[String], val commandMapByName: Map[String, CommandDictItem], val commandMapByCode: Map[Int, CommandDictItem])
 
 // A RequestOrResponse is a JSON object with attribute names as properties, and
 // Bounds as values
@@ -228,7 +228,7 @@ object DiameterDictionary {
 	// Holds a map (appCode -> ApplicationDictItem)
 	val appMapByCode = (for {
 		application <- (dictionaryJson \ "applications").extract[List[ApplicationAttributes]]
-		applicationDict = new ApplicationDictItem(application.code, application.name,
+		applicationDict = new ApplicationDictItem(application.code, application.name, application.appType,
 		    (for {command <- application.commands} yield (command.name, command)).toMap,
 		    (for {command <- application.commands} yield (command.code, command)).toMap)
 	} yield (application.code -> applicationDict)).toMap

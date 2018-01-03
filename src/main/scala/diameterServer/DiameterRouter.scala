@@ -1,7 +1,6 @@
 package diameterServer
 
-import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-import akka.actor.ActorLogging
+import akka.actor.{ActorSystem, Actor, ActorLogging, ActorRef, Props}
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.Future
 import akka.stream._
@@ -19,12 +18,6 @@ case class DiameterRoute(realm: String, application: String, peers: Option[Array
 object DiameterRouter {
   def props() = Props(new DiameterRouter())
   
-  // Configuration messages
-  case class DiameterServerConfigMsg(ipAddress: String, port: Int)
-  case class PeerConfigMsg(peerHostMapConfig: Map[String, DiameterPeerConfig])
-  case class RouteConfigMsg(routeConfig: Seq[DiameterRouteConfig])
-  case class HandlerConfigMsg(handlerConfig: Map[String, String])
-  
   // Diameter messages
   case class RoutedDiameterMessage(message: DiameterMessage, owner: ActorRef)
 }
@@ -33,16 +26,25 @@ object DiameterRouter {
 class DiameterRouter() extends Actor with ActorLogging {
   
   import DiameterRouter._
-	
-	// Start Configuration Actor
-	val diameterConfigurationActor = context.actorOf(DiameterConfigManager.props(), "DiameterConfigManagerActor")
-		
-	// Empty initial maps to working objects
+  
+  // Empty initial maps to working objects
 	var serverIPAddress = "0.0.0.0"
 	var serverPort = 0
 	var peerHostMap : Map[String, DiameterPeerPointer] = Map()
 	var peerIPAddressMap : Map[String, DiameterPeerPointer] = Map()
 	var diameterRoutes : Seq[DiameterRoute] = Seq()
+	
+	// First update of configuration
+  val diameterConfig = DiameterConfigManager.getDiameterConfig
+  serverIPAddress = diameterConfig.bindAddress
+  serverPort = diameterConfig.bindPort
+  updatePeerMap(DiameterConfigManager.getDiameterPeerConfig)
+  updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
+  
+  // Server socket
+  implicit val actorSytem = context.system
+  implicit val materializer = ActorMaterializer()
+  startServerSocket(serverIPAddress, serverPort)
 	
 	/**
 	 * Will create the actors for the configured peers and shutdown the ones not configured anymore.
@@ -76,7 +78,7 @@ class DiameterRouter() extends Actor with ActorLogging {
 	    actorRef = route.handlerObject match {
 	      case Some(hObj) => 
 	        log.info("Instantating Actor for {}", hObj)
-	        Some(context.actorOf(DiameterMessageHandler.props(hObj)))
+	        Some(context.actorOf(DiameterMessageHandler.props(hObj), route.realm+"-"+route.applicationId))
 	      case None => None
 	    }
 	  } yield DiameterRoute(route.realm, route.applicationId, route.peers, route.policy, actorRef)
@@ -106,10 +108,6 @@ class DiameterRouter() extends Actor with ActorLogging {
     
     None
   }
-	
-  // Server socket
-  implicit val actorSytem = context.system
-  implicit val materializer = ActorMaterializer()
 
   def startServerSocket(ipAddress: String, port: Int) = {
     
@@ -145,38 +143,22 @@ class DiameterRouter() extends Actor with ActorLogging {
   
 
 	def receive  = LoggingReceive {
-	  
-	  /*
-	   * Configuration messages
-	   */
-	  case DiameterServerConfigMsg(ipAddress, port) =>
-	    // This one cannot change without restart
-	    startServerSocket(ipAddress, port)
-	    
-	  case PeerConfigMsg(peerConfig) =>
-	    updatePeerMap(peerConfig)
-	    
-	  case RouteConfigMsg(routeConfig) =>
-	    updateDiameterRoutes(routeConfig)
-	    
 	  /*
 	   * Diameter messages
 	   */
 	  case message : DiameterMessage =>
 	    // Diameter message received without actorRef => requires routing
-	    
 	    findRoute(message >> "Destination-Realm", message.application) match {
 	      case Some(DiameterRoute(realm, application, peers, policy, handler)) =>
 	        // Route found
 	        handler match {
 	          case Some(actorRef) => actorRef ! RoutedDiameterMessage(message, context.sender)
-	          case None => log.error("To be implemented later") // Route to another server
+	          case None => log.error("Route to another server: not yet implemented") // Route to another server
 	        }
 	      case None =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
 	    }
 
-	    
 		case any: Any => Nil
 	}
   
