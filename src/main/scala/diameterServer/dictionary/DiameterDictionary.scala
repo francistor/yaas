@@ -88,8 +88,8 @@ object DiameterTypes {
 }
 
 class GroupedProperties(mandatory: Option[Boolean], val minOccurs: Option[Int], val maxOccurs: Option[Int]){
-	val m = mandatory.getOrElse(false)
-			override def toString() = {s"{minOccurs: $minOccurs, maxOccurs: $maxOccurs, mandatory: $m}"}
+	val isMandatory = mandatory.getOrElse(false)
+			override def toString() = {s"{minOccurs: $minOccurs, maxOccurs: $maxOccurs, mandatory: $isMandatory}"}
 }
 
 /*
@@ -163,38 +163,40 @@ class AVPAttributesSerializer extends CustomSerializer[AVPAttributes](implicit f
 		))
 
 // Applications
-class AVPNameWithBounds(val name: String, val bounds: GroupedProperties)
 // Request or Response
-class RoRDictItem(avpList: List[AVPNameWithBounds])
-class RequestDictItem(val avpList: List[AVPNameWithBounds]) extends RoRDictItem(avpList)
-class ResponseDictItem(val avpList: List[AVPNameWithBounds]) extends RoRDictItem(avpList)
-class CommandDictItem(val code: Int, val name: String, val request: RequestDictItem, val response: ResponseDictItem)
+class RoRDictItem(val avpNameMap: Map[String, GroupedProperties], val avpCodeMap: Map[(Int, Int), GroupedProperties])
+class CommandDictItem(val code: Int, val name: String, val request: RoRDictItem, val response: RoRDictItem)
 class ApplicationAttributes(val code: Int, val name: String, val appType: Option[String], val commands: List[CommandDictItem])
 class ApplicationDictItem(val code: Int, val name: String, val appType: Option[String], val commandMapByName: Map[String, CommandDictItem], val commandMapByCode: Map[Int, CommandDictItem])
 
-// A RequestOrResponse is a JSON object with attribute names as properties, and
-// Bounds as values
-class RoRDictItemSerializer extends CustomSerializer[RoRDictItem](implicit formats => (
-		{
-  		case jv: JValue =>
-  		val l = for {
+// A RequestOrResponse is a JSON object with attribute names as properties, and Bounds as values
+// Need to pass a previously decoded AVPmap with attribute codes
+class RoRDictItemSerializer(avpMap: Map[String, AVPDictItem]) extends CustomSerializer[RoRDictItem](implicit formats => (
+  {
+  	case jv: JValue =>
+  		val nameMap = for {
   			(name, bounds) <- jv.extract[Map[String, JValue]]
-  		} yield new AVPNameWithBounds(name, bounds.extract[GroupedProperties])
+  		} yield (name, bounds.extract[GroupedProperties])
+  		
+  		val codeMap = for {
+  		  (k, v) <- nameMap
+  		  if avpMap.get(k).isDefined // To make sure that the AVP defined in the request/response is also defined as an AVP
+  		} yield ((avpMap(k).vendorId, avpMap(k).code) -> v)
   
-  		new RoRDictItem(l.toList)
-		},
-		{
-  		case v: AVPNameWithBounds =>
+  		new RoRDictItem(nameMap, codeMap)
+  },
+  {
+  	case v: RoRDictItem =>
   		// Not used
   		JObject()
-		}
-		))
-
+  }
+  ))
+    
 // Holds the parsed diameter dictionary with utility functions to use
 object DiameterDictionary {
 	val dictionaryJson = ConfigManager.getConfigObject("diameterDictionary.json")
 
-  implicit val jsonFormats = DefaultFormats + new AVPAttributesSerializer + new RoRDictItemSerializer
+  implicit var jsonFormats = DefaultFormats + new AVPAttributesSerializer
 
 	def getDictionaryItemFromAttributes(dictItem: AVPAttributes, vendorId: String, vendorMap: Map[String, String]) : AVPDictItem = {
 			val vendorPrefix = if(vendorId == "0") "" else vendorMap(vendorId)+"-"
@@ -218,12 +220,15 @@ object DiameterDictionary {
 	} yield ((vendorId.toInt, vendorDictItem.code) -> getDictionaryItemFromAttributes(vendorDictItem, vendorId, vendorNames))
 
 	// Holds a map (avpName -> DictionaryItem)
-	val avpMapByName = for {
+	val avpMapByName : Map[String, AVPDictItem] = for {
 		(vendorId, vendorDictItems) <- (dictionaryJson \ "avp").extract[Map[String, JArray]]
 				jVendorDictItem <- vendorDictItems.arr
 				vendorDictItem = jVendorDictItem.extract[AVPAttributes]
 						vendorName = if(vendorId=="0") "" else ((dictionaryJson \ "vendor" \ vendorId).extract[String] + "-")
 	} yield (vendorName + vendorDictItem.name -> getDictionaryItemFromAttributes(vendorDictItem, vendorId, vendorNames))
+	
+	// Now the JSON formats make use of the just created avpMapByName
+	jsonFormats = jsonFormats + new RoRDictItemSerializer(avpMapByName)
 
 	// Holds a map (appCode -> ApplicationDictItem)
 	val appMapByCode = (for {

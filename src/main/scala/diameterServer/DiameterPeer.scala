@@ -218,7 +218,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       // Register actor in router
       context.parent ! diameterPeerConfig
       
-      log.info("Sent CEA. New Peer Actor is up {}", diameterPeerConfig)
+      log.info("Sent CEA. New Peer Actor is up for {}", diameterPeerConfig.diameterHost)
     }
   }
   

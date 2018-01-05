@@ -106,7 +106,7 @@ object DiameterAVP {
   }
 }
 
-abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, val isMandatory: Boolean, val vendorId: Int, val value: A){
+abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, var isMandatory: Boolean, val vendorId: Int, val value: A){
   
   implicit val byteOrder = DiameterAVP.byteOrder 
   
@@ -656,8 +656,13 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     // End-to-End identifier
     builder.putInt(endToEndId)
     
+    // Set flags and filter according to dictionary
+    val commandDictItem = DiameterDictionary.appMapByCode(applicationId).commandMapByCode(commandCode)
+    val commandAVPMap = if(isRequest) commandDictItem.request.avpCodeMap else commandDictItem.response.avpCodeMap
+   
     // Add AVPs
-    for(avp <- avps) {
+    for(avp <- avps if commandAVPMap.get((avp.vendorId, avp.code)).isDefined ) {
+      if(commandAVPMap((avp.vendorId, avp.code)).isMandatory) avp.isMandatory=true
       builder.append(avp.getBytes)
       if(builder.length % 4 != 0) builder.putBytes(new Array[Byte](4 - builder.length % 4))
     }

@@ -1,5 +1,44 @@
 package diameterServer
 
+/*
+
+The basic set of Actors are Peer / Router / Handler
+
+Peer actors
+-----------
+
+Incoming messages (got from TCPStream handler)
+	request -> send to router as diameterMessage
+	reply -> look up in cache the h2hId and send as diameterMessage to the actor that sent the request
+	
+Outgoing messages (got as actor messages)
+	request (RoutedDiameterMessage) -> store in cache, along with the actor that sent the request, and send to peer
+	reply (DiameterMessage) -> send to peer
+	
+In addition, Peers may act as "active" or "passive". "Passive" peers are created by the Router after an incoming
+connection is received, and register in the Router with a DiameterPeerConfig message
+
+Peers send periodically to themselves Clean() messages to purge old cache entries
+	
+Router Actor
+------------
+
+Receive DiameterMessage(s), either from a Peer Actor (incoming requests) or from a Handler (generated requests) and
+send RoutedDiameterMessage(s) either to a Peer Actor or a Handler, depending on the route configuration
+
+Handler Actor
+-------------
+
+Incoming messages (got as actor messages)
+	request (RoutedDiameterMessage) -> processed and answered directly to the sending actor
+	reply (DiameterMessage) -> look up in cache for the callback to invoke
+	
+Outgoing messages (create actor messages)
+	request (RoutedDiameterMessage) -> store in cache and send to Router
+	reply (DiameterMessage) -> send to Peer that sent the request
+
+ */
+
 import akka.actor.{ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill}
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.Future
@@ -197,7 +236,7 @@ class DiameterRouter() extends Actor with ActorLogging {
 	        sender ! PoisonPill
 	    }
 	    
-	  case PeerDown(actorRef) =>
+	  case PeerDown =>
 	    // Find the peer whose Actor is the one sending the down message
 	    peerHostMap.find{case (hostName, peerPointer) => Some(sender).equals(peerPointer.actorRefOption)} match {
 	      case Some((hostName, peerPointer)) => 

@@ -30,7 +30,9 @@ class GxHandler extends DiameterMessageHandler {
     request << ("Origin-Realm" -> DiameterConfigManager.getDiameterConfig.diameterRealm)
     request << ("Destination-Realm" -> "8950AAA")
     request << ("Session-Id" -> "1")
-    request << ("Origin-State-Id" -> 0)
+    request << ("Auth-Application-Id" -> "Gx")
+    request << ("CC-Request-Type" -> "Initial")
+    request << ("CC-Request-Number" -> 1)
     sendRequest(request, 5000, (proxyReply) => {
         if(proxyReply.isDefined) log.info("Received proxy reply {}", proxyReply.get) else log.info("Proxy timeout")
         val reply = DiameterMessage.reply(message)  
