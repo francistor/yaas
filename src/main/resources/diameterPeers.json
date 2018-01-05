@@ -8,7 +8,7 @@
 	},
 	{
         "diameterHost": "host.8950AAA",
-        "IPAddress": "192.168.1.34",
+        "IPAddress": "127.0.0.1",
         "port": 3869,
 		"connectionPolicy": "passive",
 		"watchdogIntervalMillis": 10000

@@ -1,6 +1,6 @@
 package diameterServer
 
-import akka.actor.{ActorSystem, Actor, ActorRef, Props}
+import akka.actor.{ActorSystem, Actor, ActorRef, Props, Cancellable}
 import akka.actor.ActorLogging
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.duration._
@@ -10,6 +10,7 @@ import diameterServer.DiameterRouter._
 
 
 object DiameterMessageHandler {
+  // Messages
   case class CancelRequest(e2eId: Long) 
 }
 
@@ -21,15 +22,19 @@ class DiameterMessageHandler extends Actor with ActorLogging {
   
   type ReplyCallback = (Option[DiameterMessage]) => Unit
   
-  def sendReply(message: DiameterMessage, originActor: ActorRef) = {
-    originActor ! message
+  def sendReply(diameterMessage: DiameterMessage, originActor: ActorRef) = {
+    originActor ! diameterMessage
+    
+    log.debug("Sent response message\n {}\n", diameterMessage.toString())
   }
   
-  def sendRequest(message: DiameterMessage, timeoutMillis: Int, callback: ReplyCallback) = {
+  def sendRequest(diameterMessage: DiameterMessage, timeoutMillis: Int, callback: ReplyCallback) = {
     // Publish in cache
-    cacheIn(message.endToEndId, timeoutMillis, callback)
+    cacheIn(diameterMessage.endToEndId, timeoutMillis, callback)
     // Send request
-    context.parent ! message
+    context.parent ! diameterMessage
+    
+    log.debug("Sent request message\n {}\n", diameterMessage.toString())
   }
   
   def handleMessage(diameterMessage: DiameterMessage, originActor: ActorRef) = {
@@ -41,10 +46,12 @@ class DiameterMessageHandler extends Actor with ActorLogging {
       cacheOut(e2eId, None)
     
     case RoutedDiameterMessage(diameterMessage, originActor) =>
+      log.debug("Received request message\n {}\n", diameterMessage.toString())
       handleMessage(diameterMessage, originActor)
       
-    case message: DiameterMessage =>
-      cacheOut(message.endToEndId, Some(message))
+    case diameterMessage: DiameterMessage =>
+      log.debug("Received response message\n {}\n", diameterMessage.toString())
+      cacheOut(diameterMessage.endToEndId, Some(diameterMessage))
       
 		case any: Any => Nil
 	}
@@ -52,26 +59,29 @@ class DiameterMessageHandler extends Actor with ActorLogging {
   ///////////////////
   // Cache functions
   ///////////////////
-  val requestCache = scala.collection.mutable.Map[Long, ReplyCallback]()
+  case class RequestEntry(callback: ReplyCallback, timer: Cancellable)
+  val requestCache = scala.collection.mutable.Map[Long, RequestEntry]()
   
   def cacheIn(e2eId: Long, timeoutMillis: Int, callback: ReplyCallback) = {
-    // Add to map
-    requestCache.put(e2eId, callback)
-    
     // Schedule timer
-    context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, DiameterMessageHandler.CancelRequest(e2eId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, DiameterMessageHandler.CancelRequest(e2eId))
  
-    log.debug("Added to request cache: {}", e2eId)
+    // Add to map
+    requestCache.put(e2eId, RequestEntry(callback, timer))
+    
+    log.debug("Request -> Added to request cache: {} {}", e2eId, requestCache(e2eId))
   }
   
-  def cacheOut(e2eId: Long, message: Option[DiameterMessage]) = {
-    if(requestCache.get(e2eId).isDefined){
-      // Invoke callback with replied message (may be None if timeout)
-      requestCache(e2eId)(message)
-      // Remove cache entry
-      requestCache.remove(e2eId)
-      log.debug("Removed from request cache: {}", e2eId)
-    } else log.warning("Unsolicited or cancelled reply with e2eId: {}", e2eId)
+  def cacheOut(e2eId: Long, diameterMessageOption: Option[DiameterMessage]) = {
+    // Remove cache entry
+    requestCache.remove(e2eId) match {
+      case Some(requestEntry) =>
+        if(diameterMessageOption.isDefined) log.debug("Reply -> removed entry from request cache: {}", e2eId) else log.debug("Timeout -> removed entry from request cache: {}", e2eId)
+        requestEntry.timer.cancel()
+        requestEntry.callback(diameterMessageOption)
+      
+      case None =>
+        log.warning("Reply -> no entry found in cache")
+    }
   }
-  
 }

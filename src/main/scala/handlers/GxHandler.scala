@@ -11,7 +11,7 @@ import diameterServer.dictionary.DiameterDictionary
 
 class GxHandler extends DiameterMessageHandler {
   
-  println("Instantiated GxHandler")
+  log.info("Instantiated GxHandler")
   
   implicit val idGen = new IDGenerator
   
@@ -24,16 +24,19 @@ class GxHandler extends DiameterMessageHandler {
   
   def handleCCR(message : DiameterMessage, originActor: ActorRef) = {
     
-    val reply = DiameterMessage.reply(message)
-    
-    // Add basic parameters
-    val diameterConfig = DiameterConfigManager.getDiameterConfig
-    
-    reply << ("Origin-Host" -> diameterConfig.diameterHost)
-    reply << ("Origin-Realm" -> diameterConfig.diameterRealm)    
-    
-    reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-    
-    sendReply(reply, originActor)
+    // Send requst to proxy
+    val request = DiameterMessage.request("Gx", "Credit-Control")
+    request << ("Origin-Host" -> DiameterConfigManager.getDiameterConfig.diameterHost)
+    request << ("Origin-Realm" -> DiameterConfigManager.getDiameterConfig.diameterRealm)
+    request << ("Destination-Realm" -> "8950AAA")
+    request << ("Session-Id" -> "1")
+    request << ("Origin-State-Id" -> 0)
+    sendRequest(request, 5000, (proxyReply) => {
+        if(proxyReply.isDefined) log.info("Received proxy reply {}", proxyReply.get) else log.info("Proxy timeout")
+        val reply = DiameterMessage.reply(message)  
+        reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+        sendReply(reply, originActor)
+      }
+    )
   }
 }

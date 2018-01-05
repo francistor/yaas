@@ -164,12 +164,12 @@ abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, val
    * Print the AVP in [name -> value] format
    * With special treatment for Grouped and Enumerated attributes
    */
-  def pretty : String = {
+  def pretty(indent: Int = 0) : String = {
     val dictItem = DiameterDictionary.avpMapByCode.get((vendorId, code)).getOrElse(BasicAVPDictItem(0, 0, "Unknown", DiameterTypes.NONE))
     val attributeName = dictItem.name
     
     val attributeValue = this match {
-      case thisAVP : GroupedAVP => thisAVP.value.foldRight("")((avp, acc) => acc + avp.pretty + " ")
+      case thisAVP : GroupedAVP => thisAVP.value.foldRight("\n")((avp, acc) => acc + avp.pretty(indent + 1) + "\n")
       case thisAVP : EnumeratedAVP =>
         dictItem match {
           case di : EnumeratedAVPDictItem =>
@@ -178,8 +178,10 @@ abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, val
         }
       case _ => stringValue
     }
+    
+    val tab = "  " * indent
 
-    s"[ $attributeName = $attributeValue ]"
+    s"$tab[$attributeName = $attributeValue]"
   } 
 }
 
@@ -717,8 +719,9 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     val application = DiameterDictionary.appMapByCode.get(applicationId)
     val applicationName = application.map(_.name).getOrElse("Unknown")
     val commandName = application.map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
-    val prettyAVPList = avps.foldRight("")((avp, acc) => acc + avp.pretty + " ")
-    s"{$header\napplication: $applicationName, command: $commandName\navps: $prettyAVPList}"
+    val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty() + "\n")
+    
+    s"\n$applicationName - $commandName\n$header\n$prettyAVPs"
   }
 }
 
