@@ -2,12 +2,12 @@ package handlers
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
-import diameterServer._
-import diameterServer.coding._
-import diameterServer.util.IDGenerator
-import diameterServer.coding.DiameterConversions._
-import diameterServer.config.DiameterConfigManager
-import diameterServer.dictionary.DiameterDictionary
+import yaas.diameterServer._
+import yaas.diameterServer.coding._
+import yaas.diameterServer.util.IDGenerator
+import yaas.diameterServer.coding.DiameterConversions._
+import yaas.diameterServer.config.DiameterConfigManager
+import yaas.diameterServer.dictionary.DiameterDictionary
 
 class GxHandler extends DiameterMessageHandler {
   

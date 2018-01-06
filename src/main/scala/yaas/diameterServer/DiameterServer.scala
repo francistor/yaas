@@ -1,9 +1,9 @@
-package diameterServer
+package yaas.diameterServer
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 import com.typesafe.config.ConfigFactory
 
-import diameterServer.dictionary.DiameterDictionary
+import yaas.diameterServer.dictionary.DiameterDictionary
 
 ////////////////////////////////////////////////////////////////////////
 // Main Diameter Object and application

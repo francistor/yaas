@@ -1,14 +1,14 @@
-package diameterServer
+package yaas.diameterServer
 
 import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill }
 import akka.event.{ Logging, LoggingReceive }
 
-import diameterServer.config.DiameterConfigManager
-import diameterServer.dictionary.DiameterDictionary
-import diameterServer.DiameterRouter.RoutedDiameterMessage
-import diameterServer.coding.DiameterMessage
-import diameterServer.coding.DiameterConversions._
-import diameterServer.config.{DiameterPeerConfig}
+import yaas.diameterServer.config.DiameterConfigManager
+import yaas.diameterServer.dictionary.DiameterDictionary
+import yaas.diameterServer.DiameterRouter.RoutedDiameterMessage
+import yaas.diameterServer.coding.DiameterMessage
+import yaas.diameterServer.coding.DiameterConversions._
+import yaas.diameterServer.config.{DiameterPeerConfig}
 import akka.stream._
 import akka.stream.scaladsl._
 import scala.concurrent.duration._
@@ -35,7 +35,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     .map(frame => {
       // Decode message
       try{
-        val decodedMessage = diameterServer.coding.DiameterMessage(frame)
+        val decodedMessage = yaas.diameterServer.coding.DiameterMessage(frame)
         // If Base, handle locally
         if(decodedMessage.applicationId == 0) handleDiameterBase(decodedMessage)
         else {

@@ -1,4 +1,4 @@
-package diameterServer
+package yaas.diameterServer
 
 /*
 
@@ -47,9 +47,9 @@ import akka.stream.scaladsl._
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
-import diameterServer.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig, DiameterHandlerConfig}
-import diameterServer.coding.DiameterMessage
-import diameterServer.coding.DiameterConversions._
+import yaas.diameterServer.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig, DiameterHandlerConfig}
+import yaas.diameterServer.coding.DiameterMessage
+import yaas.diameterServer.coding.DiameterConversions._
 
 case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
 // Peer tables are made of these items

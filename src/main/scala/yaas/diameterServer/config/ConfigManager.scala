@@ -1,4 +1,4 @@
-package diameterServer.config
+package yaas.diameterServer.config
 
 import com.typesafe.config.ConfigFactory
 import java.nio.file._

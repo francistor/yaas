@@ -1,4 +1,4 @@
-package diameterServer.config
+package yaas.diameterServer.config
 
 import akka.actor.{ ActorSystem, Actor, ActorRef, Props }
 import akka.event.{ Logging, LoggingReceive }
@@ -6,7 +6,7 @@ import akka.event.{ Logging, LoggingReceive }
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
-import diameterServer.DiameterRouter._
+import yaas.diameterServer.DiameterRouter._
 
 // This class represents a diameter peer as read from the configuration file
 case class DiameterServerConfig(bindAddress: String, bindPort: Int, connectionInterval: Int, diameterHost: String, diameterRealm: String, vendorId: Int, productName: String, firmwareRevision: Int)

@@ -1,4 +1,4 @@
-package diameterServer.coding
+package yaas.diameterServer.coding
 
 import akka.util.{ByteStringBuilder, ByteString, ByteIterator}
 

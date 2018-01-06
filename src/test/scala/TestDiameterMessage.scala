@@ -1,3 +1,5 @@
+package yaas.test
+
 import scala.collection.mutable.Queue
 
 import akka.actor.ActorSystem
@@ -6,15 +8,15 @@ import akka.testkit.{TestKit}
 import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
 import org.scalatest.FlatSpec
 
-import diameterServer.dictionary._
-import diameterServer.coding._
+import yaas.diameterServer.dictionary._
+import yaas.diameterServer.coding._
+import yaas.diameterServer.coding.DiameterConversions._
 
 class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
   
   implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
-  implicit val idGen = new diameterServer.util.IDGenerator
-  import diameterServer.coding.DiameterConversions._
+  implicit val idGen = new yaas.diameterServer.util.IDGenerator
   
   override def afterAll {
     TestKit.shutdownActorSystem(system)

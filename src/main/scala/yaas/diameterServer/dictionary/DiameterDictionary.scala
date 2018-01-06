@@ -1,4 +1,4 @@
-package diameterServer.dictionary
+package yaas.diameterServer.dictionary
 
 import scala.collection.mutable.ListBuffer
 
@@ -7,7 +7,7 @@ import org.json4s.JsonDSL._
 import scala.reflect.ManifestFactory.Int
 import scala.reflect.ManifestFactory.classType
 
-import diameterServer.config.ConfigManager
+import yaas.diameterServer.config.ConfigManager
 
 // dictionary = {
 //      avp: {

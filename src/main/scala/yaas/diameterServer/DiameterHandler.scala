@@ -1,12 +1,12 @@
-package diameterServer
+package yaas.diameterServer
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props, Cancellable}
 import akka.actor.ActorLogging
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.duration._
 
-import diameterServer.coding.{DiameterMessage}
-import diameterServer.DiameterRouter._
+import yaas.diameterServer.coding.{DiameterMessage}
+import yaas.diameterServer.DiameterRouter._
 
 
 object DiameterMessageHandler {
