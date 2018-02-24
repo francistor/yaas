@@ -1,13 +1,13 @@
-package handlers
+package yaas.handlers
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
-import yaas.diameterServer._
-import yaas.diameterServer.coding._
-import yaas.diameterServer.util.IDGenerator
-import yaas.diameterServer.coding.DiameterConversions._
-import yaas.diameterServer.config.DiameterConfigManager
-import yaas.diameterServer.dictionary.DiameterDictionary
+import yaas.server._
+import yaas.diameter.coding._
+import yaas.util.IDGenerator
+import yaas.diameter.coding.DiameterConversions._
+import yaas.config.DiameterConfigManager
+import yaas.dictionary.DiameterDictionary
 
 class GxHandler extends DiameterMessageHandler {
   
@@ -24,7 +24,7 @@ class GxHandler extends DiameterMessageHandler {
   
   def handleCCR(message : DiameterMessage, originActor: ActorRef) = {
     
-    // Send requst to proxy
+    // Send request to proxy
     val request = DiameterMessage.request("Gx", "Credit-Control")
     request << ("Origin-Host" -> DiameterConfigManager.getDiameterConfig.diameterHost)
     request << ("Origin-Realm" -> DiameterConfigManager.getDiameterConfig.diameterRealm)

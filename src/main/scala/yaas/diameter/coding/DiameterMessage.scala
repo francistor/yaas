@@ -1,13 +1,13 @@
-package yaas.diameterServer.coding
+package yaas.diameter.coding
 
 import org.json4s._
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
 import scala.collection.mutable.Queue
 
-import yaas.diameterServer.dictionary._
-import yaas.diameterServer.config.DiameterConfigManager
-import yaas.diameterServer.util.IDGenerator
+import yaas.dictionary._
+import yaas.config.DiameterConfigManager
+import yaas.util.IDGenerator
 
 class DiameterCodingException(val msg: String) extends java.lang.Exception(msg: String)
 

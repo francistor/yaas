@@ -1,7 +1,7 @@
-package yaas.diameterServer
+package yaas.server
 
-import yaas.diameterServer.coding._
-import yaas.diameterServer.coding.DiameterConversions._
+import yaas.diameter.coding._
+import yaas.diameter.coding.DiameterConversions._
 
 /**
  * This object has to be encapsulated in an Actor, since it is not thread safe
@@ -21,7 +21,7 @@ object DiameterStats {
    */
   
   /*
-   * One instace of this class for each set of keys to be kept counters
+   * One instance of this class for each set of keys to be kept counters
    */
   case class DiameterStatItem(io: String, ra: String, pr: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String) {
     private def getKeyValue(key : String) = {

@@ -1,4 +1,4 @@
-package yaas.diameterServer.util
+package yaas.util
 
 class IDGenerator {
   var hopByHopId = (Math.random() * 2147483647).toInt

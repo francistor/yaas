@@ -1,12 +1,12 @@
-package yaas.diameterServer
+package yaas.server
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props, Cancellable}
 import akka.actor.ActorLogging
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.duration._
 
-import yaas.diameterServer.coding.{DiameterMessage}
-import yaas.diameterServer.DiameterRouter._
+import yaas.diameter.coding.{DiameterMessage}
+import yaas.server.DiameterRouter._
 
 
 object DiameterMessageHandler {
@@ -31,7 +31,7 @@ class DiameterMessageHandler extends Actor with ActorLogging {
   def sendRequest(diameterMessage: DiameterMessage, timeoutMillis: Int, callback: ReplyCallback) = {
     // Publish in cache
     cacheIn(diameterMessage.endToEndId, timeoutMillis, callback)
-    // Send request
+    // Send request using router
     context.parent ! diameterMessage
     
     log.debug("Sent request message\n {}\n", diameterMessage.toString())
@@ -52,8 +52,6 @@ class DiameterMessageHandler extends Actor with ActorLogging {
     case diameterMessage: DiameterMessage =>
       log.debug("Received response message\n {}\n", diameterMessage.toString())
       cacheOut(diameterMessage.endToEndId, Some(diameterMessage))
-      
-		case any: Any => Nil
 	}
   
   ///////////////////

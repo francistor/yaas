@@ -1,14 +1,14 @@
-package yaas.diameterServer
+package yaas.server
 
 import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill }
 import akka.event.{ Logging, LoggingReceive }
 
-import yaas.diameterServer.config.DiameterConfigManager
-import yaas.diameterServer.dictionary.DiameterDictionary
-import yaas.diameterServer.DiameterRouter.RoutedDiameterMessage
-import yaas.diameterServer.coding.DiameterMessage
-import yaas.diameterServer.coding.DiameterConversions._
-import yaas.diameterServer.config.{DiameterPeerConfig}
+import yaas.config.DiameterConfigManager
+import yaas.dictionary.DiameterDictionary
+import yaas.server.DiameterRouter.RoutedDiameterMessage
+import yaas.diameter.coding.DiameterMessage
+import yaas.diameter.coding.DiameterConversions._
+import yaas.config.{DiameterPeerConfig}
 import akka.stream._
 import akka.stream.scaladsl._
 import scala.concurrent.duration._
@@ -26,6 +26,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
   import DiameterPeer._
   import context.dispatcher
   
+  // TODO: Queue size should be configurable
   val handlerSource = Source.queue[ByteString](1000, akka.stream.OverflowStrategy.dropTail)
   val handlerSink = Flow[ByteString]
     // Framing.lengthField does not seem to work as expected if the computeFrameSize is not used
@@ -35,8 +36,8 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     .map(frame => {
       // Decode message
       try{
-        val decodedMessage = yaas.diameterServer.coding.DiameterMessage(frame)
-        // If Base, handle locally
+        val decodedMessage = yaas.diameter.coding.DiameterMessage(frame)
+        // If Base, handle in this PeerActor
         if(decodedMessage.applicationId == 0) handleDiameterBase(decodedMessage)
         else {
           // If request, route message
@@ -92,6 +93,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       }
     
     // Message to send a response to peer
+    // TODO: Check that this is a response?
     case message: DiameterMessage =>
       if(inputQueue.isDefined){
         inputQueue.get.offer(message.getBytes)
@@ -99,6 +101,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       else log.warning("Discarding message to unconnected peer")
       
     // Message to send request to peer
+    // TODO: Check that this is a request?
     case RoutedDiameterMessage(message, originActor) =>
       if(inputQueue.isDefined){
         cacheIn(message.hopByHopId, originActor)
@@ -141,7 +144,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
   }
   
   def cacheClean = {
-    val targetTimestamp = System.currentTimeMillis() - 10000 // Fixed 10 seconds timeout
+    val targetTimestamp = System.currentTimeMillis() - 10000 // Fixed 10 seconds timeout to delete old messages. TODO: This should be a configuration parameter
     requestCache.retain((k, v) => v.timestamp > targetTimestamp)
   }
   
@@ -202,7 +205,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       // Add supported applications
       for (route <- DiameterConfigManager.getDiameterRouteConfig){
          if(route.applicationId != "*"){
-           DiameterDictionary.appMapByName.get(route.applicationId).map(dictItem =>{
+           DiameterDictionary.appMapByName.get(route.applicationId).map(dictItem => {
              if(dictItem.appType == Some("auth")) reply << ("Auth-Application-Id", dictItem.code)
              if(dictItem.appType == Some("acct")) reply << ("Acct-Application-Id", dictItem.code)
            })
