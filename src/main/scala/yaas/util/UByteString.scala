@@ -1,4 +1,4 @@
-package yaas.diameter.coding
+package yaas.util
 
 import akka.util.{ByteStringBuilder, ByteString, ByteIterator}
 
@@ -27,6 +27,30 @@ object UByteString {
   
   def fromUnsignedInt(value: Int) : Long = {
     if(value < 0) 4294967296L + value else value
+  }
+  
+  def putUnsignedByte(bsb: ByteStringBuilder, value: Int): ByteStringBuilder = {
+    bsb.putByte(toUnsignedByte(value))
+  }
+  
+  def getUnsignedByte(iterator: ByteIterator): Int = {
+    fromUnsignedByte(iterator.getByte)
+  }
+  
+  def getUnsignedByte(bs: ByteString): Int = {
+    getUnsignedByte(bs.iterator)
+  }
+  
+  def putUnsignedShort(bsb: ByteStringBuilder, value: Int): ByteStringBuilder = {
+    bsb.putShort(toUnsignedShort(value))
+  }
+  
+  def getUnsignedShort(iterator: ByteIterator): Int = {
+    fromUnsignedShort(iterator.getShort)
+  }
+  
+  def getUnsignedShort(bs: ByteString): Int = {
+    getUnsignedShort(bs.iterator)
   }
   
   def putUnsigned24(bsb: ByteStringBuilder, value: Int) : ByteStringBuilder = {

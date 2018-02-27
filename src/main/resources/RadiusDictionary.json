@@ -1,0 +1,189 @@
+{
+	"_version": 1001,
+	"vendor":
+	{
+		"1001": "francisco.cardosogil@gmail.com",
+		"9": "Cisco",
+		"10415": "3GPP",
+		"21100": "PSA"
+	},
+	"avp":
+	{
+		"0":
+		[
+			{
+ 				"code": 1,
+                "name": "User-Name",
+                "type": "String",
+                "encrypt": 0,
+                "hasTag": 0
+			},
+			{
+				"code": 2,
+				"name": "User-Password",
+				"type": "Octets",
+				"encrypt": 1
+			},
+			{
+				"code": 3,
+				"name": "CHAP-Password",
+				"type": "Octets"
+			},
+			{
+				"code": 4,
+				"name": "NAS-IP-Address",
+				"type": "Address"
+			},
+			{
+				"code": 5,
+				"name": "NAS-Port",
+				"type": "Integer"
+			},
+			{
+				"code": 6,
+				"name": "Service-Type",
+				"type": "Integer",
+                "enumValues":
+                {
+                	"Login": 1,
+                	"Framed": 2,
+                	"Callback-Login": 3,
+                	"Callback-Framed": 4,
+                	"Outbound": 5,
+                	"Administrative": 6,
+                	"NAS-Prompt": 7,
+                	"Authenticate-Only": 8,
+                	"Callback-NAS-Prompt": 9,
+                	"Call-Check": 10,
+                	"Callback-Administrative": 11
+                }
+			},
+			{
+				"code": 7,
+				"name": "Framed-Protocol",
+				"type": "Integer",
+				"enumValues":
+				{
+					"PPP": 1,
+					"SLIP": 2
+				}
+			},
+			{
+				"code": 8,
+				"name": "Framed-IP-Address",
+				"type": "Address"
+			},
+			{
+				"code": 9,
+				"name": "Framed-IP-Netmask",
+				"type": "Address"
+			},
+			{
+				"code": 10,
+				"name": "Framed-Routing",
+				"type": "Integer",
+				"enumValues": 
+				{
+					"None": 0,
+					"Listen": 1,
+					"Send": 2,
+					"Listen-Send": 3
+				}
+			},
+			{
+				"code": 11,
+				"name": "Filter-Id",
+				"type": "String"
+			},
+			{
+				"code": 18,
+				"name": "Reply-Message",
+				"type": "String"
+			},
+			{
+				"code": 25,
+				"name": "Class",
+				"type": "Octets"
+			},
+			{
+				"code": 27,
+				"name": "Session-Timeout",
+				"type": "Integer"
+			},
+			{
+				"code": 28,
+				"name": "Idle-Timeout",
+				"type": "Integer"
+			},
+			{
+				"code": 30,
+				"name": "Called-Station-Id",
+				"type": "Octets"
+			},
+			{
+				"code": 31,
+				"name": "Calling-Station-Id",
+				"type": "Octets"
+			},
+			{
+				"code": 32,
+				"name": "NAS-Identifier",
+				"type": "Octets"
+			},
+			{
+				"code": 33,
+				"name": "Proxy-State",
+				"type": "Octets"
+			},
+			{
+				"code": 40,
+				"name": "Acct-Status-Type",
+				"type": "Integer",
+				"enumValues": 
+				{
+					"Start": 1,
+					"Stop": 2,
+					"Interim-Update": 3
+				}
+			},
+			{
+				"code": 49,
+				"name": "Acct-Terminate-Cause",
+				"type": "Integer"
+			},
+			{
+				"code": 60,
+				"name": "CHAP-Challenge",
+				"type": "Octets"
+			}
+		],
+		"21100": 
+		[
+			{
+				"code": 101,
+				"name": "Service-Type",
+				"type": "String"
+			},
+			{
+				"code": 102,
+				"name": "Service-Name",
+				"type": "String"
+			},
+			{
+				"code": 105,
+				"name": "AutoActivatedCampaignService",
+				"type": "String"
+			},
+			{
+				"code": 106,
+				"name": "Phone",
+				"type": "String"
+			},
+			{
+				"code": 107,
+				"name": "CampaignData",
+				"type": "String"
+			}
+		]
+	}
+}

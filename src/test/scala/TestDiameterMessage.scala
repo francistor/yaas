@@ -22,7 +22,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     TestKit.shutdownActorSystem(system)
   }
   
-  "Dictionary has been correctly loaded" in {
+  "Diameter Dictionary has been correctly loaded" in {
     val avpNameMap = DiameterDictionary.avpMapByName
     avpNameMap("User-Name") mustEqual BasicAVPDictItem(1, 0, "User-Name", DiameterTypes.UTF8STRING)
     avpNameMap("3GPP-Bearer-Identifier") mustEqual BasicAVPDictItem(1020, 10415, "3GPP-Bearer-Identifier", DiameterTypes.OCTETSTRING)
@@ -116,14 +116,14 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   
   "Diameter Message serialization and deserialization" in {
     val groupedAVP = new GroupedAVP(18, true, false, 1001, Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
-    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, Queue(groupedAVP) /* value */, true /* isRequest */)
+    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, Queue(groupedAVP) /* value */, isRequest = true /* isRequest */)
     val serializedMessage = diameterMessage.getBytes
     val unserializedDiameterMessage = DiameterMessage(serializedMessage)
     unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)
     unserializedDiameterMessage.commandCode must be (diameterMessage.commandCode)
     unserializedDiameterMessage.hopByHopId must be (diameterMessage.hopByHopId)
     unserializedDiameterMessage.endToEndId must be (diameterMessage.endToEndId)
-    unserializedDiameterMessage.avps mustEqual(Seq(groupedAVP))
+    unserializedDiameterMessage.avps mustEqual(Queue(groupedAVP))
   }
   
   "Adding and retrieving simple avp to Diameter Message" in {

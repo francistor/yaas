@@ -77,6 +77,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
   // TODO: If active peer, try to establish connection here
     
   def receive = LoggingReceive {
+    
     // New connection from peer
     case connection: Tcp.IncomingConnection => 
       if(inputQueue.isDefined){

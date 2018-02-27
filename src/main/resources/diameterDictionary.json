@@ -670,69 +670,69 @@
             "code": 16777238,
             "appType": "auth",
             "commands":
-                [
+            [
+                {
+                    "code": 272,
+                    "name": "Credit-Control",
+                    "request":
                     {
-                        "code": 272,
-                        "name": "Credit-Control",
-                        "request":
-                        {
-                            "Session-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Origin-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Origin-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Destination-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Destination-Host":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Auth-Application-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "CC-Request-Type":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "CC-Request-Number":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Origin-State-Id":{},
-                            "Subscription-Id":{},
-                            "Bearer-Identifier":{},
-                            "Framed-IP-Address":{},
-                            "Framed-IPv6-Prefix":{},
-                            "AVP":{}
-                        },
-                        "response":
-                        {
-                            "Session-Id":{"minOccurs": 1, "maxOccurs": 1},
-                            "Result-Code":{"minOccurs": 1, "maxOccurs": 1},
-                            "Origin-Host":{"minOccurs": 1, "maxOccurs": 1},
-                            "Origin-Realm":{"minOccurs": 1, "maxOccurs": 1},
-                            "Auth-Application-Id":{"minOccurs": 1, "maxOccurs": 1},
-                            "CC-Request-Type":{"minOccurs": 1, "maxOccurs": 1},
-                            "CC-Request-Number":{"minOccurs": 1, "maxOccurs": 1},
-                            "AVP":{}
-                        }
+                        "Session-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Origin-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Origin-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Host":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Auth-Application-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "CC-Request-Type":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "CC-Request-Number":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Origin-State-Id":{},
+                        "Subscription-Id":{},
+                        "Bearer-Identifier":{},
+                        "Framed-IP-Address":{},
+                        "Framed-IPv6-Prefix":{},
+                        "AVP":{}
+                    },
+                    "response":
+                    {
+                        "Session-Id":{"minOccurs": 1, "maxOccurs": 1},
+                        "Result-Code":{"minOccurs": 1, "maxOccurs": 1},
+                        "Origin-Host":{"minOccurs": 1, "maxOccurs": 1},
+                        "Origin-Realm":{"minOccurs": 1, "maxOccurs": 1},
+                        "Auth-Application-Id":{"minOccurs": 1, "maxOccurs": 1},
+                        "CC-Request-Type":{"minOccurs": 1, "maxOccurs": 1},
+                        "CC-Request-Number":{"minOccurs": 1, "maxOccurs": 1},
+                        "AVP":{}
                     }
-                ]
+                }
+            ]
         },
         {
             "name":"TestApplication",
             "code": 1000,
             "appType": "auth",
             "commands":
-                [
+            [
+                {
+                    "code": 2000,
+                    "name": "TestRequest",
+                    "request":
                     {
-                        "code": 2000,
-                        "name": "TestRequest",
-                        "request":
-                        {
-                            "Session-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Origin-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Origin-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Destination-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Destination-Host":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Auth-Application-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                            "Vendor-Id":{},
-                            "Subscription-Id":{},
-                            "User-Name":{},
-                            "Framed-IP-Address":{}
-                            
-                        },
-                        "response":
-                        {
-                        }
+                        "Session-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Origin-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Origin-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Host":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Auth-Application-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Vendor-Id":{},
+                        "Subscription-Id":{},
+                        "User-Name":{},
+                        "Framed-IP-Address":{},
+                        "francisco.cardosogil@gmail.com-myGrouped": {}
+                    },
+                    "response":
+                    {
                     }
-                ]
+                }
+            ]
         }
 	]
 }

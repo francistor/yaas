@@ -238,7 +238,6 @@ class DiameterRouter() extends Actor with ActorLogging {
 	    
 	  case PeerDown =>
 	    // Find the peer whose Actor is the one sending the down message
-	    // TODO: Should be better to find Actor from peer name
 	    peerHostMap.find{case (hostName, peerPointer) => Some(sender).equals(peerPointer.actorRefOption)} match {
 	      case Some((hostName, peerPointer)) => 
 	        log.info("Unregistering peer actor for {}", hostName)

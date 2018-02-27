@@ -1,6 +1,5 @@
 package yaas.diameter.coding
 
-import org.json4s._
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
 import scala.collection.mutable.Queue
@@ -8,6 +7,7 @@ import scala.collection.mutable.Queue
 import yaas.dictionary._
 import yaas.config.DiameterConfigManager
 import yaas.util.IDGenerator
+import yaas.util.UByteString
 
 class DiameterCodingException(val msg: String) extends java.lang.Exception(msg: String)
 
@@ -29,6 +29,7 @@ object DiameterAVP {
     //    vendorId: 0 / 4 byte
     //    data: rest of bytes
     
+    // TODO: use iterator
     val code = bytes.slice(0, 4).toByteBuffer.getInt
     val flags = bytes.slice(4, 5).toByteBuffer.get()
     val isVendorSpecific : Boolean = (flags & 0x80) > 0
@@ -192,7 +193,7 @@ class UnknownAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
   }
   
   def getPayloadBytes = {
-    ByteString()
+    ByteString.fromArray(value.toArray)
   }
   
   override def stringValue = {
@@ -504,8 +505,7 @@ class IPv6PrefixAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
     this(code, isVendorSpecific, isMandatory, vendorId, {
       // rfc3162
       val it = bytes.iterator
-      //println(it.length)
-      val prefixLen = it.drop(1).getByte
+      val prefixLen = it.drop(1).getByte // Ignore the first byte (reserved) and read the second, which is the prefix length
       val prefix = java.net.InetAddress.getByAddress(it.getBytes(it.len).padTo[Byte, Array[Byte]](16, 0))
       prefix.getHostAddress + "/" + prefixLen
     })
@@ -624,6 +624,7 @@ object DiameterMessage {
 /**
  * Represents a Diameter Message
  */
+// TODO: Queue should be immutable
 class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, val avps: Queue[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
@@ -660,8 +661,8 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     val commandDictItem = DiameterDictionary.appMapByCode(applicationId).commandMapByCode(commandCode)
     val commandAVPMap = if(isRequest) commandDictItem.request.avpCodeMap else commandDictItem.response.avpCodeMap
    
-    // Add AVPs
-    for(avp <- avps if commandAVPMap.get((avp.vendorId, avp.code)).isDefined ) {
+    // Add AVPs. Ignore avp if not in dictionary for this application & command
+    for(avp <- avps if commandAVPMap.get((avp.vendorId, avp.code)).isDefined) {
       if(commandAVPMap((avp.vendorId, avp.code)).isMandatory) avp.isMandatory=true
       builder.append(avp.getBytes)
       if(builder.length % 4 != 0) builder.putBytes(new Array[Byte](4 - builder.length % 4))
