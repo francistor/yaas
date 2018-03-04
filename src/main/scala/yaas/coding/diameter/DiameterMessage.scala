@@ -32,13 +32,13 @@ object DiameterAVP {
     // TODO: use iterator
     val it = bytes.iterator
     val code = UByteString.getUnsigned32(it)
-    val flags = bytes.slice(4, 5).toByteBuffer.get()
-    val isVendorSpecific : Boolean = (flags & 0x80) > 0
-    val isMandatory : Boolean = (flags & 0x40) > 0 
-    val avpLength : Int = UByteString.getUnsigned24(bytes.slice(5, 8))
+    val flags = UByteString.getUnsignedByte(it)
+      val isVendorSpecific : Boolean = (flags & 0x80) > 0
+      val isMandatory : Boolean = (flags & 0x40) > 0 
+    val avpLength = UByteString.getUnsigned24(it)
     val dataOffset = if (isVendorSpecific) 12 else 8 
     val vendorId = isVendorSpecific match {
-          case true => bytes.slice(8, 12).toByteBuffer.getInt
+          case true => UByteString.getUnsigned32(it)
           case false => 0
     }
     

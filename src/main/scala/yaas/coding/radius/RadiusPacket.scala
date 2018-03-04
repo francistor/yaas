@@ -396,7 +396,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     
     val result = builder.result
     // Write length  
-    // TODO: Use UBytestring !!!!!!!!!!!!!!!!!!
     result.patch(2, new ByteStringBuilder().putShort(result.length).result, 2)
   }
   

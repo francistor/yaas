@@ -48,6 +48,7 @@ import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
 import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig, DiameterHandlerConfig}
+import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
 import yaas.coding.diameter.DiameterMessage
 import yaas.coding.diameter.DiameterConversions._
 
@@ -70,29 +71,47 @@ class Router() extends Actor with ActorLogging {
   import Router._
   
   // Empty initial maps to working objects
-	var serverIPAddress = "0.0.0.0"
-	var serverPort = 0
+  // Diameter
+	var diameterServerIPAddress = "0.0.0.0"
+	var diameterServerPort = 0
 	var peerHostMap : scala.collection.mutable.Map[String, DiameterPeerPointer] = scala.collection.mutable.Map()
 	var handlerMap: Map[String, ActorRef] = Map()
 	var diameterRoutes : Seq[DiameterRoute] = Seq()
 	
-	// First update of configuration
+	// Radius
+	var radiusServerIPAddress = "0.0.0.0"
+	var authRadiusServerPort = 0
+	var acctRadiusServerPort = 0
+	var coARadiusServerPort =0
+	var radiusServers = Map()
+  var radiusServerGroups = Map()
+	var radiusClients = Map()
+	
+	// First update of diameter configuration
   val diameterConfig = DiameterConfigManager.getDiameterConfig
-  serverIPAddress = diameterConfig.bindAddress
-  serverPort = diameterConfig.bindPort
-  updatePeerMap(DiameterConfigManager.getDiameterPeerConfig)
+  diameterServerIPAddress = diameterConfig.bindAddress
+  diameterServerPort = diameterConfig.bindPort
+  updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
   updateHandlerMap(DiameterConfigManager.getDiameterHandlerConfig)
   updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
+  
+  // First update of radius configuration
+  val radiusConfig = RadiusConfigManager.getRadiusConfig
+  radiusServerIPAddress = radiusConfig.bindAddress
+  authRadiusServerPort = radiusConfig.authBindPort
+  acctRadiusServerPort = radiusConfig.acctBindPort
+  coARadiusServerPort = radiusConfig.coABindPort
+  
   
   // Server socket
   implicit val actorSytem = context.system
   implicit val materializer = ActorMaterializer()
-  startServerSocket(serverIPAddress, serverPort)
+  startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
 	
 	/**
 	 * Will create the actors for the configured peers and shutdown the ones not configured anymore.
 	 */
-	def updatePeerMap(conf: Map[String, DiameterPeerConfig]) = {
+	def updateDiameterPeerMap(conf: Map[String, DiameterPeerConfig]) = {
 	  
 	  // Shutdown unconfigured peers and return clean list  
 	  val cleanPeersHostMap = peerHostMap.flatMap { case (hostName, peerPointer) => 
@@ -155,7 +174,7 @@ class Router() extends Actor with ActorLogging {
     None
   }
 
-  def startServerSocket(ipAddress: String, port: Int) = {
+  def startDiameterServerSocket(ipAddress: String, port: Int) = {
     
     val futBinding = Tcp().bind(ipAddress, port).toMat(Sink.foreach(connection => {
       val remoteAddress = connection.remoteAddress.getAddress().getHostAddress()

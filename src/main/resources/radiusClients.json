@@ -1,0 +1,7 @@
+[
+	{
+		"name": "test-client",
+		"IPAddress": "127.0.0.1",
+		"secret": "secret"
+	}
+]

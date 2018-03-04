@@ -9,13 +9,13 @@ import yaas.coding.diameter.DiameterConversions._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
 
-class GxHandler extends DiameterMessageHandler {
+class GxHandler extends MessageHandler {
   
   log.info("Instantiated GxHandler")
   
   implicit val idGen = new IDGenerator
   
-  override def handleMessage(message : DiameterMessage, originActor: ActorRef) = {
+  override def handleDiameterMessage(message : DiameterMessage, originActor: ActorRef) = {
     
     message.command match {
       case "Credit-Control" => handleCCR(message, originActor)
@@ -33,11 +33,11 @@ class GxHandler extends DiameterMessageHandler {
     request << ("Auth-Application-Id" -> "Gx")
     request << ("CC-Request-Type" -> "Initial")
     request << ("CC-Request-Number" -> 1)
-    sendRequest(request, 5000, (proxyReply) => {
+    sendDiameterRequest(request, 5000, (proxyReply) => {
         if(proxyReply.isDefined) log.info("Received proxy reply {}", proxyReply.get) else log.info("Proxy timeout")
         val reply = DiameterMessage.reply(message)  
         reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-        sendReply(reply, originActor)
+        sendDiameterReply(reply, originActor)
       }
     )
   }

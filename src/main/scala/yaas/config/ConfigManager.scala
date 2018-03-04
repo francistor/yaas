@@ -27,7 +27,10 @@ object ConfigManager {
       "diameterPeers.json",
       "diameterRoutes.json",
       "diameterServer.json",
-      "radiusDictionary.json"
+      "radiusDictionary.json",
+      "radiusServer.json",
+      "radiusServers.json",
+      "radiusClients.json"
       ).foreach(readConfigObject(_))
   
   private def readConfigObject(objectName: String): JValue = { 			

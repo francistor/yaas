@@ -1,0 +1,27 @@
+{
+	"servers" : 
+	[
+		{
+        "name": "test-server",
+        "IPAddress": "127.0.0.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799
+        },
+        "timeoutMillis": 2000,
+        "tries": 1,
+        "errorCount": 20,
+        "quarantineTimeMillis": 4000
+      }
+	],
+	"serverGroups" :
+	[
+	  {
+        "name": "allServers",
+        "servers": ["test-server"],
+        "policy": "random"
+      }
+	]
+}

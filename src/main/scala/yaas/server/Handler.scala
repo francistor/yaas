@@ -9,26 +9,26 @@ import yaas.coding.diameter.{DiameterMessage}
 import yaas.server.Router._
 
 
-object DiameterMessageHandler {
+object MessageHandler {
   // Messages
   case class CancelRequest(e2eId: Long) 
 }
 
-class DiameterMessageHandler extends Actor with ActorLogging {
+class MessageHandler extends Actor with ActorLogging {
   
-  import DiameterMessageHandler._
+  import MessageHandler._
   
   implicit val executionContext = context.system.dispatcher
   
   type ReplyCallback = (Option[DiameterMessage]) => Unit
   
-  def sendReply(diameterMessage: DiameterMessage, originActor: ActorRef) = {
+  def sendDiameterReply(diameterMessage: DiameterMessage, originActor: ActorRef) = {
     originActor ! diameterMessage
     
     log.debug("Sent response message\n {}\n", diameterMessage.toString())
   }
   
-  def sendRequest(diameterMessage: DiameterMessage, timeoutMillis: Int, callback: ReplyCallback) = {
+  def sendDiameterRequest(diameterMessage: DiameterMessage, timeoutMillis: Int, callback: ReplyCallback) = {
     // Publish in cache
     cacheIn(diameterMessage.endToEndId, timeoutMillis, callback)
     // Send request using router
@@ -37,7 +37,7 @@ class DiameterMessageHandler extends Actor with ActorLogging {
     log.debug("Sent request message\n {}\n", diameterMessage.toString())
   }
   
-  def handleMessage(diameterMessage: DiameterMessage, originActor: ActorRef) = {
+  def handleDiameterMessage(diameterMessage: DiameterMessage, originActor: ActorRef) = {
     log.warning("Default handleMessage does nothing")
   }
   
@@ -47,7 +47,7 @@ class DiameterMessageHandler extends Actor with ActorLogging {
     
     case RoutedDiameterMessage(diameterMessage, originActor) =>
       log.debug("Received request message\n {}\n", diameterMessage.toString())
-      handleMessage(diameterMessage, originActor)
+      handleDiameterMessage(diameterMessage, originActor)
       
     case diameterMessage: DiameterMessage =>
       log.debug("Received response message\n {}\n", diameterMessage.toString())
@@ -62,7 +62,7 @@ class DiameterMessageHandler extends Actor with ActorLogging {
   
   def cacheIn(e2eId: Long, timeoutMillis: Int, callback: ReplyCallback) = {
     // Schedule timer
-    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, DiameterMessageHandler.CancelRequest(e2eId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelRequest(e2eId))
  
     // Add to map
     requestCache.put(e2eId, RequestEntry(callback, timer))

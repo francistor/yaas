@@ -1,0 +1,38 @@
+package yaas.config
+
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+
+case class RadiusThisServerConfig(bindAddress: String, authBindPort: Int, acctBindPort: Int, coABindPort: Int)
+case class RadiusPorts(auth: Int, acct: Int, coA: Int)
+case class RadiusServerConfig(name: String, IPAddress: Int, secret: String, ports: RadiusPorts, timeoutMillis: Int, tries: Int, errorCount: Int, quarantineTimeMillis: Int)
+case class RadiusServerGroupConfig(name: String, servers: List[String], policy: String)
+case class RadiusClientConfig(name: String, IPAddress: Int, secret: String)
+
+object RadiusConfigManager {
+  // For deserialization of Json
+  private implicit val formats = DefaultFormats
+
+  // General config
+  private var radiusConfig = ConfigManager.getConfigObject("radiusServer.json").extract[RadiusThisServerConfig]
+  
+  // Radius servers
+  private var radiusServers = (for {
+    server <- (ConfigManager.getConfigObject("radiusServers.json") \ "servers").extract[List[RadiusServerConfig]]
+  } yield (server.name -> server)).toMap
+  
+  // RadiusServer groups
+  private var radiusServerGroups = (for {
+    group <- (ConfigManager.getConfigObject("radiusServers.json") \ "serverGroups").extract[List[RadiusServerGroupConfig]]
+  } yield (group.name -> group)).toMap
+  
+  // Radius clients
+  private var radiusClients = (for {
+    client <- ConfigManager.getConfigObject("radiusServers.json").extract[List[RadiusClientConfig]]
+  } yield (client.name -> client)).toMap
+  
+  def getRadiusConfig = radiusConfig
+  def getRadiusServers = radiusServers
+  def getRadiusServerGroups = radiusServerGroups
+  def getRadiusClients = radiusClients
+}
