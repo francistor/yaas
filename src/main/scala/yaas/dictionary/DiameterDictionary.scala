@@ -94,20 +94,20 @@ class GroupedProperties(mandatory: Option[Boolean], val minOccurs: Option[Int], 
  * Helper classes for encoding from/to JSON
  */
 abstract class DiameterAVPAttributes {
-	def code: Int
+	def code: Long
 	def name: String
 	def diameterType: Int
 }
 
-case class SimpleAVPAttributes(code: Int, name: String, diameterType: Int) extends DiameterAVPAttributes {
+case class SimpleAVPAttributes(code: Long, name: String, diameterType: Int) extends DiameterAVPAttributes {
 	override def toString() = {s"[code: $code, name: $name, type: $diameterType]"}
 }
 
-case class GroupedAVPAttributes(code: Int, name: String, diameterType: Int, val groupedItems: Map[String, GroupedProperties]) extends DiameterAVPAttributes{
+case class GroupedAVPAttributes(code: Long, name: String, diameterType: Int, val groupedItems: Map[String, GroupedProperties]) extends DiameterAVPAttributes{
 	override def toString() = {s"[code: $code, name: $name, type: $diameterType, groupedItems: $groupedItems]"}
 }
 
-case class EnumeratedAVPAttributes(code: Int, name: String, diameterType: Int, val values: Map[String, Int]) extends DiameterAVPAttributes {
+case class EnumeratedAVPAttributes(code: Long, name: String, diameterType: Int, val values: Map[String, Int]) extends DiameterAVPAttributes {
 	override def toString() = {s"[code: $code, name: $name, type: $diameterType, values: $values]"}
 }
 
@@ -115,14 +115,14 @@ case class EnumeratedAVPAttributes(code: Int, name: String, diameterType: Int, v
  * Dictionary item classes
  */
 abstract class DiameterAVPDictItem {
-	def code: Int
-	def vendorId: Int
+	def code: Long
+	def vendorId: Long
 	def name: String
 	def diameterType: Int
 }
-case class BasicAVPDictItem(code: Int, vendorId: Int, name: String, diameterType: Int) extends DiameterAVPDictItem
-case class GroupedAVPDictItem(code: Int, vendorId: Int, name: String, diameterType: Int, groupedItems: Map[String, GroupedProperties]) extends DiameterAVPDictItem
-case class EnumeratedAVPDictItem(code: Int, vendorId: Int, name: String, diameterType: Int, values: Map[String, Int], codes: Map[Int, String]) extends DiameterAVPDictItem
+case class BasicAVPDictItem(code: Long, vendorId: Long, name: String, diameterType: Int) extends DiameterAVPDictItem
+case class GroupedAVPDictItem(code: Long, vendorId: Long, name: String, diameterType: Int, groupedItems: Map[String, GroupedProperties]) extends DiameterAVPDictItem
+case class EnumeratedAVPDictItem(code: Long, vendorId: Long, name: String, diameterType: Int, values: Map[String, Int], codes: Map[Int, String]) extends DiameterAVPDictItem
 
 // Custom serializer
 // ser: Formats => (PartialFunction[JValue, A], PartialFunction[Any, JValue])
@@ -131,7 +131,7 @@ class DiameterAVPAttributesSerializer extends CustomSerializer[DiameterAVPAttrib
   			// Reads a JSON and returns a AVPDictionaryItem
   		case jv: JValue => 
     		val diameterType = (jv \ "type").extract[String]
-        val code = (jv \ "code").extract[Int]
+        val code = (jv \ "code").extract[Long]
         val name = (jv \ "name").extract[String]
     		if(diameterType == "OctetString") new SimpleAVPAttributes(code, name, DiameterTypes.OCTETSTRING)
     		else if(diameterType == "Integer32") new SimpleAVPAttributes(code, name, DiameterTypes.INTEGER_32)
@@ -163,10 +163,10 @@ class DiameterAVPAttributesSerializer extends CustomSerializer[DiameterAVPAttrib
 
 // Applications
 // Request or Response
-class RoRDictItem(val avpNameMap: Map[String, GroupedProperties], val avpCodeMap: Map[(Int, Int), GroupedProperties])
+class RoRDictItem(val avpNameMap: Map[String, GroupedProperties], val avpCodeMap: Map[(Long, Long), GroupedProperties])
 class CommandDictItem(val code: Int, val name: String, val request: RoRDictItem, val response: RoRDictItem)
-class ApplicationAttributes(val code: Int, val name: String, val appType: Option[String], val commands: List[CommandDictItem])
-class ApplicationDictItem(val code: Int, val name: String, val appType: Option[String], val commandMapByName: Map[String, CommandDictItem], val commandMapByCode: Map[Int, CommandDictItem])
+class ApplicationAttributes(val code: Long, val name: String, val appType: Option[String], val commands: List[CommandDictItem])
+class ApplicationDictItem(val code: Long, val name: String, val appType: Option[String], val commandMapByName: Map[String, CommandDictItem], val commandMapByCode: Map[Int, CommandDictItem])
 
 // A RequestOrResponse is a JSON object with attribute names as properties, and Bounds as values
 // Need to pass a previously decoded AVPmap with attribute codes
@@ -200,9 +200,9 @@ object DiameterDictionary {
 	def getDictionaryItemFromAttributes(avpAttrs: DiameterAVPAttributes, vendorId: String, vendorMap: Map[String, String]) : DiameterAVPDictItem = {
 		val vendorPrefix = if(vendorId == "0") "" else vendorMap(vendorId) + "-"
 		avpAttrs match {
-		  case SimpleAVPAttributes(code, name, diameterType) => BasicAVPDictItem(code, vendorId.toInt, vendorPrefix + name, diameterType)
-		  case GroupedAVPAttributes(code, name, diameterType, groupedAttributes) => GroupedAVPDictItem(code, vendorId.toInt, vendorPrefix + name, diameterType, groupedAttributes)
-		  case EnumeratedAVPAttributes(code, name, diameterType, values) => EnumeratedAVPDictItem(code, vendorId.toInt, vendorPrefix + name, diameterType, values, values.map(_.swap))
+		  case SimpleAVPAttributes(code, name, diameterType) => BasicAVPDictItem(code, vendorId.toLong, vendorPrefix + name, diameterType)
+		  case GroupedAVPAttributes(code, name, diameterType, groupedAttributes) => GroupedAVPDictItem(code, vendorId.toLong, vendorPrefix + name, diameterType, groupedAttributes)
+		  case EnumeratedAVPAttributes(code, name, diameterType, values) => EnumeratedAVPDictItem(code, vendorId.toLong, vendorPrefix + name, diameterType, values, values.map(_.swap))
     }
 	}
 
@@ -216,7 +216,7 @@ object DiameterDictionary {
 		(vendorId, vendorDictItems) <- (dictionaryJson \ "avp").extract[Map[String, JArray]]
 		jVendorDictItem <- vendorDictItems.arr
 		vendorDictItem = jVendorDictItem.extract[DiameterAVPAttributes]
-	} yield ((vendorId.toInt, vendorDictItem.code) -> getDictionaryItemFromAttributes(vendorDictItem, vendorId, vendorNames))
+	} yield ((vendorId.toLong, vendorDictItem.code) -> getDictionaryItemFromAttributes(vendorDictItem, vendorId, vendorNames))
 
 	// Holds a map (avpName -> DictionaryItem)
 	val avpMapByName : Map[String, DiameterAVPDictItem] = for {

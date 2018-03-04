@@ -9,7 +9,7 @@ import yaas.dictionary.DiameterDictionary
 // Main Diameter Object and application
 ////////////////////////////////////////////////////////////////////////
 
-object Diameter extends App {
+object AAAServer extends App {
   
   val config = ConfigFactory.load()
   
@@ -19,5 +19,5 @@ object Diameter extends App {
 	val dictionary = DiameterDictionary
 	
 	// The router will create the peers and handlers
-	val diameterRouterActor = actorSystem.actorOf(DiameterRouter.props())
+	val routerActor = actorSystem.actorOf(Router.props())
 }

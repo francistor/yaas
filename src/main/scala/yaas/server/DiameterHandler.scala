@@ -5,8 +5,8 @@ import akka.actor.ActorLogging
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.duration._
 
-import yaas.diameter.coding.{DiameterMessage}
-import yaas.server.DiameterRouter._
+import yaas.coding.diameter.{DiameterMessage}
+import yaas.server.Router._
 
 
 object DiameterMessageHandler {

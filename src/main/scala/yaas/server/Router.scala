@@ -48,16 +48,16 @@ import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
 import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig, DiameterHandlerConfig}
-import yaas.diameter.coding.DiameterMessage
-import yaas.diameter.coding.DiameterConversions._
+import yaas.coding.diameter.DiameterMessage
+import yaas.coding.diameter.DiameterConversions._
 
 case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
 // Peer tables are made of these items
 case class DiameterPeerPointer(config: DiameterPeerConfig, actorRefOption: Option[ActorRef])
 
 // Best practise
-object DiameterRouter {
-  def props() = Props(new DiameterRouter())
+object Router {
+  def props() = Props(new Router())
   
   // Actor messages
   case class RoutedDiameterMessage(message: DiameterMessage, owner: ActorRef)
@@ -65,9 +65,9 @@ object DiameterRouter {
 }
 
 // Manages Routes, Peers and Handlers
-class DiameterRouter() extends Actor with ActorLogging {
+class Router() extends Actor with ActorLogging {
   
-  import DiameterRouter._
+  import Router._
   
   // Empty initial maps to working objects
 	var serverIPAddress = "0.0.0.0"

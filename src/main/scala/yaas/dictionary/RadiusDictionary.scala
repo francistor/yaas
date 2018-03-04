@@ -101,6 +101,3 @@ object RadiusDictionary {
 	} yield ((vendorName + attrs.name) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames))
 }
 
-object rd extends App {
-  println(RadiusDictionary.avpMapByName("Service-Type"))
-}

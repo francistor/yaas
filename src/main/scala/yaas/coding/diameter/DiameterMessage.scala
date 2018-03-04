@@ -1,4 +1,4 @@
-package yaas.diameter.coding
+package yaas.coding.diameter
 
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
@@ -30,7 +30,8 @@ object DiameterAVP {
     //    data: rest of bytes
     
     // TODO: use iterator
-    val code = bytes.slice(0, 4).toByteBuffer.getInt
+    val it = bytes.iterator
+    val code = UByteString.getUnsigned32(it)
     val flags = bytes.slice(4, 5).toByteBuffer.get()
     val isVendorSpecific : Boolean = (flags & 0x80) > 0
     val isMandatory : Boolean = (flags & 0x40) > 0 
@@ -107,7 +108,7 @@ object DiameterAVP {
   }
 }
 
-abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, var isMandatory: Boolean, val vendorId: Int, val value: A){
+abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, var isMandatory: Boolean, val vendorId: Long, val value: A){
   
   implicit val byteOrder = DiameterAVP.byteOrder 
   
@@ -133,7 +134,7 @@ abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, var
     // length
     UByteString.putUnsigned24(builder, length)
     // vendorId
-    if(vendorId !=0) builder.putInt(vendorId)
+    if(vendorId !=0) UByteString.putUnsigned32(builder, vendorId)
     // data
     builder.append(payloadBytes)
     
@@ -186,9 +187,9 @@ abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, var
   } 
 }
 
-class UnknownAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: List[Byte]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
     // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.toList)
   }
   
@@ -201,9 +202,9 @@ class UnknownAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
   }
 }
 
-class OctetStringAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: List[Byte]) extends DiameterAVP[List[Byte]](code, isVendorSpecific, isMandatory, vendorId, value){
+class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP[List[Byte]](code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.toList)
   }
   
@@ -219,9 +220,9 @@ class OctetStringAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
 }
 
-class Integer32AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class Integer32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getInt(byteOrder))
   }
   
@@ -234,9 +235,9 @@ class Integer32AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, v
   }
 }
 
-class Integer64AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class Integer64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getLong(byteOrder))
   }
   
@@ -249,9 +250,9 @@ class Integer64AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, v
   }
 }
 
-class Unsigned32AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class Unsigned32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder) {
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder) {
     this(code, isVendorSpecific, isMandatory, vendorId, UByteString.getUnsigned32(bytes))
   }
   
@@ -265,9 +266,9 @@ class Unsigned32AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
 }
 
 // This class does not correctly represents integers bigger than 2exp63
-class Unsigned64AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class Unsigned64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder) {
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder) {
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getLong)
   }
   
@@ -280,9 +281,9 @@ class Unsigned64AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
   }
 }
 
-class Float32AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Float) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class Float32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Float) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getFloat)
   }
   
@@ -295,9 +296,9 @@ class Float32AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
   }
 }
 
-class Float64AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Double) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Double) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getDouble)
   }
   
@@ -310,8 +311,8 @@ class Float64AVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
   }
 }
 
-class GroupedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, {
         var avps = Queue[DiameterAVP[Any]]()
         var idx = 0
@@ -356,9 +357,9 @@ class GroupedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
   }
 }
 
-class AddressAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes  // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, java.net.InetAddress.getByAddress(bytes.drop(2).toArray))
   }
   
@@ -374,9 +375,9 @@ class AddressAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, ven
   }
 }
 
-class TimeAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: java.util.Date) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class TimeAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.util.Date) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, new java.util.Date(bytes.iterator.getLong))
   }
   
@@ -390,9 +391,9 @@ class TimeAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendor
   }
 }
 
-class UTF8StringAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class UTF8StringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.decodeString("UTF-8"))
   }
   
@@ -405,9 +406,9 @@ class UTF8StringAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
   }
 }
 
-class DiameterIdentityAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class DiameterIdentityAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.decodeString("UTF-8"))
   }
   
@@ -420,10 +421,10 @@ class DiameterIdentityAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boo
   }
 }
 
-class DiameterURIAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class DiameterURIAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.decodeString("UTF-8"))
   }
   
@@ -436,9 +437,9 @@ class DiameterURIAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
 }
 
-class EnumeratedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class EnumeratedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getInt)
   }
   
@@ -448,15 +449,15 @@ class EnumeratedAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
   
   override def stringValue = {
     DiameterDictionary.avpMapByCode.get((vendorId, code)) match {
-      case Some(EnumeratedAVPDictItem(code, vendorId, name, diameterType, values, codes)) => codes.getOrElse(code, "Unkown")
+      case Some(EnumeratedAVPDictItem(code, vendorId, name, diameterType, values, codes)) => codes.getOrElse(value, "Unkown")
       case _ => "Unknown"
     }
   }
 }
 
-class IPFilterRuleAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class IPFilterRuleAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.decodeString("UTF-8"))
   }
   
@@ -469,9 +470,9 @@ class IPFilterRuleAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean
   }
 }
 
-class IPv4AddressAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class IPv4AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, java.net.InetAddress.getByAddress(bytes.slice(0, 4).toArray))
   }
   
@@ -484,9 +485,9 @@ class IPv4AddressAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
 }
 
-class IPv6AddressAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class IPv6AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, java.net.InetAddress.getByAddress(bytes.slice(0, 16).toArray))
   }
   
@@ -499,9 +500,9 @@ class IPv6AddressAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
 }
 
-class IPv6PrefixAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class IPv6PrefixAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   // Secondary constructor from bytes
-  def this(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Int, bytes: ByteString){
+  def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, {
       // rfc3162
       val it = bytes.iterator
@@ -625,7 +626,7 @@ object DiameterMessage {
  * Represents a Diameter Message
  */
 // TODO: Queue should be immutable
-class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, val avps: Queue[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
+class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, val avps: Queue[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
@@ -651,7 +652,7 @@ class DiameterMessage(val applicationId: Int, val commandCode: Int, val hopByHop
     // command code
     UByteString.putUnsigned24(builder, commandCode)
     // application id
-    builder.putInt(applicationId)
+    UByteString.putUnsigned32(builder, applicationId)
     // Hop-by-hop identifier
     builder.putInt(hopByHopId)
     // End-to-End identifier

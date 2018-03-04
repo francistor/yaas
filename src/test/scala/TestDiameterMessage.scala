@@ -9,8 +9,8 @@ import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
 import org.scalatest.FlatSpec
 
 import yaas.dictionary._
-import yaas.diameter.coding._
-import yaas.diameter.coding.DiameterConversions._
+import yaas.coding.diameter._
+import yaas.coding.diameter.DiameterConversions._
 
 class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {

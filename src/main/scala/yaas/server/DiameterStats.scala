@@ -1,7 +1,7 @@
 package yaas.server
 
-import yaas.diameter.coding._
-import yaas.diameter.coding.DiameterConversions._
+import yaas.coding.diameter._
+import yaas.coding.diameter.DiameterConversions._
 
 /**
  * This object has to be encapsulated in an Actor, since it is not thread safe

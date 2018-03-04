@@ -3,9 +3,9 @@ package yaas.handlers
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
 import yaas.server._
-import yaas.diameter.coding._
+import yaas.coding.diameter._
 import yaas.util.IDGenerator
-import yaas.diameter.coding.DiameterConversions._
+import yaas.coding.diameter.DiameterConversions._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
 

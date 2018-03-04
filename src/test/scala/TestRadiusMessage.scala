@@ -9,7 +9,7 @@ import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
 import org.scalatest.FlatSpec
 
 import yaas.dictionary._
-import yaas.radius.coding._
+import yaas.coding.radius._
 
 class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {

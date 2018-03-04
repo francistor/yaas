@@ -1,4 +1,4 @@
-package yaas.radius.coding
+package yaas.coding.radius
 
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
@@ -370,7 +370,7 @@ object RadiusPacket {
   }
 }
 
-class RadiusPacket(val code: Int, val identifier: Int, val authenticator: Array[Byte], var avps: Queue[RadiusAVP[Any]]){
+class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[Byte], var avps: Queue[RadiusAVP[Any]]){
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
@@ -396,11 +396,22 @@ class RadiusPacket(val code: Int, val identifier: Int, val authenticator: Array[
     
     val result = builder.result
     // Write length  
+    // TODO: Use UBytestring !!!!!!!!!!!!!!!!!!
     result.patch(2, new ByteStringBuilder().putShort(result.length).result, 2)
   }
   
-  def getResponseBytes: ByteString = {
-    --
+  // To be used to generate the radius response
+  def getResponseBytes(identifier: Int, secret: String): ByteString = {
+    val responseBytes = getBytes
+    val authenticator = responseBytes.slice(4, 20)
+    val responseAuthenticator = RadiusPacket.md5(responseBytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)
+    
+    // patch Identifier
+    responseBytes.patch(2, UByteString.putUnsignedByte(new ByteStringBuilder(), identifier).result, 1)
+    // patch authenticator
+    responseBytes.patch(4, new ByteStringBuilder().putBytes(responseAuthenticator).result, 16)
+    
+    responseBytes
   }
 }
 
