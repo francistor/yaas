@@ -68,9 +68,9 @@ object RadiusDictionary {
 	        case "Address" => RadiusTypes.ADDRESS
 	        case "Integer" => RadiusTypes.INTEGER
 	        case "Time" => RadiusTypes.TIME
-	        case "IPv6Addr" => RadiusTypes.IPV6ADDR
+	        case "IPv6Address" => RadiusTypes.IPV6ADDR
 	        case "IPv6Prefix" => RadiusTypes.IPV6PREFIX
-	        case "IfId" => RadiusTypes.IFID
+	        case "InterfaceId" => RadiusTypes.IFID
 	        case "Integer64" => RadiusTypes.INTEGER64
 	        case _ => throw new java.text.ParseException("Invalid radius type " + avpAttributes.radiusType, 0)
 	      },

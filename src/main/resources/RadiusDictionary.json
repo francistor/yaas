@@ -155,6 +155,21 @@
 				"code": 60,
 				"name": "CHAP-Challenge",
 				"type": "Octets"
+			},
+			{
+				"code": 95,
+				"name": "NAS-IPv6-Address",
+				"type": "IPv6Address"
+			},
+			{
+				"code": 96,
+				"name": "Framed-Interface-Id",
+				"type": "InterfaceId"
+			},
+			{
+				"code": 97,
+				"name": "Framed-IPv6-Prefix",
+				"type": "IPv6Prefix"
 			}
 		],
 		"21100": 
@@ -183,6 +198,11 @@
 				"code": 107,
 				"name": "CampaignData",
 				"type": "String"
+			},
+			{
+				"code": 200,
+				"name": "myTimeAttribute",
+				"type": "Time"
 			}
 		]
 	}

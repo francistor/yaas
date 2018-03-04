@@ -135,7 +135,7 @@ abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, var
     // vendorId
     if(vendorId !=0) builder.putInt(vendorId)
     // data
-    builder.append(getPayloadBytes)
+    builder.append(payloadBytes)
     
     // Pad to 4 byte boundary
     if(length % 4 != 0) builder.putBytes(new Array[Byte](4 - length % 4))
@@ -149,7 +149,7 @@ abstract class DiameterAVP[+A](val code: Int, val isVendorSpecific: Boolean, var
   override def equals(other: Any): Boolean = {
     other match {
       case x: DiameterAVP[Any] =>
-        if(x.code != code || x.isVendorSpecific != isVendorSpecific || x.isMandatory != isMandatory || x.value != value) false else true
+        if(x.code != code || x.isVendorSpecific != isVendorSpecific || x.isMandatory != isMandatory || !x.value.equals(value)) false else true
       case _ => false
     }
   }
@@ -385,7 +385,7 @@ class TimeAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, vendor
   }
   
   override def stringValue = {
-    val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+    val sdf = new java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
     sdf.format(value)
   }
 }
@@ -505,7 +505,7 @@ class IPv6PrefixAVP(code: Int, isVendorSpecific: Boolean, isMandatory: Boolean, 
     this(code, isVendorSpecific, isMandatory, vendorId, {
       // rfc3162
       val it = bytes.iterator
-      val prefixLen = it.drop(1).getByte // Ignore the first byte (reserved) and read the second, which is the prefix length
+      val prefixLen = UByteString.getUnsignedByte(it.drop(1)) // Ignore the first byte (reserved) and read the second, which is the prefix length
       val prefix = java.net.InetAddress.getByAddress(it.getBytes(it.len).padTo[Byte, Array[Byte]](16, 0))
       prefix.getHostAddress + "/" + prefixLen
     })
