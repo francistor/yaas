@@ -119,11 +119,12 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, Queue(groupedAVP) /* value */, isRequest = true /* isRequest */)
     val serializedMessage = diameterMessage.getBytes
     val unserializedDiameterMessage = DiameterMessage(serializedMessage)
-    unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)
-    unserializedDiameterMessage.commandCode must be (diameterMessage.commandCode)
-    unserializedDiameterMessage.hopByHopId must be (diameterMessage.hopByHopId)
-    unserializedDiameterMessage.endToEndId must be (diameterMessage.endToEndId)
-    unserializedDiameterMessage.avps mustEqual(Queue(groupedAVP))
+    //unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)
+    //unserializedDiameterMessage.commandCode must be (diameterMessage.commandCode)
+    //unserializedDiameterMessage.hopByHopId must be (diameterMessage.hopByHopId)
+    //unserializedDiameterMessage.endToEndId must be (diameterMessage.endToEndId)
+    //unserializedDiameterMessage.avps mustEqual(Queue(groupedAVP))
+    unserializedDiameterMessage mustEqual diameterMessage
   }
   
   "Adding and retrieving simple avp to Diameter Message" in {

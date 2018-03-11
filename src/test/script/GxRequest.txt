@@ -1,0 +1,8 @@
+Session-Id = "session-id-1" 
+CC-Request-Type = 1 
+CC-Request-Number = 1 
+Subscription-Id = "Subscription-Id-Type=1, Subscription-Id-Data=913374871" 
+3GPP-Bearer-Identifier = FF 
+Framed-IP-Address = 1.2.3.4 
+Framed-IPv6-Prefix = 2001:bebe:cafe::0/64 
+3GPP-QoS-Information = "3GPP-QoS-Class-Identifier = CLASS0, 3GPP-Max-Requested-Bandwidth-UL = 1000, 3GPP-Max-Requested-Bandwidth-DL = 500" 

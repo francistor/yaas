@@ -3,11 +3,11 @@ package yaas.config
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
-case class RadiusThisServerConfig(bindAddress: String, authBindPort: Int, acctBindPort: Int, coABindPort: Int)
+case class RadiusThisServerConfig(bindAddress: String, authBindPort: Int, acctBindPort: Int, coABindPort: Int, clientBasePort: Int, numClientPorts: Int)
 case class RadiusPorts(auth: Int, acct: Int, coA: Int)
-case class RadiusServerConfig(name: String, IPAddress: Int, secret: String, ports: RadiusPorts, timeoutMillis: Int, tries: Int, errorCount: Int, quarantineTimeMillis: Int)
+case class RadiusServerConfig(name: String, IPAddress: String, secret: String, ports: RadiusPorts, timeoutMillis: Int, tries: Int, errorCount: Int, quarantineTimeMillis: Int)
 case class RadiusServerGroupConfig(name: String, servers: List[String], policy: String)
-case class RadiusClientConfig(name: String, IPAddress: Int, secret: String)
+case class RadiusClientConfig(name: String, IPAddress: String, secret: String)
 
 object RadiusConfigManager {
   // For deserialization of Json
@@ -28,8 +28,8 @@ object RadiusConfigManager {
   
   // Radius clients
   private var radiusClients = (for {
-    client <- ConfigManager.getConfigObject("radiusServers.json").extract[List[RadiusClientConfig]]
-  } yield (client.name -> client)).toMap
+    client <- ConfigManager.getConfigObject("radiusClients.json").extract[List[RadiusClientConfig]]
+  } yield (client.IPAddress -> client)).toMap
   
   def getRadiusConfig = radiusConfig
   def getRadiusServers = radiusServers

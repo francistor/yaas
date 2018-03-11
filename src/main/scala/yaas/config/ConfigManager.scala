@@ -23,14 +23,14 @@ object ConfigManager {
   // Read mandatory configuration objects
   Array(
       "diameterDictionary.json", 
-      "diameterHandlers.json",
       "diameterPeers.json",
       "diameterRoutes.json",
       "diameterServer.json",
       "radiusDictionary.json",
       "radiusServer.json",
       "radiusServers.json",
-      "radiusClients.json"
+      "radiusClients.json",
+      "handlers.json"
       ).foreach(readConfigObject(_))
   
   private def readConfigObject(objectName: String): JValue = { 			

@@ -47,10 +47,12 @@ import akka.stream.scaladsl._
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
-import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig, DiameterHandlerConfig}
+import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
 import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
+import yaas.config.{HandlerConfigManager, HandlerConfig}
 import yaas.coding.diameter.DiameterMessage
 import yaas.coding.diameter.DiameterConversions._
+import yaas.coding.radius.RadiusPacket
 
 case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
 // Peer tables are made of these items
@@ -80,33 +82,47 @@ class Router() extends Actor with ActorLogging {
 	
 	// Radius
 	var radiusServerIPAddress = "0.0.0.0"
-	var authRadiusServerPort = 0
-	var acctRadiusServerPort = 0
-	var coARadiusServerPort =0
-	var radiusServers = Map()
-  var radiusServerGroups = Map()
-	var radiusClients = Map()
+	var radiusServerAuthPort = 0
+	var radiusServerAcctPort = 0
+	var radiusServerCoAPort = 0
+	var radiusServers = Map[String, RadiusServerConfig]()
+  var radiusServerGroups = Map[String, RadiusServerGroupConfig]()
+	var radiusClients = Map[String, RadiusClientConfig]()
 	
 	// First update of diameter configuration
   val diameterConfig = DiameterConfigManager.getDiameterConfig
   diameterServerIPAddress = diameterConfig.bindAddress
   diameterServerPort = diameterConfig.bindPort
   updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
-  updateHandlerMap(DiameterConfigManager.getDiameterHandlerConfig)
   updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
   
   // First update of radius configuration
   val radiusConfig = RadiusConfigManager.getRadiusConfig
   radiusServerIPAddress = radiusConfig.bindAddress
-  authRadiusServerPort = radiusConfig.authBindPort
-  acctRadiusServerPort = radiusConfig.acctBindPort
-  coARadiusServerPort = radiusConfig.coABindPort
+  radiusServerAuthPort = radiusConfig.authBindPort
+  radiusServerAcctPort = radiusConfig.acctBindPort
+  radiusServerCoAPort = radiusConfig.coABindPort
+  radiusServers = RadiusConfigManager.getRadiusServers
+  radiusServerGroups = RadiusConfigManager.getRadiusServerGroups
+  radiusClients = RadiusConfigManager.getRadiusClients
   
+  updateHandlerMap(HandlerConfigManager.getHandlerConfig)
   
-  // Server socket
+  // Diameter Server socket
   implicit val actorSytem = context.system
   implicit val materializer = ActorMaterializer()
   startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
+  
+  // Radius sockets
+  newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
+  newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
+  newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
+  startRadiusClientActors(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts)
+  
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Diameter configuration
+  ////////////////////////////////////////////////////////////////////////
 	
 	/**
 	 * Will create the actors for the configured peers and shutdown the ones not configured anymore.
@@ -173,7 +189,30 @@ class Router() extends Actor with ActorLogging {
     
     None
   }
+  
+  ////////////////////////////////////////////////////////////////////////
+  // Radius configuration
+  ////////////////////////////////////////////////////////////////////////
+  def startRadiusClientActors(ipAddress: String, clientBasePort: Int, numClientPorts: Int) = {
+    for(port <- clientBasePort to clientBasePort + numClientPorts) 
+      context.actorOf(RadiusClient.props(ipAddress, port), "RadiusClient-"+port)
+  }
+  
+  def newRadiusAuthServerActor(ipAddress: String, bindPort: Int) = {
+    context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusAuthServer")
+  }
+  
+  def newRadiusAcctServerActor(ipAddress: String, bindPort: Int) = {
+    context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusAcctServer")
+  }
+    
+  def newRadiusCoAServerActor(ipAddress: String, bindPort: Int) = {
+    context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusCoAServer")
+  }
 
+  ////////////////////////////////////////////////////////////////////////
+  // Diameter socket
+  ////////////////////////////////////////////////////////////////////////
   def startDiameterServerSocket(ipAddress: String, port: Int) = {
     
     val futBinding = Tcp().bind(ipAddress, port).toMat(Sink.foreach(connection => {
@@ -197,7 +236,7 @@ class Router() extends Actor with ActorLogging {
     futBinding.onComplete(t => {
       t match {
         case Success(binding) =>
-          log.info("Bound")
+          log.info("Diameter socket bound to " + binding.localAddress.getHostString + ":" + binding.localAddress.getPort)
         case Failure(exception) =>
           log.error("Could not bind socket {}", exception.getMessage())
           context.system.terminate()
@@ -205,6 +244,10 @@ class Router() extends Actor with ActorLogging {
     })
   }
   
+  ////////////////////////////////////////////////////////////////////////
+  // Actor message handling
+  // Peer lifecycle and routing
+  ////////////////////////////////////////////////////////////////////////
 
 	def receive  = LoggingReceive {
 	  /*
@@ -231,7 +274,31 @@ class Router() extends Actor with ActorLogging {
 	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
 	    }
-	  
+	    
+	    /*
+	     * Radius messages
+	     */
+	  case RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin) =>
+	    packet.code match {
+	    case RadiusPacket.ACCESS_REQUEST =>
+  	    handlerMap.get("AccessRequestHandler") match {
+    	    case Some(handlerActor) => handlerActor ! RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin)
+    	    case None => log.warning("No handler defined for Access-Request")
+    	  }
+
+	    case RadiusPacket.ACCOUNTING_REQUEST =>
+  	    handlerMap.get("AccountingRequestHandler") match {
+    	    case Some(handlerActor) => handlerActor ! RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin)
+    	    case None => log.warning("No handler defined for Accounting-Request")
+    	  }
+
+	    case RadiusPacket.COA_REQUEST =>
+  	    handlerMap.get("CoARequestHandler") match {
+    	    case Some(handlerActor) => handlerActor ! RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin)
+    	    case None => log.warning("No handler defined for CoA-Request")
+    	  }
+	    }
+	    
 	  /*
 	   * Peer lifecycle
 	   */

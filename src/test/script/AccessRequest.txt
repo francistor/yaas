@@ -1,0 +1,2 @@
+User-Name = "thisIsTheUser@name" 
+User-Password = "hidden password" 

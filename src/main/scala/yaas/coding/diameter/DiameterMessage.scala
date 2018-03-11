@@ -730,6 +730,22 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     
     s"\n$applicationName - $commandName\n$header\n$prettyAVPs"
   }
+  
+  override def equals(other: Any): Boolean = {
+    other match {
+      case x: DiameterMessage =>
+        if( x.applicationId != applicationId || 
+            x.commandCode != commandCode || 
+            x.endToEndId != endToEndId ||
+            x.hopByHopId != hopByHopId ||
+            x.isError != isError ||
+            x.isRequest != isRequest ||
+            x.isProxyable != isProxyable ||
+            x.isRetransmission != isRetransmission ||
+            !x.avps.equals(avps)) false else true
+      case _ => false
+    }
+  }
 }
 
 

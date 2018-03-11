@@ -21,7 +21,7 @@ object RadiusTypes {
 	val INTEGER64 = 9
 }
 
-case class RadiusAVPAttributes(code: Int, name: String, radiusType: String, hasTag: Boolean, enumValues: Option[Map[String, Int]])
+case class RadiusAVPAttributes(code: Int, name: String, radiusType: String, encrypt: Int, hasTag: Boolean, enumValues: Option[Map[String, Int]])
 class RadiusAVPAttributesSerializer extends CustomSerializer[RadiusAVPAttributes](implicit formats => (
   {
     case jv: JValue =>
@@ -29,6 +29,7 @@ class RadiusAVPAttributesSerializer extends CustomSerializer[RadiusAVPAttributes
          (jv \ "code").extract[Int],
          (jv \ "name").extract[String],
          (jv \ "type").extract[String],
+         (jv \ "encrypt").extract[Option[Int]].getOrElse(0),
          jv \ "hasTag" match {
            case JBool(true) => true
            case _ => false
@@ -48,7 +49,7 @@ class RadiusAVPAttributesSerializer extends CustomSerializer[RadiusAVPAttributes
       JObject()
   }))
   
-case class RadiusAVPDictItem(code: Int, vendorId: Int, name: String, radiusType: Int, hasTag: Boolean, enumValues: Option[Map[String, Int]], enumNames: Option[Map[Int, String]])
+case class RadiusAVPDictItem(code: Int, vendorId: Int, name: String, radiusType: Int, encrypt: Int, hasTag: Boolean, enumValues: Option[Map[String, Int]], enumNames: Option[Map[Int, String]])
 
 // Holds the parsed diameter dictionary with utility functions to use
 object RadiusDictionary {
@@ -74,6 +75,7 @@ object RadiusDictionary {
 	        case "Integer64" => RadiusTypes.INTEGER64
 	        case _ => throw new java.text.ParseException("Invalid radius type " + avpAttributes.radiusType, 0)
 	      },
+	      avpAttributes.encrypt,
 	      avpAttributes.hasTag, 
 	      avpAttributes.enumValues,
 	      avpAttributes.enumValues.map(_.map(_.swap))

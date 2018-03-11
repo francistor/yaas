@@ -13,7 +13,7 @@ object RadiusAVP {
     
   val ipv6PrefixRegex = """(.+)/([0-9]+)""".r
     
-  def apply(bytes: ByteString) : RadiusAVP[Any] = {
+  def apply(bytes: ByteString, authenticator: Array[Byte], secret: String) : RadiusAVP[Any] = {
     // AVP Header is
     //    code: 1 byte
     //    length: 1 byte
@@ -38,9 +38,14 @@ object RadiusAVP {
     
     // Value
     val data = bytes.slice(dataOffset, lastIndex)
-    RadiusDictionary.avpMapByCode.get(vendorId, code).map(_.radiusType).getOrElse(RadiusTypes.NONE) match {
+    val dictItem =  RadiusDictionary.avpMapByCode.get(vendorId, code)
+    val radiusType = dictItem.map(_.radiusType).getOrElse(RadiusTypes.NONE)
+    radiusType match {
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, data)
-      case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, data)
+      case RadiusTypes.OCTETS => 
+        if(dictItem.map(_.encrypt).getOrElse(0) == 1) 
+          new OctetsRadiusAVP(code, vendorId, RadiusPacket.dencrypt1(authenticator, secret, data.toArray))
+        else new OctetsRadiusAVP(code, vendorId, data)
       case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, data)
       case RadiusTypes.TIME=> new TimeRadiusAVP(code, vendorId, data)
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, data)
@@ -57,7 +62,7 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
   
   implicit val byteOrder = RadiusAVP.byteOrder 
   
-  def getBytes: ByteString = {
+  def getBytes(authenticator: Array[Byte], secret: String): ByteString = {
     // AVP Header is
     //    code: 1 byte
     //    length: 1 byte
@@ -70,7 +75,13 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     
     val builder = new ByteStringBuilder()
     // Need to do this first
-    val payloadBytes = getPayloadBytes
+    
+    // use avpMap to encrypt
+    val avpMap = RadiusDictionary.avpMapByCode
+    val payloadBytes = 
+      if(avpMap.get(vendorId, code).map(_.encrypt) == Some(1))
+        ByteString.fromArray(RadiusPacket.dencrypt1(authenticator, secret, getPayloadBytes.toArray))
+      else getPayloadBytes
     
     if(vendorId == 0){
       // Code
@@ -113,7 +124,7 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
   }
   
   def pretty: String = {
-    val dictItem = RadiusDictionary.avpMapByCode.getOrElse((vendorId, code), RadiusAVPDictItem(0, 0, "UNKNOWN", RadiusTypes.NONE, false, None, None))
+    val dictItem = RadiusDictionary.avpMapByCode.getOrElse((vendorId, code), RadiusAVPDictItem(0, 0, "UNKNOWN", RadiusTypes.NONE, 0, false, None, None))
     val attrName = dictItem.name
     val attrValue = stringValue
     
@@ -156,6 +167,11 @@ class OctetsRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radiu
 	def this(code: Int, vendorId: Int, bytes: ByteString){
 		this(code, vendorId, bytes.toList)
 	}
+	
+	def this(code: Int, vendorId: Int, bytes: Array[Byte]){
+		this(code, vendorId, bytes.toList)
+	}
+	
 
 	def getPayloadBytes = {
 			ByteString.fromArray(value.toArray)
@@ -289,13 +305,16 @@ class Integer64RadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAV
 object RadiusPacket {
   implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
   
-  val AUTH_REQUEST = 1
-  val AUTH_ACCEPT = 2
-  val AUTH_REJECT = 3
-  val ACCT_REQUEST = 4
-  val ACCT_RESPONSE = 5
+  val ACCESS_REQUEST = 1
+  val ACCESS_ACCEPT = 2
+  val ACCESS_REJECT = 3
+  val ACCOUNTING_REQUEST = 4
+  val ACCOUNTING_RESPONSE = 5
+  val COA_REQUEST = 43
+  val COA_ACK = 44
+  val COA_NACK = 45
   
-  def apply(bytes: ByteString) : RadiusPacket = {
+  def apply(bytes: ByteString, secret: String) : RadiusPacket = {
     // code: 1 byte
     // identifier: 1 byte
     // length: 2 byte
@@ -319,11 +338,23 @@ object RadiusPacket {
 				// Skip until next AVP, with padding
 				it.drop(length - 2)
 				
-				appendAVPsFromByteIterator(acc :+ RadiusAVP(clonedIt.getByteString(length)))
+				appendAVPsFromByteIterator(acc :+ RadiusAVP(clonedIt.getByteString(length), authenticator, secret))
   		}
     }
     
     new RadiusPacket(code, identifier, authenticator, appendAVPsFromByteIterator(Queue()))
+  }
+  
+  // Generates a new radius packet with the specified code. The identifier will be replaced before being sent
+  // and the authenticator is new
+  def request(code: Int) = {
+    new RadiusPacket(code, 0 /* to be replaced */, RadiusPacket.newAuthenticator, Queue[RadiusAVP[Any]]())
+  }
+  
+  // Generates a new radius packet as response for the specified radius request
+  def reply(radiusPacket: RadiusPacket, isSuccess : Boolean = true) = {
+    val code = if(isSuccess) radiusPacket.code + 1 else radiusPacket.code + 2
+    new RadiusPacket(code, radiusPacket.identifier, radiusPacket.authenticator, Queue[RadiusAVP[Any]]())
   }
   
   def dencrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
@@ -374,13 +405,13 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
-  def getBytes : ByteString = {
+  def getBytes(secret: String) : ByteString = {
     // code: 1 byte
     // identifier: 1 byte
     // length: 2: 2 byte
     // authtenticator: 16 octets
     
-    val avpMap = RadiusDictionary.avpMapByCode
+    //val avpMap = RadiusDictionary.avpMapByCode
     val builder = new ByteStringBuilder()
     
     UByteString.putUnsignedByte(builder, code)
@@ -390,8 +421,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     // Authenticator
     builder.putBytes(authenticator)
     for(avp <- avps){
-      // use avpMap to encrypt
-      builder.append(avp.getPayloadBytes)
+      builder.append(avp.getBytes(authenticator, secret))
     }
     
     val result = builder.result
@@ -400,17 +430,44 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   // To be used to generate the radius response
-  def getResponseBytes(identifier: Int, secret: String): ByteString = {
-    val responseBytes = getBytes
-    val authenticator = responseBytes.slice(4, 20)
+  def getResponseBytes(secret: String): ByteString = {
+    val responseBytes = getBytes(secret)
     val responseAuthenticator = RadiusPacket.md5(responseBytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)
     
     // patch Identifier
-    responseBytes.patch(2, UByteString.putUnsignedByte(new ByteStringBuilder(), identifier).result, 1)
+    // TODO: remove this comment
+    // responseBytes.patch(2, UByteString.putUnsignedByte(new ByteStringBuilder(), identifier).result, 1)
     // patch authenticator
     responseBytes.patch(4, new ByteStringBuilder().putBytes(responseAuthenticator).result, 16)
+  }
+  
+  override def toString() = {
+    val codeString = code match {
+      case RadiusPacket.ACCESS_REQUEST => "Access-Request"
+      case RadiusPacket.ACCESS_ACCEPT => "Access-Accept"
+      case RadiusPacket.ACCESS_REJECT => "Access-Reject"
+      case RadiusPacket.ACCOUNTING_REQUEST => "Accounting-Request"
+      case RadiusPacket.ACCOUNTING_RESPONSE => "Accounting-Response"
+      case RadiusPacket.COA_REQUEST => "CoA-Request"
+      case RadiusPacket.COA_ACK => "CoA-ACK"
+      case RadiusPacket.COA_NACK => "CoA-NACK"
+    }
     
-    responseBytes
+    val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty + "\n")
+    
+    s"\n$codeString\n$prettyAVPs"
+  }
+  
+  override def equals(other: Any): Boolean = {
+    other match {
+      case x: RadiusPacket =>
+        if( x.code != code || 
+            x.identifier != identifier || 
+            !x.authenticator.sameElements(authenticator) ||
+            !x.avps.equals(avps)) false else true
+      case _ => 
+        false
+    }
   }
 }
 
