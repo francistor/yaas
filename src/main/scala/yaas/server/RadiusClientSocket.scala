@@ -6,17 +6,17 @@ import akka.io.{IO, Udp}
 
 import java.net.InetSocketAddress
 
-import yaas.coding.radius._
 import yaas.config.RadiusConfigManager
+import yaas.coding.radius.RadiusPacket
 import yaas.server.RadiusActorMessages._
 
-// This class implements radius server basic functions
-
-object RadiusServer {
-  def props(bindIPAddress: String, bindPort: Int) = Props(new RadiusServer(bindIPAddress, bindPort))
+object RadiusClientSocket {
+    def props(bindIPAddress: String, bindPort: Int) = Props(new RadiusClientSocket(bindIPAddress, bindPort))
 }
 
-class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with ActorLogging {
+class RadiusClientSocket(bindIPAddress: String, bindPort: Int) extends Actor with ActorLogging {
+  
+  import RadiusClientSocket._
   
   import context.system
   
@@ -24,7 +24,7 @@ class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with Acto
   
   def receive = {
     case Udp.Bound(localAddress: InetSocketAddress) =>
-      log.info(s"Server socket bound to $localAddress")
+      log.info(s"Client socket bound to $localAddress")
       context.become(ready(sender))
   }
   
@@ -38,8 +38,8 @@ class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with Acto
       radiusClient match {
         case Some(radiusClientConfig) =>
           try {
-            val origin = RadiusActorMessages.RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
-            context.parent ! RadiusActorMessages.RadiusServerRequest(RadiusPacket(data, origin.secret), self, origin)
+            val origin = RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
+            context.parent ! RadiusClientSocketResponse(RadiusPacket(data, origin.secret), origin, bindPort, data)
           } catch {
             case e: Exception =>
               log.warning(s"Error decoding packet from $remoteIPAddress")
@@ -49,10 +49,9 @@ class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with Acto
           log.warning(s"Discarding packet from $remoteIPAddress")
       }
       
-    case RadiusServerResponse(radiusPacket, origin) =>
-      log.debug(s"Sending radius response to $origin")
-      val response = radiusPacket.getResponseBytes(origin.secret)
-      log.debug(response.toString)
-      udpEndPoint ! Udp.Send(response, new InetSocketAddress(origin.ipAddress, origin.port))
+    case RadiusClientSocketRequest(radiusPacket, destination) =>
+      log.debug(s"Sending radius request to $destination")
+      val request = radiusPacket.getBytes(destination.secret)
+      udpEndPoint ! Udp.Send(request, new InetSocketAddress(destination.ipAddress, destination.port))
   }
 }

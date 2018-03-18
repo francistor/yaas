@@ -4,9 +4,9 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 case class RadiusThisServerConfig(bindAddress: String, authBindPort: Int, acctBindPort: Int, coABindPort: Int, clientBasePort: Int, numClientPorts: Int)
-case class RadiusPorts(auth: Int, acct: Int, coA: Int)
-case class RadiusServerConfig(name: String, IPAddress: String, secret: String, ports: RadiusPorts, timeoutMillis: Int, tries: Int, errorCount: Int, quarantineTimeMillis: Int)
-case class RadiusServerGroupConfig(name: String, servers: List[String], policy: String)
+case class RadiusPorts(auth: Int, acct: Int, coA: Int, dm: Int)
+case class RadiusServerConfig(name: String, IPAddress: String, secret: String, ports: RadiusPorts, errorLimit: Int, quarantineTimeMillis: Int)
+case class RadiusServerGroupConfig(name: String, servers: IndexedSeq[String], policy: String)
 case class RadiusClientConfig(name: String, IPAddress: String, secret: String)
 
 object RadiusConfigManager {

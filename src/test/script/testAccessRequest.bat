@@ -26,7 +26,7 @@ REM Access-Request -------------------------------------------------------------
 @echo.
 
 echo User-Name = "thisIsTheUser@name" > %REQUESTFILE%
-echo User-Password = "hidden password" >> %REQUESTFILE%
+echo User-Password = "very_secret password!" >> %REQUESTFILE%
 
 REM Send the packet
 %RADIUS% -debug verbose -remoteAddress 127.0.0.1:1812 -code Access-Request -request "@%REQUESTFILE%"

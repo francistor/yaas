@@ -1,2 +1,2 @@
 User-Name = "thisIsTheUser@name" 
-User-Password = "hidden password" 
+User-Password = "very_secret password!" 

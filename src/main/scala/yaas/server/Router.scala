@@ -53,10 +53,21 @@ import yaas.config.{HandlerConfigManager, HandlerConfig}
 import yaas.coding.diameter.DiameterMessage
 import yaas.coding.diameter.DiameterConversions._
 import yaas.coding.radius.RadiusPacket
+import yaas.server.RadiusActorMessages._
 
 case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
 // Peer tables are made of these items
 case class DiameterPeerPointer(config: DiameterPeerConfig, actorRefOption: Option[ActorRef])
+case class RadiusServerPointer(config: RadiusServerConfig, var isAlive: Boolean, var nextTimestamp: Long, var accErrors: Int){
+  def getPort(code: Int) = {
+    code match {
+      case RadiusPacket.ACCESS_REQUEST => config.ports.auth
+      case RadiusPacket.ACCOUNTING_REQUEST => config.ports.acct
+      case RadiusPacket.COA_REQUEST => config.ports.coA
+      case RadiusPacket.DISCONNECT_REQUEST => config.ports.dm
+    }
+  }
+}
 
 // Best practise
 object Router {
@@ -85,7 +96,7 @@ class Router() extends Actor with ActorLogging {
 	var radiusServerAuthPort = 0
 	var radiusServerAcctPort = 0
 	var radiusServerCoAPort = 0
-	var radiusServers = Map[String, RadiusServerConfig]()
+	var radiusServers = Map[String, RadiusServerPointer]()
   var radiusServerGroups = Map[String, RadiusServerGroupConfig]()
 	var radiusClients = Map[String, RadiusClientConfig]()
 	
@@ -102,9 +113,9 @@ class Router() extends Actor with ActorLogging {
   radiusServerAuthPort = radiusConfig.authBindPort
   radiusServerAcctPort = radiusConfig.acctBindPort
   radiusServerCoAPort = radiusConfig.coABindPort
-  radiusServers = RadiusConfigManager.getRadiusServers
   radiusServerGroups = RadiusConfigManager.getRadiusServerGroups
   radiusClients = RadiusConfigManager.getRadiusClients
+  radiusServers = getRadiusServerPointers(RadiusConfigManager.getRadiusServers)
   
   updateHandlerMap(HandlerConfigManager.getHandlerConfig)
   
@@ -113,12 +124,13 @@ class Router() extends Actor with ActorLogging {
   implicit val materializer = ActorMaterializer()
   startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
   
-  // Radius sockets
+  // Radius server actors
   newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
   newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
   newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
-  startRadiusClientActors(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts)
   
+  // Radius client
+  val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts), "RadiusClient")
   
   ////////////////////////////////////////////////////////////////////////
   // Diameter configuration
@@ -193,10 +205,31 @@ class Router() extends Actor with ActorLogging {
   ////////////////////////////////////////////////////////////////////////
   // Radius configuration
   ////////////////////////////////////////////////////////////////////////
-  def startRadiusClientActors(ipAddress: String, clientBasePort: Int, numClientPorts: Int) = {
-    for(port <- clientBasePort to clientBasePort + numClientPorts) 
-      context.actorOf(RadiusClient.props(ipAddress, port), "RadiusClient-"+port)
+  def getRadiusServerPointers(newServers: Map[String, RadiusServerConfig]) = {
+    // clean radius server list
+    val cleanRadiusServers = radiusServers.flatMap { case(oldServerName, oldServerPointer) => {
+        // Keep only entries for servers with matching names and same configuration
+        newServers.get(oldServerName) match {
+          case Some(newConfig) =>
+            if(newConfig == oldServerPointer.config) Seq((oldServerName, oldServerPointer)) 
+              else Seq()
+           
+          case None => Seq()
+        }
+      }
+    }
+    
+    // create missing servers
+    newServers.map { case(newServerName, newServerConfig) => {
+        cleanRadiusServers.get(newServerName) match {
+          case None =>
+            (newServerName, RadiusServerPointer(newServerConfig, true, 0, 0))
+          case Some(p) => (newServerName, p)
+        }
+      }
+    }
   }
+      
   
   def newRadiusAuthServerActor(ipAddress: String, bindPort: Int) = {
     context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusAuthServer")
@@ -275,29 +308,52 @@ class Router() extends Actor with ActorLogging {
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
 	    }
 	    
-	    /*
-	     * Radius messages
-	     */
-	  case RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin) =>
+    /*
+     * Radius messages
+     */
+	  case RadiusServerRequest(packet, actorRef, origin) =>
 	    packet.code match {
 	    case RadiusPacket.ACCESS_REQUEST =>
   	    handlerMap.get("AccessRequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin)
+    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin)
     	    case None => log.warning("No handler defined for Access-Request")
     	  }
 
 	    case RadiusPacket.ACCOUNTING_REQUEST =>
   	    handlerMap.get("AccountingRequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin)
+    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin)
     	    case None => log.warning("No handler defined for Accounting-Request")
     	  }
 
 	    case RadiusPacket.COA_REQUEST =>
   	    handlerMap.get("CoARequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusActorMessages.RadiusServerRequest(packet, actorRef, origin)
+    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin)
     	    case None => log.warning("No handler defined for CoA-Request")
     	  }
 	    }
+	    
+	  case RadiusGroupClientRequest(radiusPacket, serverGroupName, authenticator) =>
+	    // Find the radius destination
+	    radiusServerGroups.get(serverGroupName) match {
+	      case Some(serverGroup) =>
+	        // Get the target server
+	        val availableServers = serverGroup.servers.filter(radiusServers(_).isAlive)
+	        val nServers = availableServers.length
+	        if(nServers > 0){
+	          val serverIndex = if(serverGroup.policy == "random") scala.util.Random.nextInt(nServers) else 0
+	          val radiusServer = radiusServers(availableServers(serverIndex))
+	          radiusClientActor ! RadiusClientRequest(radiusPacket, 
+	                  RadiusEndpoint(radiusServer.config.IPAddress, radiusServer.getPort(radiusPacket.code), radiusServer.config.secret),
+	                  sender, authenticator)
+	        }
+	        else log.warning("No available server found for group {}", serverGroupName)
+	        
+	      case None =>
+	        log.warning("Radius server group {} not found", serverGroupName)
+	    }
+
+	    
+	    
 	    
 	  /*
 	   * Peer lifecycle

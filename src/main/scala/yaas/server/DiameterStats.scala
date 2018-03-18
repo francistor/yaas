@@ -55,7 +55,7 @@ object DiameterStats {
   /*
    * Stats are kept here
    */
-  val diameterStats = scala.collection.mutable.Map[DiameterStatItem, Long]()
+  val diameterStats = scala.collection.mutable.Map[DiameterStatItem, Long]().withDefaultValue(0)
   
   /*
    * Constructor of DiameterStatItem from message

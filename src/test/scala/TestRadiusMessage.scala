@@ -74,9 +74,9 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
   
   "Password coding and decoding" in {
     val authenticator = RadiusPacket.newAuthenticator
-    val secretAttribute = "this is a secret"
-    val encrypted = RadiusPacket.dencrypt1(authenticator, "secret", secretAttribute.getBytes("UTF-8"))
-    val decrypted = RadiusPacket.dencrypt1(authenticator, "secret", encrypted)
+    val secretAttribute = "the secret is 1 the secret is 1 "
+    val encrypted = RadiusPacket.encrypt1(authenticator, "secret", secretAttribute.getBytes("UTF-8"))
+    val decrypted = RadiusPacket.decrypt1(authenticator, "secret", encrypted)
     decrypted mustEqual secretAttribute.getBytes("UTF-8")
   }
   

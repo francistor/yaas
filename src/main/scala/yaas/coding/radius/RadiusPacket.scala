@@ -44,7 +44,7 @@ object RadiusAVP {
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, data)
       case RadiusTypes.OCTETS => 
         if(dictItem.map(_.encrypt).getOrElse(0) == 1) 
-          new OctetsRadiusAVP(code, vendorId, RadiusPacket.dencrypt1(authenticator, secret, data.toArray))
+          new OctetsRadiusAVP(code, vendorId, RadiusPacket.decrypt1(authenticator, secret, data.toArray))
         else new OctetsRadiusAVP(code, vendorId, data)
       case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, data)
       case RadiusTypes.TIME=> new TimeRadiusAVP(code, vendorId, data)
@@ -80,7 +80,7 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     val avpMap = RadiusDictionary.avpMapByCode
     val payloadBytes = 
       if(avpMap.get(vendorId, code).map(_.encrypt) == Some(1))
-        ByteString.fromArray(RadiusPacket.dencrypt1(authenticator, secret, getPayloadBytes.toArray))
+        ByteString.fromArray(RadiusPacket.encrypt1(authenticator, secret, getPayloadBytes.toArray))
       else getPayloadBytes
     
     if(vendorId == 0){
@@ -310,9 +310,12 @@ object RadiusPacket {
   val ACCESS_REJECT = 3
   val ACCOUNTING_REQUEST = 4
   val ACCOUNTING_RESPONSE = 5
+  val DISCONNECT_REQUEST = 40
+  val DISCONNECT_ACK = 41
+  val DISCONNECT_NAK = 42
   val COA_REQUEST = 43
   val COA_ACK = 44
-  val COA_NACK = 45
+  val COA_NAK = 45
   
   def apply(bytes: ByteString, secret: String) : RadiusPacket = {
     // code: 1 byte
@@ -357,26 +360,24 @@ object RadiusPacket {
     new RadiusPacket(code, radiusPacket.identifier, radiusPacket.authenticator, Queue[RadiusAVP[Any]]())
   }
   
-  def dencrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
-    
-    val valueLength = value.length
-    val aSecret = secret.getBytes("UTF-8").toArray
-    val aValue = value.padTo[Byte, Array[Byte]](16, 0)
-    val aAuthenticator = authenticator
-    
-    def appendChunk(prevChunk: Array[Byte], authenticator: Array[Byte], secret: Array[Byte], v: Array[Byte]) : Array[Byte] = {
-      if(prevChunk.length == v.length) prevChunk // If have already encrypted all bytes, we are finished
+  def encrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
+
+    def appendChunk(encrypted: Array[Byte], ra: Array[Byte], s: Array[Byte], v: Array[Byte]) : Array[Byte] = {
+      val encryptedLen = encrypted.length
+      if(encryptedLen == v.length) encrypted // If have already encrypted all bytes, we are finished
       else {
-        val b = if(prevChunk.length == 0) md5(secret ++ authenticator) else md5(secret ++ prevChunk.slice(prevChunk.length - 16, prevChunk.length)) // Last 16 bytes
-        val p = v.slice(prevChunk.length, prevChunk.length + 16)
-        
+        val b = if(encryptedLen == 0) md5(s ++ ra) else md5(s ++ encrypted.slice(encryptedLen - 16, encryptedLen)) // Last 16 bytes
+        val p = v.slice(encryptedLen, encryptedLen + 16)
+        val c = b.zip(p).map{case (x, y) => (x ^ y).toByte}
         // Next byte of the output is the xor of b and the last added chunk, and call appendChunk again
-        appendChunk(prevChunk ++ b.zip(p).map{case (x, y) => (x ^ y).toByte}, authenticator, secret, v)
+        appendChunk(encrypted ++ c, ra, s, v)
       }
     }
     
-    appendChunk(Array(), aAuthenticator, aSecret, aValue).slice(0, valueLength)
-    
+    val vLen = value.length
+    val vLenPadded = if(vLen % 16 == 0) vLen else vLen + (16 - vLen % 16)
+    appendChunk(Array(), authenticator, secret.getBytes("UTF-8").toArray, value.padTo[Byte, Array[Byte]](vLenPadded, 0)).slice(0, vLen)
+
     /** RFC 2685
 		b1 = MD5(S + RA)       c(1) = p1 xor b1
 		b2 = MD5(S + c(1))     c(2) = p2 xor b2
@@ -390,6 +391,27 @@ object RadiusPacket {
      * */
   }
   
+  def decrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
+    
+    def prependChunk(decrypted: Array[Byte], ra: Array[Byte], s: Array[Byte], v: Array[Byte]) : Array[Byte] = {
+      val decryptedLen = decrypted.length
+      if(decryptedLen == v.length) decrypted // If have already encrypted all bytes, we are finished
+      else {
+        val chunkIndex = v.length - 16 - decryptedLen // Index of the first element of the v array to be decrypted
+        val b = if(chunkIndex == 0) md5(s ++ ra) else md5(s ++ v.slice(chunkIndex - 16, chunkIndex)) 
+        val p = v.slice(chunkIndex, chunkIndex + 16)
+        val c = b.zip(p).map{case (x, y) => (x ^ y).toByte}
+        
+        // Next segment of the output is the xor of b and the last added chunk, and call prependChunk again
+        prependChunk(c ++ decrypted, ra, s, v)
+      }
+    }
+    
+    val vLen = value.length
+    val vLenPadded = if(vLen % 16 == 0) vLen else vLen + (16 - vLen % 16)
+    prependChunk(Array(), authenticator, secret.getBytes("UTF-8").toArray, value.padTo[Byte, Array[Byte]](vLenPadded, 0)).slice(0, vLen)
+  }
+  
   def md5(v: Array[Byte]) = {
     java.security.MessageDigest.getInstance("MD5").digest(v)
   }
@@ -398,6 +420,13 @@ object RadiusPacket {
     val firstPart = (Math.random() * 9223372036854775807L).toLong
     val secondPart = (Math.random() * 9223372036854775807L).toLong
     new ByteStringBuilder().putLong(firstPart).putLong(secondPart).result.toArray
+  }
+  
+  def checkAuthenticator(packet: ByteString, reqAuthenticator: Array[Byte], secret: String) = {
+    val respAuthenticator = packet.slice(4, 20)
+    val patchedPacket = packet.patch(4, reqAuthenticator, 16)
+ 
+    RadiusPacket.md5(patchedPacket.concat(ByteString.fromString(secret, "UTF-8")).toArray).equals(respAuthenticator)
   }
 }
 
@@ -434,11 +463,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     val responseBytes = getBytes(secret)
     val responseAuthenticator = RadiusPacket.md5(responseBytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)
     
-    // patch Identifier
-    // TODO: remove this comment
-    // responseBytes.patch(2, UByteString.putUnsignedByte(new ByteStringBuilder(), identifier).result, 1)
     // patch authenticator
-    responseBytes.patch(4, new ByteStringBuilder().putBytes(responseAuthenticator).result, 16)
+    //responseBytes.patch(4, new ByteStringBuilder().putBytes(responseAuthenticator).result, 16)
+    responseBytes.patch(4, responseAuthenticator, 16)
   }
   
   override def toString() = {
@@ -450,7 +477,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
       case RadiusPacket.ACCOUNTING_RESPONSE => "Accounting-Response"
       case RadiusPacket.COA_REQUEST => "CoA-Request"
       case RadiusPacket.COA_ACK => "CoA-ACK"
-      case RadiusPacket.COA_NACK => "CoA-NACK"
+      case RadiusPacket.COA_NAK => "CoA-NAK"
     }
     
     val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty + "\n")
