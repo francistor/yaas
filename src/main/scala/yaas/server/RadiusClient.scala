@@ -43,16 +43,19 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends 
       radiusPacket.identifier = portId.id
       socketActors(portId.port - basePort) ! RadiusClientSocketRequest(radiusPacket, destination)
       
-    case RadiusActorMessages.RadiusClientSocketResponse(radiusPacket, origin, clientPort, data) =>
+    case RadiusClientSocketResponse(radiusPacket, origin, clientPort, data) =>
       // Look in cache
       val portId = PortId(clientPort, radiusPacket.identifier)
       log.debug(s"Looking for entry in request cache: $origin -> $portId")
       requestCache(origin).get(portId) match {
         case Some(OriginData(originActor, authenticator)) =>
           // Check authenticator
-          if(RadiusPacket.checkAuthenticator(data, authenticator, origin.secret))  originActor ! RadiusClientResponse(radiusPacket, authenticator)
+          val code = radiusPacket.code
+          if(((code == RadiusPacket.ACCESS_ACCEPT) || (code == RadiusPacket.ACCESS_REJECT)) && RadiusPacket.checkAuthenticator(data, authenticator, origin.secret))  
+            log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
+                origin, authenticator.map(Integer.toString(_, 16)).mkString(","), data.slice(4, 20).toArray.map(Integer.toString(_, 16)).mkString(","))
           else{
-            log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", origin, authenticator.mkString(","), data.slice(4, 20).toArray.mkString(","))
+            originActor ! RadiusClientResponse(radiusPacket, authenticator)
           }
           
         case None =>

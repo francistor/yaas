@@ -425,8 +425,7 @@ object RadiusPacket {
   def checkAuthenticator(packet: ByteString, reqAuthenticator: Array[Byte], secret: String) = {
     val respAuthenticator = packet.slice(4, 20)
     val patchedPacket = packet.patch(4, reqAuthenticator, 16)
- 
-    RadiusPacket.md5(patchedPacket.concat(ByteString.fromString(secret, "UTF-8")).toArray).equals(respAuthenticator)
+    RadiusPacket.md5(patchedPacket.concat(ByteString.fromString(secret, "UTF-8")).toArray).equals(respAuthenticator.toArray)
   }
 }
 

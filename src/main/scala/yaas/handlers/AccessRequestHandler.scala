@@ -29,9 +29,8 @@ class AccessRequestHandler extends MessageHandler {
     val passwordAVP = new OctetsRadiusAVP(2, 0, "this is the password that I have encrypted".getBytes())
     val proxyRequest = RadiusPacket.request(ACCESS_REQUEST)
     proxyRequest.avps = Queue[RadiusAVP[Any]](passwordAVP)
-    se modifica el identificador del radiusPacket al enviarlo, lo que provoca errores an la respuesta (id stalled
-        en el 8950). Además, puede ser que eso haga que el Authenticator no se esté calculando bien.
-    sendRadiusGroupRequest("allServers", radiusPacket: RadiusPacket, 1000, (response: Option[RadiusPacket]) => {
+        
+    sendRadiusGroupRequest("allServers", proxyRequest, 1000, (response: Option[RadiusPacket]) => {
         //if(response.isDefined){
           val reply = RadiusPacket.reply(radiusPacket)
           reply.avps = Queue[RadiusAVP[Any]](passwordAVP)
