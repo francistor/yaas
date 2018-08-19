@@ -21,6 +21,23 @@ object DiameterPeer {
   case class Clean()
 }
 
+/*
+ * TODO: Diameter peer lifecycle
+ * 
+ * Peer created
+ *   active --> On startup and periodically by router if the Actor does not exist, passing the config and tries to 
+ *   	establish connection and sends CER
+ *   passive --> When receiving incoming connection from router. Waits to receive CER
+ *  
+ *   Initially not updated in peerHostMap table. They are registered in the table when the CER/CEA process
+ *   completes successfully, by sending a PeerConfigured message to the Router
+ *   
+ * Peer destroyed
+ *   If unsuccessful CER/CEA, or socket disconnected, or framing error, or DPR received, the Actor sends
+ *   a PeerDown message to be unregistered from the peerHostMap table (if it was registered) and swallows a
+ *   PoisonPill
+ */
+
 class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with ActorLogging {
   
   import DiameterPeer._
@@ -54,6 +71,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       } catch {
         case e: Exception =>
           log.error(e, "Frame decoding error")
+          // TODO: Reconnect?
       }
     })
     .to(Sink.onComplete((f) => {
@@ -100,6 +118,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
         inputQueue.get.offer(message.getBytes)
       }
       else log.warning("Discarding message to unconnected peer")
+      //TODO: Store messages until peer is connected
       
     // Message to send request to peer
     // TODO: Check that this is a request?
@@ -120,6 +139,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       
     case Clean() => 
       cacheClean
+      // TODO: Clean interval should be configurable
       context.system.scheduler.scheduleOnce(200 milliseconds, self, Clean())
   }
   
@@ -191,6 +211,8 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       log.debug("Sent response message for Base application\n {}\n", reply.toString())
       
       self ! Disconnect()
+      
+      // TODO: Check if should always do this
       self ! PoisonPill
     }
     
@@ -253,4 +275,6 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     self ! reply
     log.debug("Sent response message for Base application\n {}\n", reply.toString())
   }
+  
+  // TODO: Implement the sending of DPR and DWR when necessary
 }

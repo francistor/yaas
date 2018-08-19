@@ -3,10 +3,13 @@ package yaas.config
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
+// Global diameter properties
+case class DiameterServerConfig(bindAddress: String, bindPort: Int, connectionInterval: Int, diameterHost: String, diameterRealm: String, vendorId: Int, productName: String, firmwareRevision: Int)
 
 // This class represents a diameter peer as read from the configuration file
-case class DiameterServerConfig(bindAddress: String, bindPort: Int, connectionInterval: Int, diameterHost: String, diameterRealm: String, vendorId: Int, productName: String, firmwareRevision: Int)
 case class DiameterPeerConfig(diameterHost: String, IPAddress: String, port: Int, connectionPolicy: String, watchdogIntervalMillis: Int)
+
+// This class represents a diameter route
 case class DiameterRouteConfig(realm: String, applicationId: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
 
 object DiameterConfigManager {

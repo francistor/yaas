@@ -1,0 +1,23 @@
+= Test scenario with Nokia AAA
+
+== Diameter
+
+
+Nokia dt						-> Yaas								-> Nokia AAA
+	diameter-host = testHost		diameter-host = host1.yaas			diameter-host = 8950AAA
+									diameter-realm = yaas				diameter-realm = *
+									listening-port = 3868				listening-port = 3869
+	
+
+== Radius
+
+Nokia rt						-> Yaas								-> Nokia AAA
+									ports = 1812, 1813					ports = 11812
+																		ports = 11813
+	
+
+	
+	
+	
+	
+

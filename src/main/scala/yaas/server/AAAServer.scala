@@ -12,12 +12,12 @@ import yaas.dictionary.{DiameterDictionary, RadiusDictionary}
 object AAAServer extends App {
   
   val config = ConfigFactory.load()
-  
-	val actorSystem = ActorSystem("AAA")
 	
 	// Create dictionary. Just to do initialization of the Singleton
 	val diameterDictionary = DiameterDictionary
 	val radiusDictionary = RadiusDictionary
+	
+  val actorSystem = ActorSystem("AAA")
 	
 	// The router will create the peers and handlers
 	val routerActor = actorSystem.actorOf(Router.props())

@@ -26,15 +26,14 @@ object RadiusAVP {
         
     val it = bytes.iterator
         
-    // Header
-    var code = UByteString.fromUnsignedByte(it.getByte)
-    var lastIndex = UByteString.fromUnsignedByte(it.getByte)
-    val vendorId = if(code == 26) UByteString.getUnsigned32(it).toInt else 0
-    val dataOffset = if (vendorId == 0) 2 else 8 
-    if(vendorId != 0) {
-      code = UByteString.fromUnsignedByte(it.getByte)
-      lastIndex = UByteString.fromUnsignedByte(it.getByte) + 8
-    }
+    // Header    
+    val iCode = UByteString.fromUnsignedByte(it.getByte)
+    val iLastIndex = UByteString.fromUnsignedByte(it.getByte)
+    val vendorId = if(iCode == 26) UByteString.getUnsigned32(it).toInt else 0
+    val dataOffset = if (vendorId == 0) 2 else 8
+    val code = if(vendorId == 0) iCode else UByteString.fromUnsignedByte(it.getByte)
+    val lastIndex = if(vendorId == 0) iLastIndex else UByteString.fromUnsignedByte(it.getByte) + 8 // TODO: Check this. 8 or 6
+    
     
     // Value
     val data = bytes.slice(dataOffset, lastIndex)
@@ -43,8 +42,7 @@ object RadiusAVP {
     radiusType match {
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, data)
       case RadiusTypes.OCTETS => 
-        if(dictItem.map(_.encrypt).getOrElse(0) == 1) 
-          new OctetsRadiusAVP(code, vendorId, RadiusPacket.decrypt1(authenticator, secret, data.toArray))
+        if(dictItem.map(_.encrypt).getOrElse(0) == 1) new OctetsRadiusAVP(code, vendorId, RadiusPacket.decrypt1(authenticator, secret, data.toArray))
         else new OctetsRadiusAVP(code, vendorId, data)
       case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, data)
       case RadiusTypes.TIME=> new TimeRadiusAVP(code, vendorId, data)
@@ -79,8 +77,7 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     // use avpMap to encrypt
     val avpMap = RadiusDictionary.avpMapByCode
     val payloadBytes = 
-      if(avpMap.get(vendorId, code).map(_.encrypt) == Some(1))
-        ByteString.fromArray(RadiusPacket.encrypt1(authenticator, secret, getPayloadBytes.toArray))
+      if(avpMap.get(vendorId, code).map(_.encrypt) == Some(1)) ByteString.fromArray(RadiusPacket.encrypt1(authenticator, secret, getPayloadBytes.toArray))
       else getPayloadBytes
     
     if(vendorId == 0){
@@ -139,11 +136,11 @@ class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radi
 	}
 
 	def getPayloadBytes = {
-			ByteString.fromArray(value.toArray)
+    ByteString(value.toArray)
 	}
 
 	override def stringValue = {
-			new String(value.toArray, "UTF-8")
+    new String(value.toArray, "UTF-8")
 	}
 }
 
@@ -154,11 +151,11 @@ class StringRadiusAVP(code: Int, vendorId: Int, value: String) extends RadiusAVP
 	}
 
 	def getPayloadBytes = {
-			ByteString.fromString(value, "UTF-8")
+    ByteString.fromString(value, "UTF-8")
 	}
 
 	override def stringValue = {
-			value
+    value
 	}
 }
 
@@ -174,11 +171,11 @@ class OctetsRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radiu
 	
 
 	def getPayloadBytes = {
-			ByteString.fromArray(value.toArray)
+    ByteString.fromArray(value.toArray)
 	}
 
 	override def stringValue = {
-			new String(value.toArray, "UTF-8")
+    new String(value.toArray, "UTF-8")
 	}
 }
 
@@ -417,15 +414,15 @@ object RadiusPacket {
   }
   
   def newAuthenticator = {
-    val firstPart = (Math.random() * 9223372036854775807L).toLong
+    val firstPart = System.currentTimeMillis()
     val secondPart = (Math.random() * 9223372036854775807L).toLong
     new ByteStringBuilder().putLong(firstPart).putLong(secondPart).result.toArray
   }
   
   def checkAuthenticator(packet: ByteString, reqAuthenticator: Array[Byte], secret: String) = {
     val respAuthenticator = packet.slice(4, 20)
-    val patchedPacket = packet.patch(4, reqAuthenticator, 16)
-    RadiusPacket.md5(patchedPacket.concat(ByteString.fromString(secret, "UTF-8")).toArray).equals(respAuthenticator.toArray)
+    val patchedPacket = packet.patch(4, reqAuthenticator, 16) 
+    RadiusPacket.md5(patchedPacket.concat(ByteString.fromString(secret, "UTF-8")).toArray).sameElements(respAuthenticator)
   }
 }
 

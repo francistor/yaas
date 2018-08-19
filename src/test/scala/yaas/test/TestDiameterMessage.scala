@@ -25,10 +25,10 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   "Diameter Dictionary has been correctly loaded" in {
     val avpNameMap = DiameterDictionary.avpMapByName
     avpNameMap("User-Name") mustEqual BasicAVPDictItem(1, 0, "User-Name", DiameterTypes.UTF8STRING)
-    avpNameMap("3GPP-Bearer-Identifier") mustEqual BasicAVPDictItem(1020, 10415, "3GPP-Bearer-Identifier", DiameterTypes.OCTETSTRING)
+    avpNameMap("3GPP-Bearer-Identifier") mustEqual BasicAVPDictItem(1020, 10415, "Bearer-Identifier", DiameterTypes.OCTETSTRING)
     
     val avpCodeMap = DiameterDictionary.avpMapByCode
-    avpCodeMap.get((10415, 1020)) mustEqual Some(BasicAVPDictItem(1020, 10415, "3GPP-Bearer-Identifier", DiameterTypes.OCTETSTRING))
+    avpCodeMap.get((10415, 1020)) mustEqual Some(BasicAVPDictItem(1020, 10415, "Bearer-Identifier", DiameterTypes.OCTETSTRING))
   }
   
   "OctetString serialization and deserialization" in {

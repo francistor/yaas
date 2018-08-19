@@ -7,8 +7,16 @@ import akka.event.{ Logging, LoggingReceive }
 import yaas.config.RadiusServerConfig
 import yaas.server.RadiusActorMessages._
 import yaas.coding.radius.RadiusPacket
+import yaas.util._
 
 // This Actor handles the communication with upstream radius servers
+
+// TODO: Change names
+//  OriginData -> RadiusClientActor
+//  PortId -> RadiusPortId
+//  RadiusEndpoint --> RadiusProxyEndpoint
+//  authenticator --> reqAuthenticator / respAuthenticator
+//  Remove authenticator from messages
 
 object RadiusClient {
   def props(bindIPAddress: String, basePort: Int, numPorts: Int) = Props(new RadiusClient(bindIPAddress, basePort, numPorts))
@@ -20,10 +28,13 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends 
   
   import RadiusClient._
   
+  // TODO: Clean the request cache
+  
   case class PortId(port: Int, id: Int)
   
   // Stores the last identifier used for the key RadiusDestination
   val portIds = Map[RadiusEndpoint, PortId]().withDefaultValue(PortId(basePort, 0))
+  
   // For each radius destination, the map of identifiers to originators
   val requestCache = Map[RadiusEndpoint, Map[PortId, OriginData]]().withDefaultValue(Map())
   
@@ -47,14 +58,16 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends 
       // Look in cache
       val portId = PortId(clientPort, radiusPacket.identifier)
       log.debug(s"Looking for entry in request cache: $origin -> $portId")
+      // TODO: Replace by .remove
       requestCache(origin).get(portId) match {
         case Some(OriginData(originActor, authenticator)) =>
           // Check authenticator
           val code = radiusPacket.code
-          if(((code == RadiusPacket.ACCESS_ACCEPT) || (code == RadiusPacket.ACCESS_REJECT)) && RadiusPacket.checkAuthenticator(data, authenticator, origin.secret))  
+          // TODO: Only those types of packets? Shouldn't the call to checkAuthenticator be negated
+          if(((code == RadiusPacket.ACCESS_ACCEPT) || (code == RadiusPacket.ACCESS_REJECT)) && !RadiusPacket.checkAuthenticator(data, authenticator, origin.secret))  
             log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
-                origin, authenticator.map(Integer.toString(_, 16)).mkString(","), data.slice(4, 20).toArray.map(Integer.toString(_, 16)).mkString(","))
-          else{
+                origin, authenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), data.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
+          else {
             originActor ! RadiusClientResponse(radiusPacket, authenticator)
           }
           

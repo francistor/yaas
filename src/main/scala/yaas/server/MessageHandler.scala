@@ -120,13 +120,13 @@ class MessageHandler extends Actor with ActorLogging {
     // Add to map
     radiusRequestCache.put(authenticator, RadiusRequestEntry(callback, timer))
     
-    log.debug("Radius Request -> Added to request cache: {} {}", authenticator.mkString(","), radiusRequestCache(authenticator))
+    log.debug("Radius Request -> Added to request cache: {} {}", authenticator.map(Integer.toString(_, 16)).mkString(","), radiusRequestCache(authenticator))
   }
   
   def radiusCacheOut(authenticator: Array[Byte], radiusPacketOption: Option[RadiusPacket]) = {
     radiusRequestCache.remove(authenticator) match {
       case Some(requestEntry) =>
-        if(radiusPacketOption.isDefined) log.debug("Reply -> removed entry from request cache: {}", authenticator.mkString(",")) else log.debug("Timeout -> removed entry from request cache: {}", authenticator.mkString(","))
+        if(radiusPacketOption.isDefined) log.debug("Reply -> removed entry from request cache: {}", authenticator.map(Integer.toString(_, 16)).mkString(",")) else log.debug("Timeout -> removed entry from request cache: {}", authenticator.mkString(","))
         requestEntry.timer.cancel()
         requestEntry.callback(radiusPacketOption)
         

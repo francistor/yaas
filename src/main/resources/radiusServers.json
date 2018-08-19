@@ -2,7 +2,7 @@
 	"servers" : 
 	[
 		{
-        "name": "test-server",
+        "name": "8950AAA",
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
@@ -19,7 +19,7 @@
 	[
 	  {
         "name": "allServers",
-        "servers": ["test-server"],
+        "servers": ["8950AAA"],
         "policy": "random"
       }
 	]

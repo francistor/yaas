@@ -4,6 +4,7 @@ version := "0.1"
 
 organization := "com.gmail.franciscocardosogil"
 
+enablePlugins(JavaAppPackaging)
 
 libraryDependencies ++= 
   Seq(

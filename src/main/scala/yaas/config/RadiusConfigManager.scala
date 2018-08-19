@@ -3,6 +3,7 @@ package yaas.config
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
+// TODO: Change the name to RadiusProxies, etc.
 case class RadiusThisServerConfig(bindAddress: String, authBindPort: Int, acctBindPort: Int, coABindPort: Int, clientBasePort: Int, numClientPorts: Int)
 case class RadiusPorts(auth: Int, acct: Int, coA: Int, dm: Int)
 case class RadiusServerConfig(name: String, IPAddress: String, secret: String, ports: RadiusPorts, errorLimit: Int, quarantineTimeMillis: Int)

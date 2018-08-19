@@ -12,15 +12,10 @@
 		"0":
 		[
 			{
-                "code": 111,
-                "name": "Subscription-Id",
-                "type": "Grouped",
-                "group":
-                {
-                    "Subscription-Id-Type": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                    "Subscription-Id-Data": {"minOccurs": 1, "maxOccurs": 1}
-                }
-            },
+				"code": 0,
+				"name": "AVP",
+				"type": "OctetString"
+			},
 			{
 				"code": 1,
 				"name": "User-Name",
@@ -30,6 +25,36 @@
                 "code": 8,
                 "name": "Framed-IP-Address",
                 "type": "IPv4Address"
+            },
+			{
+				"code": 11,
+				"name": "Filter-Id",
+				"type": "UTF8String"
+			},
+            {
+                "code": 33,
+                "name": "Proxy-State",
+                "type": "OctetString"
+            },
+            {
+                "code": 44,
+                "name": "Acct-Session-Id",
+                "type": "OctetString"
+            },
+            {
+                "code": 45,
+                "name": "Acct-Multi-Session-Id",
+                "type": "UTF8String"
+            },
+            {
+                "code": 55,
+                "name": "Event-Timestamp",
+                "type": "Time"
+            },
+            {
+                "code": 85,
+                "name": "Acct-Interim-Interval",
+                "type": "Unsigned32"
             },
             {
                 "code": 97,
@@ -75,6 +100,37 @@
 				}
 			},
 			{
+				"code": 260,
+				"name": "Vendor-Specific-Application-Id",
+				"type": "Grouped",
+				"group":
+                {
+                	"Vendor-Id": {"minOccurs": 1, "maxOccurs": 1},
+                    "Auth-Application-Id": {"minOccurs": 0, "maxOccurs": 1},
+                    "Acct-Application-Id": {"minOccurs": 1, "maxOccurs": 1}
+                }
+			},
+			{
+				"code": 261,
+				"name": "Redirect-Host-Usage",
+				"type": "Enumerated",
+				"enumValues":
+				{
+					"DONT_CACHE": 0,
+					"ALL_SESSION": 1,
+					"ALL_REALM": 2,
+					"REALM_AND_APPLICATION": 3,
+					"ALL_APPLICATION": 4,
+                    "ALL_HOST": 5,
+                    "ALL_USER": 4
+				}
+			},
+			{
+				"code": 262,
+				"name": "Redirect-Max-Cache-Time",
+				"type": "Unsigned32"
+			},
+			{
 				"code": 263,
 				"name": "Session-Id",
 				"type": "UTF8String"
@@ -83,6 +139,11 @@
 				"code": 264,
 				"name": "Origin-Host",
 				"type": "DiamIdent"
+			},
+			{
+				"code": 265,
+				"name": "Supported-Vendor-Id",
+				"type": "Unsigned32"
 			},
 			{
 				"code": 266,
@@ -116,6 +177,20 @@
 				}
 			},
 			{
+				"code": 279,
+				"name": "Failed-AVP",
+				"type": "Grouped",
+				"group":
+				{
+					"AVP": {"minOccurs": 1}
+				}
+			},
+			{
+				"code": 282,
+				"name": "Route-Record",
+				"type": "DiamIdent"
+			},
+			{
 				"code": 283,
 				"name": "Destination-Realm",
 				"type": "DiamIdent"
@@ -125,15 +200,61 @@
 				"name": "Origin-State-Id",
 				"type": "Unsigned32"
 			},
+			{
+				"code": 280,
+				"name": "Proxy-Host",
+				"type": "DiamIdent"
+			},
             {
                 "code": 281,
                 "name": "Error-Message",
                 "type": "UTF8String"
             },
+            {
+                "code": 284,
+                "name": "Proxy-Info",
+                "type": "Grouped",
+                "group": 
+                {
+                	"Proxy-Host": {},
+                	"Proxy-State": {}
+                }
+            },
+            {
+                "code": 287,
+                "name": "Accounting-Sub-Session-Id",
+                "type": "Unsigned64"
+            },
+            {
+				"code": 292,
+				"name": "Redirect-Host",
+				"type": "DiamIdent"
+			},
 			{
 				"code": 293,
 				"name": "Destination-Host",
 				"type": "DiamIdent"
+			},
+			{
+				"code": 294,
+				"name": "Error-Reporting-Host",
+				"type": "DiamIdent"
+			},
+			{
+				"code": 295,
+				"name": "Termination-Cause",
+				"type": "Enumerated",
+				"enumValues":
+				{
+					"DIAMETER_LOGOUT": 1,
+					"DIAMETER_SERVICE_NOT_PROVIDED": 2,
+					"DIAMETER_BAD_ANSWER": 3,
+					"DIAMETER_ADMINISTRATIVE": 4,
+					"DIAMETER_LINK_BROKEN": 5,
+					"DIAMETER_AUTH_EXPIRED": 6,
+					"DIAMETER_USER_MOVED": 7,
+					"DIAMETER_SESSION_TIMEOUT": 8
+				}
 			},
 			{
 				"code": 296,
@@ -150,6 +271,31 @@
 					"TLS": 1
 				}				
 			},
+			{
+                "code": 411,
+                "name": "CC-Correlation-Id",
+                "type": "OctetString"
+            },
+			{
+                "code": 412,
+                "name": "CC-Input-Octets",
+                "type": "Unsigned64"
+            },
+            {
+                "code": 413,
+                "name": "CC-Money",
+                "type": "Grouped",
+                "group":
+                {
+                	"Unit-Value": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                	"Currency-Code": {}
+                }
+            },
+            {
+                "code": 414,
+                "name": "CC-Output-Octets",
+                "type": "Unsigned64"
+            },
             {
                 "code": 415,
                 "name": "CC-Request-Number",
@@ -168,6 +314,196 @@
                 }
             },
             {
+                "code": 417,
+                "name": "CC-Service-Specific-Units",
+                "type": "Unsigned64"
+            },
+             {
+                "code": 418,
+                "name": "CC-Session-Failover",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "FAILOVER_NOT_SUPPORTED": 0,
+                    "FAILOVER_SUPPORTED": 1
+                }
+            },
+            {
+                "code": 419,
+                "name": "CC-Sub-Session-Id",
+                "type": "Unsigned64"
+            },
+            {
+                "code": 420,
+                "name": "CC-Time",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 421,
+                "name": "CC-Total-Octets",
+                "type": "Unsigned64"
+            },
+            {
+                "code": 422,
+                "name": "Check-Balance-Result",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                	"ENOUGH_CREDIT": 0,
+                	"NO_CREDIT": 1
+                }
+            },
+            {
+                "code": 423,
+                "name": "Cost-Information",
+                "type": "Grouped",
+                "group":
+                {
+					"Unit-Value": {},
+					"Currency-Code": {},
+					"Cost-Unit": {}
+                }
+            },
+            {
+                "code": 427,
+                "name": "Credit-Control-Failure-Handling",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                	"TERMINATE": 0,
+                	"CONTINUE": 1,
+                	"RETRY_AND_TERMINATE": 2
+                }
+            },
+            {
+                "code": 428,
+                "name": "Direct-Debiting-Failure-Handling",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                	"TERMINATE_OR_BUFFER": 0,
+                	"CONTINUE": 1
+                }
+            },
+            {
+                "code": 429,
+                "name": "Exponent",
+                "type": "Integer32"
+            },
+            {
+                "code": 430,
+                "name": "Final-Unit-Indication",
+                "type": "Grouped",
+                "group":
+                {
+					"Final-Unit-Action": {},
+					"Restriction-Filter-Rule": {},
+					"Filter-Id": {},
+					"Redirect-Server": {},
+					"AVP": {}
+                }
+            },
+            {
+                "code": 431,
+                "name": "Granted-Service-Unit",
+                "type": "Grouped",
+                "group":
+                {
+					"Tariff-Time-Change": {},
+					"CC-Time": {},
+					"CC-Money": {},
+					"CC-Total-Octets": {},
+					"CC-Input-Octets": {},
+					"CC-Output-Octets": {},
+					"CC-Service-Specific-Units": {},
+					"AVP": {}
+                }
+            },
+            {
+                "code": 432,
+                "name": "Rating-Group",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 433,
+                "name": "Redirect-Address-Type",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"IPV4": 0,
+                	"IPV6": 1,
+                	"URL": 2,
+                	"SIP_URI": 3
+                }
+            },
+            {
+                "code": 434,
+                "name": "Redirect-Server",
+                "type": "Grouped",
+                "group":
+                {
+                	"Redirect-Address-Type": {},
+                	"Redirect-Server-Address": {}
+                }
+            },
+            {
+                "code": 433,
+                "name": "Redirect-Server-Address",
+                "type": "UTF8String"
+            },
+            {
+                "code": 436,
+                "name": "Requested-Action",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"DIRECT_DEBITING": 0,
+                	"REFUND_ACCOUNT": 1,
+                	"CHECK_BALANCE": 2,
+                	"PRICE_ENQUIRY": 3
+                }
+            },
+            {
+                "code": 437,
+                "name": "Requested-Service-Unit",
+                "type": "Grouped",
+                "group":
+                {
+                	"CC-Time": {},
+                	"CC-Money": {}, 
+                	"CC-Total-Octets": {},
+                    "CC-Input-Octets": {},
+                    "CC-Output-Octets": {},
+                    "CC-Service-Specific-Units": {},
+                    "AVP": {}
+                }
+            },
+            {
+                "code": 439,
+                "name": "Service-Identifier",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 440,
+                "name": "Service-Parameter-Info",
+                "type": "Grouped",
+                "group":
+                {
+					"Service-Parameter-Type": {},
+					"Service-Parameter-Value": {}
+                }
+            },
+            {
+                "code": 441,
+                "name": "Service-Parameter-Type",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 442,
+                "name": "Service-Parameter-Value",
+                "type": "OctetString"
+            },
+            {
                 "code": 443,
                 "name": "Subscription-Id",
                 "type": "Grouped",
@@ -183,6 +519,141 @@
                 "type": "UTF8String"
             },
             {
+                "code": 445,
+                "name": "Unit-Value",
+                "type": "Grouped",
+                "group":
+                {
+                	"Value-Digits": {},
+                	"Exponent": {}
+                	
+                }
+            },
+            {
+                "code": 446,
+                "name": "Used-Service-Unit",
+                "type": "Grouped",
+                "group":
+                {
+                	"Tariff-Change-Usage": {},
+                    "CC-Time": {},
+                    "CC-Money": {},
+                    "CC-Total-Octets": {},
+                    "CC-Input-Octets": {},
+                    "CC-Output-Octets": {},
+                    "CC-Service-Specific-Units": {}
+                }
+            },
+            {
+                "code": 447,
+                "name": "Value-Digits",
+                "type": "Integer64"
+            },
+            {
+                "code": 448,
+                "name": "Validity-Time",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 449,
+                "name": "Final-Unit-Action",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"TERMINATE": 0,
+                	"REDIRECT": 1,
+                	"RESTRICT_ACCESS": 2
+                }
+            },
+            {
+                "code": 452,
+                "name": "Tariff-Change-Usage",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"UNIT_BEFORE_TARIFF_CHANGE": 0,
+                	"UNIT_AFTER_TARIFF_CHANGE": 1,
+                	"UNIT_INDETERMINATE": 2
+                }
+            },
+            {
+                "code": 456,
+                "name": "Multiple-Services-Credit-Control",
+                "type": "Grouped",
+                "group":
+                {
+					"Granted-Service-Unit": {},
+					"Requested-Service-Unit": {},
+ 					"Used-Service-Unit": {},
+					"Tariff-Change-Usage": {},
+					"Service-Identifier": {},
+					"Rating-Group": {},
+					"G-S-U-Pool-Reference": {},
+					"Validity-Time": {},
+					"Result-Code": {},
+					"Final-Unit-Indication": {},
+					"AVP": {}
+                }
+            },
+            {
+                "code": 457,
+                "name": "G-S-U-Pool-Reference",
+                "type": "Grouped",
+                "group":
+                {
+					"G-S-U-Pool-Identifier": {},
+                    "CC-Unit-Type": {},
+                    "Unit-Value": {},
+					"AVP": {}
+                }
+            },
+            {
+                "code": 458,
+                "name": "User-Equipment-Info",
+                "type": "Grouped",
+                "group":
+                {
+					"User-Equipment-Info-Type": {},
+                    "User-Equipment-Info-Value": {},
+                    "Unit-Value": {},
+					"AVP": {}
+                }
+            },
+            {
+                "code": 459,
+                "name": "User-Equipment-Info-Type",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "IMEISV": 0,
+                    "MAC": 1,
+                    "EUI64": 2,
+                    "MODIFIED_EUI64": 3
+                }
+            },
+            {
+                "code": 460,
+                "name": "User-Equipment-Info-Value",
+                "type": "OctetString"
+            },
+            {
+                "code": 461,
+                "name": "Service-Context-Id",
+                "type": "UTF8String"
+            },
+            {
+                "code": 480,
+                "name": "Accounting-Record-Type",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "EVENT_RECORD": 1,
+                    "START_RECORD": 2,
+                    "INTERIM_RECORD": 3,
+                    "STOP_RECORD": 4
+                }
+            },
+            {
                 "code": 450,
                 "name": "Subscription-Id-Type",
                 "type": "Enumerated",
@@ -194,6 +665,33 @@
                     "EndUserNAI": 3,
                     "EndUserPrivate": 4
                 }
+            },
+            {
+                "code": 455,
+                "name": "Multiple-Services-Indicator",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "MULTIPLE_SERVICES_NOT_SUPPORTED": 0,
+                    "MULTIPLE_SERVICES_SUPPORTED": 1
+                }
+            },
+
+            {
+                "code": 483,
+                "name": "Accounting-Realtime-Required",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "DELIVER_AND_GRANT": 1,
+                    "GRANT_AND_STORE": 2,
+                    "GRANT_AND_LOSE": 3
+                }
+            },
+            {
+                "code": 485,
+                "name": "Accounting-Record-Number",
+                "type": "Unsigned32"
             }
 		],
 
@@ -215,15 +713,15 @@
                 "type": "Grouped",
                 "group":
                 {
-                    "QoS-Class-Identifier":{"minOccurs": 1, "maxOccurs": 1},
-                    "Max-Requested-Bandwidth-UL":{"minOccurs": 1, "maxOccurs": 1},
-                    "Requested-Bandwidth-DL":{"minOccurs": 1, "maxOccurs": 1},
-                    "Guaranteed-Bitrate-UL":{"minOccurs": 1, "maxOccurs": 1},
-                    "Guaranteed-Bitrate-DL":{"minOccurs": 1, "maxOccurs": 1},
-                    "Bearer-Identifier":{"minOccurs": 1, "maxOccurs": 1},
-                    "Allocation-Retention-Priority":{"minOccurs": 1, "maxOccurs": 1},
-                    "APN-Aggregate-Max-Bitrate-UL":{"minOccurs": 1, "maxOccurs": 1},
-                    "APN-Aggregate-Max-Bitrate-DL":{"minOccurs": 1, "maxOccurs": 1}
+                    "3GPP-QoS-Class-Identifier":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Max-Requested-Bandwidth-UL":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Requested-Bandwidth-DL":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Guaranteed-Bitrate-UL":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Guaranteed-Bitrate-DL":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Bearer-Identifier":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Allocation-Retention-Priority":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-APN-Aggregate-Max-Bitrate-UL":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-APN-Aggregate-Max-Bitrate-DL":{"minOccurs": 1, "maxOccurs": 1}
                 }
             },
             {
@@ -525,7 +1023,7 @@
 						"Auth-Application-Id":{},
 						"Inband-Security-Id":{},
 						"Acct-Application-Id":{},
-						"Vendor-Specific-Auth-Application-Id":{},
+						"Vendor-Specific-Application-Id":{},
 						"Firmware-Revision":{"maxOccurs": 1},
 						"AVP":{}
 					}
@@ -636,20 +1134,35 @@
 					"name": "Credit-Control",
 					"request":
 					{
-						"Session-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+						"Session-Id": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
 						"Origin-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-						"Origin-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-						"Destination-Realm":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                        "Destination-Host":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-						"Auth-Application-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-						"CC-Request-Type":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-						"CC-Request-Number":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
-                        "Origin-State-Id":{},
-                        "Subscription-Id":{},
-                        "IP-CAN-Type":{},
-                        "3G-RAT-Type":{},
-                        "RAT-Type":{},
-						"AVP":{}
+						"Origin-Realm": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+						"Destination-Realm": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Host": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+						"Auth-Application-Id": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+						"Service-Context-Id": {"mandatory": true},
+                        "CC-Request-Type": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                        "CC-Request-Number" : {"mandatory": true,"minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Host": {},
+                        "User-Name": {},
+                        "CC-Sub-Session-Id": {},
+                        "Acct-Multi-Session-Id": {},
+                        "Origin-State-Id": {},
+                        "Event-Timestamp": {},
+                        "Subscription-Id": {},
+                        "Service-Identifier": {},
+                        "Termination-Cause": {},
+                        "Requested-Service-Unit": {},
+                        "Requested-Action": {},
+                        "Used-Service-Unit": {},
+                        "Multiple-Services-Indicator": {},
+                        "Multiple-Services-Credit-Control": {},
+                        "Service-Parameter-Info": {},
+                        "CC-Correlation-Id": {},
+                        "User-Equipment-Info": {},
+                        "Proxy-Info": {},
+                        "Route-Record": {},
+                        "AVP": {}
 					},
                     "response":
                     {
@@ -660,8 +1173,28 @@
                         "Auth-Application-Id":{"minOccurs": 1, "maxOccurs": 1},
                         "CC-Request-Type":{"minOccurs": 1, "maxOccurs": 1},
                         "CC-Request-Number":{"minOccurs": 1, "maxOccurs": 1},
+						"User-Name": {},
+						"CC-Session-Failover": {},
+						"CC-Sub-Session-Id": {},
+						"Acct-Multi-Session-Id": {},
+						"Origin-State-Id": {},
+						"Event-Timestamp": {},
+						"Granted-Service-Unit": {},
+						"Multiple-Services-Credit-Control": {},
+						"Cost-Information": {},
+						"Final-Unit-Indication": {},
+						"Check-Balance-Result": {},
+						"Credit-Control-Failure-Handling": {},
+						"Direct-Debiting-Failure-Handling": {},
+						"Validity-Time": {},
+						"Redirect-Host": {},
+						"Redirect-Host-Usage": {},
+						"Redirect-Max-Cache-Time": {},
+						"Proxy-Info": {},
+						"Route-Record": {},
+						"Failed-AVP": {},
                         "AVP":{}
-                        }
+                     }
 				}
 			]
 		},
@@ -686,7 +1219,7 @@
                         "CC-Request-Number":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
                         "Origin-State-Id":{},
                         "Subscription-Id":{},
-                        "Bearer-Identifier":{},
+                        "3GPP-Bearer-Identifier":{},
                         "Framed-IP-Address":{},
                         "Framed-IPv6-Prefix":{},
                         "AVP":{}

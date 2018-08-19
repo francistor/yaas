@@ -143,8 +143,14 @@ class Router() extends Actor with ActorLogging {
 	  
 	  // Shutdown unconfigured peers and return clean list  
 	  val cleanPeersHostMap = peerHostMap.flatMap { case (hostName, peerPointer) => 
-	    if(conf.get(hostName) == None){peerPointer.actorRefOption.map(context.stop(_)); Seq()} else Seq((hostName, peerPointer))
-	    }
+	    if(conf.get(hostName) == None){
+	      // Stop peer and return empty sequence
+	      // TODO: Do same as in getRadiusServerPointers
+	      peerPointer.actorRefOption.map(context.stop(_)); Seq()}
+	    else
+	      // Leave as it is
+	      Seq((hostName, peerPointer))
+	  }
 	  
 	  // Create new peers if needed
 	  val newPeerHostMap = conf.map { case (hostName, peerConfig) => 
@@ -163,6 +169,7 @@ class Router() extends Actor with ActorLogging {
 	  }
 	  
 	  // Update maps
+	  // TODO: Do same as in getRadiusServerPointers (return instead of modify var)
 	  peerHostMap = scala.collection.mutable.Map() ++ newPeerHostMap
 	}
   
@@ -193,13 +200,7 @@ class Router() extends Actor with ActorLogging {
 	
 	// Utility function to get a route
   def findRoute(realm: String, application: String) : Option[DiameterRoute] = {
-    for(route <- diameterRoutes){
-      if(route.realm == "*" || route.realm == realm) 
-        if(route.application == "*" || route.application == application) 
-          return Some(route) // God forgives me
-    }
-    
-    None
+    diameterRoutes.find{ route => (route.realm == "*" || route.realm == realm) && (route.application == "*" || route.application == application) }
   }
   
   ////////////////////////////////////////////////////////////////////////
@@ -242,6 +243,7 @@ class Router() extends Actor with ActorLogging {
   def newRadiusCoAServerActor(ipAddress: String, bindPort: Int) = {
     context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusCoAServer")
   }
+  
 
   ////////////////////////////////////////////////////////////////////////
   // Diameter socket
@@ -290,18 +292,18 @@ class Router() extends Actor with ActorLogging {
 	  case message : DiameterMessage =>
 	    findRoute(message >> "Destination-Realm", message.application) match {
 	      // Local handler
-	      case Some(DiameterRoute(realm, application, peers, policy, Some(handler))) =>
+	      case Some(DiameterRoute(_, _, _, _, Some(handler))) =>
 	        // Handle locally
 	        handlerMap.get(handler) match {
 	          case Some(handlerActor) =>  handlerActor ! RoutedDiameterMessage(message, context.sender)
-	          case None => log.warning("Attempt to rotue message to a non exising handler {}", handler)
+	          case None => log.warning("Attempt to route message to a non exising handler {}", handler)
 	        }
 	      
 	      // Send to Peer
-	      case Some(DiameterRoute(realm, application, Some(peers), policy, _)) => 
+	      case Some(DiameterRoute(_, _, Some(peers), policy, _)) => 
 	        peerHostMap.get(peers(0)) match { // TODO: Only one peer supported
 	          case Some(DiameterPeerPointer(_, Some(actorRef))) => actorRef ! RoutedDiameterMessage(message, context.sender)
-	          case _ => log.warning("Attempt to rotue message to a non exising peer {}", peers(0))
+	          case _ => log.warning("Attempt to route message to a non exising peer {}", peers(0))
 	        }
 	      // No route
 	      case _ =>
@@ -351,9 +353,6 @@ class Router() extends Actor with ActorLogging {
 	      case None =>
 	        log.warning("Radius server group {} not found", serverGroupName)
 	    }
-
-	    
-	    
 	    
 	  /*
 	   * Peer lifecycle
@@ -384,6 +383,7 @@ class Router() extends Actor with ActorLogging {
 	      case Some((hostName, peerPointer)) => 
 	        log.info("Unregistering peer actor for {}", hostName)
 	        peerHostMap(hostName) = DiameterPeerPointer(peerPointer.config, None)
+	        
 	      case _ => log.warning("Peer down for unavailable Peer Actor")
 	    }
 	}

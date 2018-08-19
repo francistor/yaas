@@ -22,6 +22,8 @@ class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with Acto
   
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(bindIPAddress, bindPort))
   
+  // TODO: Catch errors
+  
   def receive = {
     case Udp.Bound(localAddress: InetSocketAddress) =>
       log.info(s"Server socket bound to $localAddress")

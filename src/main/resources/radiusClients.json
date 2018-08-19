@@ -1,6 +1,6 @@
 [
 	{
-		"name": "test-client",
+		"name": "testhost",
 		"IPAddress": "127.0.0.1",
 		"secret": "secret"
 	}
