@@ -55,9 +55,16 @@ import yaas.coding.diameter.DiameterConversions._
 import yaas.coding.radius.RadiusPacket
 import yaas.server.RadiusActorMessages._
 
-case class DiameterRoute(realm: String, application: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
+case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
+
 // Peer tables are made of these items
-case class DiameterPeerPointer(config: DiameterPeerConfig, actorRefOption: Option[ActorRef])
+object PeerStatus {
+  sealed trait Status
+  case object Down extends Status
+  case object Starting extends Status
+  case object Ready extends Status
+}
+case class DiameterPeerPointer(config: DiameterPeerConfig, status: PeerStatus.Status, actorRefOption: Option[ActorRef])
 case class RadiusServerPointer(config: RadiusServerConfig, var isAlive: Boolean, var nextTimestamp: Long, var accErrors: Int){
   def getPort(code: Int) = {
     code match {
@@ -107,6 +114,8 @@ class Router() extends Actor with ActorLogging {
   updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
   updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
   
+  // TODO: Start periodic re-connection of peers
+  
   // First update of radius configuration
   val radiusConfig = RadiusConfigManager.getRadiusConfig
   radiusServerIPAddress = radiusConfig.bindAddress
@@ -122,12 +131,14 @@ class Router() extends Actor with ActorLogging {
   // Diameter Server socket
   implicit val actorSytem = context.system
   implicit val materializer = ActorMaterializer()
-  startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
+  if(diameterServerIPAddress != "0") startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
   
   // Radius server actors
-  newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
-  newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
-  newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
+  if(radiusServerIPAddress != "0"){
+    newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
+    newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
+    newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
+  }
   
   // Radius client
   val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts), "RadiusClient")
@@ -158,10 +169,10 @@ class Router() extends Actor with ActorLogging {
 	    if(cleanPeersHostMap.get(hostName) == None){
 	      if(peerConfig.connectionPolicy.equalsIgnoreCase("active")){
 	        // Create actor, which will initiate the connection.
-	       (hostName, DiameterPeerPointer(peerConfig, Some(context.actorOf(DiameterPeer.props(Some(peerConfig)), hostName))))
+	       (hostName, DiameterPeerPointer(peerConfig, PeerStatus.Starting, Some(context.actorOf(DiameterPeer.props(Some(peerConfig)), hostName))))
 	      }
 	      else {
-	        (hostName, DiameterPeerPointer(peerConfig, None))
+	        (hostName, DiameterPeerPointer(peerConfig, PeerStatus.Down, None))
 	      }
 	    }
 	    // Was already created
@@ -300,14 +311,16 @@ class Router() extends Actor with ActorLogging {
 	        }
 	      
 	      // Send to Peer
-	      case Some(DiameterRoute(_, _, Some(peers), policy, _)) => 
-	        peerHostMap.get(peers(0)) match { // TODO: Only one peer supported
-	          case Some(DiameterPeerPointer(_, Some(actorRef))) => actorRef ! RoutedDiameterMessage(message, context.sender)
+	      case Some(DiameterRoute(_, _, Some(peers), policy, _)) =>
+	        peerHostMap.get(peers.filter(peer => peerHostMap(peer).status == PeerStatus.Ready)(0)) match { 
+	          // TODO: Implement load balancing
+	          case Some(DiameterPeerPointer(_, _, Some(actorRef))) => actorRef ! RoutedDiameterMessage(message, context.sender)
 	          case _ => log.warning("Attempt to route message to a non exising peer {}", peers(0))
 	        }
 	      // No route
 	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
+	        // TODO: Reply with error message if peer not Ready
 	    }
 	    
     /*
@@ -346,7 +359,7 @@ class Router() extends Actor with ActorLogging {
 	          val radiusServer = radiusServers(availableServers(serverIndex))
 	          radiusClientActor ! RadiusClientRequest(radiusPacket, 
 	                  RadiusEndpoint(radiusServer.config.IPAddress, radiusServer.getPort(radiusPacket.code), radiusServer.config.secret),
-	                  sender, authenticator)
+	                  sender)
 	        }
 	        else log.warning("No available server found for group {}", serverGroupName)
 	        
@@ -358,22 +371,34 @@ class Router() extends Actor with ActorLogging {
 	   * Peer lifecycle
 	   */
 	  case diameterPeerConfig : DiameterPeerConfig =>
-	    // Actor spawn on received connection has successfully processed a CER/CEA exchange
-	    // Check there is not already an actor for the same peer
+	    // Actor has successfully processed a CER/CEA exchange. Register in map, but
+	    // check there is not already an actor for the same peer.
+	    // If another actor exists and is "Ready", leave as it is and kill this new Actor. Otherwise, destroy the other actor.
 	    peerHostMap.get(diameterPeerConfig.diameterHost) match {
-	      case Some(DiameterPeerPointer(config, actorRefOption)) => 
-	        if(actorRefOption.isDefined){
-	          log.info("Second connection to {} will be torn down", config)
-	          sender ! DiameterPeer.Disconnect
-	          sender ! PoisonPill
-	        } else {
+	      case Some(DiameterPeerPointer(config, status, actorRefOption)) =>
+	        
+	        if(actorRefOption == None || actorRefOption == Some(sender)){
+	          // If no actor or same Actor, this is us
 	          log.info("Established a peer relationship with {}", config)
-	          peerHostMap(diameterPeerConfig.diameterHost) = DiameterPeerPointer(config, Some(sender))
+	          peerHostMap(diameterPeerConfig.diameterHost) = DiameterPeerPointer(config, PeerStatus.Ready, Some(sender))
+	        } else {
+	          // There is some other guy. One of them must die
+	          if(status == PeerStatus.Ready){
+	            // The other guy wins
+	            log.info("Second connection to already connected peer {} will be torn down", config)
+              // Kill this new redundant connection
+              context.stop(sender)
+	          } else {
+	            // Kill the other Actor
+	            log.info("Won the race. Established a peer relationship with {}", config)
+	            peerHostMap(diameterPeerConfig.diameterHost) = DiameterPeerPointer(config, PeerStatus.Ready, Some(sender))
+	            log.info("Stopping redundant Actor")
+	            context.stop(actorRefOption.get)
+	          }
 	        }
 	        
 	      case None =>
-	        log.error("Established connection to non configured peer. This should never happen")
-	        sender ! DiameterPeer.Disconnect
+	        log.error("Established connection to non configured Peer. This should never happen")
 	        sender ! PoisonPill
 	    }
 	    
@@ -382,9 +407,9 @@ class Router() extends Actor with ActorLogging {
 	    peerHostMap.find{case (hostName, peerPointer) => Some(sender).equals(peerPointer.actorRefOption)} match {
 	      case Some((hostName, peerPointer)) => 
 	        log.info("Unregistering peer actor for {}", hostName)
-	        peerHostMap(hostName) = DiameterPeerPointer(peerPointer.config, None)
+	        peerHostMap(hostName) = DiameterPeerPointer(peerPointer.config, PeerStatus.Down, None)
 	        
-	      case _ => log.warning("Peer down for unavailable Peer Actor")
+	      case _ => log.debug("Peer down for unavailable Peer Actor")
 	    }
 	}
   

@@ -7,6 +7,7 @@ import scala.collection.immutable.Queue
 import yaas.util.UByteString
 import yaas.dictionary._
 
+class RadiusCodingException(val msg: String) extends java.lang.Exception(msg: String)
 
 object RadiusAVP {
   implicit val byteOrder = ByteOrder.BIG_ENDIAN 
@@ -33,7 +34,7 @@ object RadiusAVP {
     val dataOffset = if (vendorId == 0) 2 else 8
     val code = if(vendorId == 0) iCode else UByteString.fromUnsignedByte(it.getByte)
     val lastIndex = if(vendorId == 0) iLastIndex else UByteString.fromUnsignedByte(it.getByte) + 8 // TODO: Check this. 8 or 6
-    
+    println(s"Code: $code, LastIndex: $lastIndex")
     
     // Value
     val data = bytes.slice(dataOffset, lastIndex)
@@ -111,6 +112,9 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
 
 	// To be overriden in concrete classes
 	def stringValue = value.toString
+	
+	// Want the stringified AVP be the value, so toString reports only the value
+  override def toString = stringValue
 	
 	override def equals(other: Any): Boolean = {
     other match {
@@ -464,6 +468,36 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     responseBytes.patch(4, responseAuthenticator, 16)
   }
   
+  // TODO: In radius, avp are defined as immutable var. In diameter, as mutable var
+  /**
+   * Insert AVP in message
+   */  
+  def << (avp: RadiusAVP[Any]) : RadiusPacket = {
+    avps :+= avp
+    this
+  }
+  
+  /**
+   * Extract AVP from message
+   */
+  def >> (attributeName: String) : Option[RadiusAVP[Any]] = {
+    RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps.find(avp => avp.code == code)
+      case None => None
+    }
+  }
+    
+  /**
+   * Extract AVP List from message
+   */
+  def >>> (attributeName: String) : Queue[RadiusAVP[Any]] = {
+    RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps.filter(avp => avp.code == code)
+      case None => Queue[RadiusAVP[Any]]()
+    }
+  }
+  
+  
   override def toString() = {
     val codeString = code match {
       case RadiusPacket.ACCESS_REQUEST => "Access-Request"
@@ -490,6 +524,72 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
             !x.avps.equals(avps)) false else true
       case _ => 
         false
+    }
+  }
+}
+
+
+object RadiusConversions {
+  
+  /**
+   * Radius AVP to String (value)
+   */
+  implicit def RadiusAVP2String(avp: Option[RadiusAVP[Any]]) : String = {
+    avp match {
+      case Some(v) => v.stringValue
+      case None => ""
+    }
+  }
+  
+  /**
+   * Radius AVP from tuple (name, value)
+   */
+  implicit def Tuple2AVP(tuple : (String, String)) : RadiusAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    
+    val dictItem = RadiusDictionary.avpMapByName(attrName)
+    val code = dictItem.code
+    val isVendorSpecific = dictItem.vendorId != 0
+    val vendorId = dictItem.vendorId
+    
+    dictItem.radiusType match {
+      case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, attrValue.getBytes("UTF-8").toList)
+      case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue)
+      case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.toInt)
+      case RadiusTypes.TIME=>
+        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+        new TimeRadiusAVP(code, vendorId, sdf.parse(attrValue))
+      case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
+      case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
+      case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue)
+      case RadiusTypes.IFID => new InterfaceIdRadiusAVP(code, vendorId, attrValue.getBytes("UTF-8").toList)
+      case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.toLong)
+    }
+  }
+  
+  implicit def TupleInt2AVP(tuple : (String, Int)) : RadiusAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    TupleLong2AVP((attrName, attrValue.toLong))
+  }
+  
+  implicit def TupleLong2AVP(tuple : (String, Long)) : RadiusAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    
+    val dictItem = RadiusDictionary.avpMapByName(attrName)
+    val code = dictItem.code
+    val isVendorSpecific = dictItem.vendorId != 0
+    val vendorId = dictItem.vendorId
+    
+    dictItem.radiusType match {
+      case RadiusTypes.OCTETS => throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
+      case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue.toString)
+      case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.toInt)
+      case RadiusTypes.TIME=> throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
+      case RadiusTypes.ADDRESS => throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
+      case RadiusTypes.IPV6ADDR => throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
+      case RadiusTypes.IPV6PREFIX => throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
+      case RadiusTypes.IFID => throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
+      case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.toLong)
     }
   }
 }

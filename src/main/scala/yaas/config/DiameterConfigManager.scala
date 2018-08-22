@@ -10,7 +10,7 @@ case class DiameterServerConfig(bindAddress: String, bindPort: Int, connectionIn
 case class DiameterPeerConfig(diameterHost: String, IPAddress: String, port: Int, connectionPolicy: String, watchdogIntervalMillis: Int)
 
 // This class represents a diameter route
-case class DiameterRouteConfig(realm: String, applicationId: String, peers: Option[Array[String]], policy: Option[String], handler: Option[String])
+case class DiameterRouteConfig(realm: String, applicationId: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
 
 object DiameterConfigManager {
 

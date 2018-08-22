@@ -25,6 +25,8 @@ class AccessRequestHandler extends MessageHandler {
   def handleAccessRequest(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint) = {
     import scala.collection.immutable.Queue
     
+    println(s"Password is: [${radiusPacket >> "User-Password"}]")
+    
     // Proxy to upstream server
     val passwordAVP = new OctetsRadiusAVP(2, 0, "this is the password that I have encrypted".getBytes())
     val proxyRequest = RadiusPacket.request(ACCESS_REQUEST)

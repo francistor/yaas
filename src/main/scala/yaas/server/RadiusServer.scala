@@ -54,7 +54,6 @@ class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with Acto
     case RadiusServerResponse(radiusPacket, origin) =>
       log.debug(s"Sending radius response to $origin")
       val response = radiusPacket.getResponseBytes(origin.secret)
-      log.debug(response.toString)
       udpEndPoint ! Udp.Send(response, new InetSocketAddress(origin.ipAddress, origin.port))
   }
 }

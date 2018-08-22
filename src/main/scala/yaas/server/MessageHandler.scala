@@ -154,7 +154,7 @@ class MessageHandler extends Actor with ActorLogging {
       
     // Radius
     case CancelRadiusRequest(authenticator) =>
-        radiusCacheOut(authenticator, None)
+      radiusCacheOut(authenticator, None)
         
     case RadiusServerRequest(radiusPacket, originActor, origin) =>
       log.debug("Received Radius Request message\n {}\n", radiusPacket.toString())

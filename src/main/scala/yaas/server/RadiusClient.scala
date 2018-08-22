@@ -21,7 +21,7 @@ import yaas.util._
 object RadiusClient {
   def props(bindIPAddress: String, basePort: Int, numPorts: Int) = Props(new RadiusClient(bindIPAddress, basePort, numPorts))
   
-  case class OriginData(originActor: ActorRef, authenticator: Array[Byte])
+  case class RadiusOriginatorRef(originActor: ActorRef, authenticator: Array[Byte])
 }
 
 class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends Actor with ActorLogging {
@@ -36,19 +36,19 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends 
   val portIds = Map[RadiusEndpoint, PortId]().withDefaultValue(PortId(basePort, 0))
   
   // For each radius destination, the map of identifiers to originators
-  val requestCache = Map[RadiusEndpoint, Map[PortId, OriginData]]().withDefaultValue(Map())
+  val requestCache = Map[RadiusEndpoint, Map[PortId, RadiusOriginatorRef]]().withDefaultValue(Map())
   
   // Span actors
   val socketActors = (for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i))
   
   def receive = {
     
-    case RadiusClientRequest(radiusPacket, destination, originActor, authenticator) =>
+    case RadiusClientRequest(radiusPacket, destination, originActor) =>
       // Get port and id
       val portId = nextPortId(destination)
       
       // Populate cache
-      pushToRequestCache(destination, portId, OriginData(originActor, authenticator))
+      pushToRequestCache(destination, portId, RadiusOriginatorRef(originActor, radiusPacket.authenticator))
       log.debug(s"Pushed entry to request cache: $destination -> $portId")
       // Send message to socket Actor
       radiusPacket.identifier = portId.id
@@ -60,7 +60,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends 
       log.debug(s"Looking for entry in request cache: $origin -> $portId")
       // TODO: Replace by .remove
       requestCache(origin).get(portId) match {
-        case Some(OriginData(originActor, authenticator)) =>
+        case Some(RadiusOriginatorRef(originActor, authenticator)) =>
           // Check authenticator
           val code = radiusPacket.code
           // TODO: Only those types of packets? Shouldn't the call to checkAuthenticator be negated
@@ -79,11 +79,11 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends 
   }
   
   // Helper function
-  def pushToRequestCache(destination: RadiusEndpoint, portId: PortId, origin: OriginData) = {
+  def pushToRequestCache(destination: RadiusEndpoint, portId: PortId, origin: RadiusOriginatorRef) = {
     requestCache.get(destination) match {
       case Some(destinationMap) => destinationMap.put(portId, origin)
       case None =>
-        requestCache.put(destination, Map[PortId, OriginData]((portId, origin)))
+        requestCache.put(destination, Map[PortId, RadiusOriginatorRef]((portId, origin)))
     }
   }
   

@@ -29,12 +29,11 @@ object DiameterAVP {
     //    vendorId: 0 / 4 byte
     //    data: rest of bytes
     
-    // TODO: use iterator
     val it = bytes.iterator
     val code = UByteString.getUnsigned32(it)
     val flags = UByteString.getUnsignedByte(it)
-      val isVendorSpecific : Boolean = (flags & 0x80) > 0
-      val isMandatory : Boolean = (flags & 0x40) > 0 
+    val isVendorSpecific : Boolean = (flags & 0x80) > 0
+    val isMandatory : Boolean = (flags & 0x40) > 0 
     val avpLength = UByteString.getUnsigned24(it)
     val dataOffset = if (isVendorSpecific) 12 else 8 
     val vendorId = isVendorSpecific match {
@@ -603,10 +602,16 @@ object DiameterMessage {
    * identifiers and flags to default values and empty attribute list
    */
   def request(applicationName : String, commandName: String)(implicit idGen: IDGenerator) = {
+    val diameterConfig = DiameterConfigManager.getDiameterConfig
     val applicationDictItem = DiameterDictionary.appMapByName(applicationName)
     
-    new DiameterMessage(applicationDictItem.code, applicationDictItem.commandMapByName(commandName).code, 
+    val requestMessage = new DiameterMessage(applicationDictItem.code, applicationDictItem.commandMapByName(commandName).code, 
         idGen.nextHopByHopId, idGen.nextEndToEndId, Queue(), true, true, false, false)
+    
+    requestMessage << ("Origin-Host" -> diameterConfig.diameterHost)
+    requestMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
+    
+    requestMessage
   }
   
   /**
@@ -721,7 +726,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     DiameterDictionary.appMapByCode.get(applicationId).map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
   }
   
-  override def toString() = {
+  override def toString = {
     val header = s"req: $isRequest, pxabl: $isProxyable, err: $isError, ret: $isRetransmission, hbhId: $hopByHopId, e2eId: $endToEndId"
     val application = DiameterDictionary.appMapByCode.get(applicationId)
     val applicationName = application.map(_.name).getOrElse("Unknown")

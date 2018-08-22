@@ -1000,7 +1000,7 @@
 						"Vendor-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
 						"Product-Name":{"minOccurs": 1, "maxOccurs": 1},
 						"Origin-State-Id":{"maxOccurs": 1},
-						"Supported-Vendor-Id":{},
+						"Supported-Vendor-Id":{"mandatory": true},
 						"Auth-Application-Id":{"mandatory": true},
 						"Inband-Security-Id":{},
 						"Acct-Application-Id":{"mandatory": true},

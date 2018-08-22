@@ -19,7 +19,7 @@ object RadiusActorMessages {
   
   // Router/Client <--> Handler
   case class RadiusGroupClientRequest(radiusPacket: RadiusPacket, serverGroupName: String, authenticator: Array[Byte])
-  case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, originActor: ActorRef, authenticator: Array[Byte])
+  case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, originActor: ActorRef)
   case class RadiusClientResponse(radiusPacket: RadiusPacket, authenticator: Array[Byte])
   
   // Client <--> ClientSocket
