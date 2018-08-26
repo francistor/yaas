@@ -13,34 +13,30 @@ import yaas.coding.radius.RadiusConversions._
 
 import scala.util.{Success, Failure}
 
-class AccessRequestHandler extends MessageHandler {
+class AccountingRequestHandler extends MessageHandler {
   
-  log.info("Instantiated AccessRequestHandler")
+  log.info("Instantiated AccountingRequestHandler")
   
   override def handleRadiusMessage(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint) = {
     // Should always be an access-request anyway
     radiusPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(radiusPacket, originActor, origin)
+      case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(radiusPacket, originActor, origin)
     }
   }
   
-  def handleAccessRequest(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint) = {
+  def handleAccountingRequest(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint) = {
     import scala.collection.immutable.Queue
     
     // Proxy to upstream server
-    val passwordAVP = new OctetsRadiusAVP(2, 0, "Password sent by YAAS a b c d e f g".getBytes())
-    val proxyRequest = RadiusPacket.request(ACCESS_REQUEST)
-    proxyRequest.avps = Queue[RadiusAVP[Any]](passwordAVP)
+    val proxyRequest = RadiusPacket.request(ACCOUNTING_REQUEST)
+    proxyRequest << ("NAS-IP-Address" -> "1.2.3.4")
 
     sendRadiusGroupRequest("allServers", proxyRequest, 1000).onComplete{
       case Success(proxyReply) =>
-        val reply = RadiusPacket.reply(radiusPacket)
-        reply << ("User-Password" -> "Password sent by YAAS a b c d e f g")
+        val reply = RadiusPacket.reply(radiusPacket, true)
         sendRadiusReply(reply, originActor, origin)
       case Failure(e) =>
         log.error(e.getMessage)
     }
-    
-    
   }
 }

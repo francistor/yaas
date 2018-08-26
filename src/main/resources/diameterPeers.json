@@ -1,3 +1,16 @@
 [
-
+	{
+        "diameterHost": "testHost",
+        "IPAddress": "127.0.0.1",
+        "port": 3868,
+		"connectionPolicy": "passive",
+		"watchdogIntervalMillis": 300000
+	},
+	{
+        "diameterHost": "host.8950AAA",
+        "IPAddress": "127.0.0.1",
+        "port": 3869,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000
+	}
 ]

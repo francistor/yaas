@@ -4,11 +4,21 @@ import akka.actor.{ActorSystem, Actor, ActorRef, Props, Cancellable}
 import akka.actor.ActorLogging
 import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.duration._
+import scala.concurrent.Promise
 
 import yaas.coding.diameter.{DiameterMessage}
 import yaas.coding.radius.{RadiusPacket}
 import yaas.server.Router._
 import yaas.server.RadiusActorMessages._
+
+// Diameter Exceptions
+class DiameterResponseException(msg: String) extends Exception(msg)
+class NoPeerAvailableResponseException(msg: String) extends DiameterResponseException(msg)
+class DiameterTimeoutException(msg: String) extends DiameterResponseException(msg)
+
+// Radius Exceptions
+class RadiusResponseException(msg:String) extends Exception(msg)
+class RadiusTimeoutException(msg: String) extends RadiusResponseException(msg)
 
 object MessageHandler {
   // Messages
@@ -25,8 +35,8 @@ class MessageHandler extends Actor with ActorLogging {
   
   implicit val executionContext = context.system.dispatcher
   
-  type DiameterReplyCallback = (Option[DiameterMessage]) => Unit
-  type RadiusReplyCallback = (Option[RadiusPacket]) => Unit
+  //type DiameterReplyCallback = (Option[DiameterMessage]) => Unit
+  //type RadiusReplyCallback = (Option[RadiusPacket]) => Unit
   
   val radiusE2EIdGenerator = new yaas.util.IDGenerator
   
@@ -40,13 +50,19 @@ class MessageHandler extends Actor with ActorLogging {
     log.debug("Sent diameter response message\n {}\n", diameterMessage.toString())
   }
   
-  def sendDiameterRequest(diameterMessage: DiameterMessage, timeoutMillis: Int, callback: DiameterReplyCallback) = {
+  def sendDiameterRequest(diameterMessage: DiameterMessage, timeoutMillis: Int) = {
+    
+    val promise = Promise[DiameterMessage]
+    
     // Publish in cache
-    diameterCacheIn(diameterMessage.endToEndId, timeoutMillis, callback)
+    diameterCacheIn(diameterMessage.endToEndId, timeoutMillis, promise)
+    
     // Send request using router
     context.parent ! diameterMessage
     
     log.debug("Sent diameter request message\n {}\n", diameterMessage.toString())
+    
+    promise.future
   }
   
   def handleDiameterMessage(diameterMessage: DiameterMessage, originActor: ActorRef) = {
@@ -57,26 +73,33 @@ class MessageHandler extends Actor with ActorLogging {
   // Diameter Cache
   ////////////////////////////////
   
-  case class DiameterRequestEntry(callback: DiameterReplyCallback, timer: Cancellable)
+  case class DiameterRequestEntry(promise: Promise[DiameterMessage], timer: Cancellable)
   val diameterRequestCache = scala.collection.mutable.Map[Long, DiameterRequestEntry]()
   
-  def diameterCacheIn(e2eId: Long, timeoutMillis: Int, callback: DiameterReplyCallback) = {
+  def diameterCacheIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
     // Schedule timer
     val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelDiameterRequest(e2eId))
  
     // Add to map
-    diameterRequestCache.put(e2eId, DiameterRequestEntry(callback, timer))
+    diameterRequestCache.put(e2eId, DiameterRequestEntry(promise, timer))
     
     log.debug("Diameter Request -> Added to request cache: {} {}", e2eId, diameterRequestCache(e2eId))
   }
   
-  def diameterCacheOut(e2eId: Long, diameterMessageOption: Option[DiameterMessage]) = {
+  def diameterCacheOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {
     // Remove cache entry
     diameterRequestCache.remove(e2eId) match {
       case Some(requestEntry) =>
-        if(diameterMessageOption.isDefined) log.debug("Diameter Reply -> removed entry from request cache: {}", e2eId) else log.debug("Timeout -> removed entry from request cache: {}", e2eId)
         requestEntry.timer.cancel()
-        requestEntry.callback(diameterMessageOption)
+        messageOrError match {
+          case Left(diameterMessage) =>
+            log.debug("Diameter Reply -> removed entry from request cache: {}", e2eId)
+            requestEntry.promise.success(diameterMessage)
+            
+          case Right(e) =>
+            log.debug("Timeout/Error -> removed entry from request cache: {}", e2eId)
+            requestEntry.promise.failure(e)
+        }
       
       case None =>
         log.warning("Diameter Reply -> no entry found in cache. Unsolicited or stalled response")
@@ -96,39 +119,50 @@ class MessageHandler extends Actor with ActorLogging {
     log.warning("Default radius handleMessage does nothing")
   }
   
-  def sendRadiusGroupRequest(serverGroupName: String, radiusPacket: RadiusPacket, timeoutMillis: Int, callback: RadiusReplyCallback) = {
+  def sendRadiusGroupRequest(serverGroupName: String, radiusPacket: RadiusPacket, timeoutMillis: Int) = {
+    
+    val promise = Promise[RadiusPacket]
     
     // Publish in cache
-    radiusCacheIn(radiusPacket.authenticator, timeoutMillis, callback)
+    radiusCacheIn(radiusPacket.authenticator, timeoutMillis, promise)
     
     // Send request using router
     context.parent ! RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusPacket.authenticator)
     
     log.debug("Sent radius request message\n {}\n", radiusPacket.toString())
+    
+    promise.future
   }
   
   ////////////////////////////////
   // Radius Cache
   ////////////////////////////////
-  case class RadiusRequestEntry(callback: RadiusReplyCallback, timer: Cancellable)
+  case class RadiusRequestEntry(promise: Promise[RadiusPacket], timer: Cancellable)
   val radiusRequestCache = scala.collection.mutable.Map[Array[Byte], RadiusRequestEntry]()
   
-  def radiusCacheIn(authenticator: Array[Byte], timeoutMillis: Int, callback: RadiusReplyCallback) = {
+  def radiusCacheIn(authenticator: Array[Byte], timeoutMillis: Int, promise: Promise[RadiusPacket]) = {
     // Schedule timer
     val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelRadiusRequest(authenticator))
     
     // Add to map
-    radiusRequestCache.put(authenticator, RadiusRequestEntry(callback, timer))
+    radiusRequestCache.put(authenticator, RadiusRequestEntry(promise, timer))
     
     log.debug("Radius Request -> Added to request cache: {} {}", authenticator.map(Integer.toString(_, 16)).mkString(","), radiusRequestCache(authenticator))
   }
   
-  def radiusCacheOut(authenticator: Array[Byte], radiusPacketOption: Option[RadiusPacket]) = {
+  def radiusCacheOut(authenticator: Array[Byte], radiusPacketOrError: Either[RadiusPacket, Exception]) = {
     radiusRequestCache.remove(authenticator) match {
       case Some(requestEntry) =>
-        if(radiusPacketOption.isDefined) log.debug("Reply -> removed entry from request cache: {}", authenticator.map(Integer.toString(_, 16)).mkString(",")) else log.debug("Timeout -> removed entry from request cache: {}", authenticator.mkString(","))
         requestEntry.timer.cancel()
-        requestEntry.callback(radiusPacketOption)
+        radiusPacketOrError match {
+          case Left(radiusPacket) =>
+            log.debug("Reply -> removed entry from request cache: {}", authenticator.map(Integer.toString(_, 16)).mkString(","))
+            requestEntry.promise.success(radiusPacket)
+            
+          case Right(e) =>
+            log.debug("Timeout -> removed entry from request cache: {}", authenticator.mkString(","))
+            requestEntry.promise.failure(e)
+        }
         
       case None =>
         log.warning("Radius Reply -> no entry found in cache. Unsolicited or stalled response")
@@ -142,7 +176,7 @@ class MessageHandler extends Actor with ActorLogging {
     
     // Diameter
     case CancelDiameterRequest(e2eId) => 
-      diameterCacheOut(e2eId, None)
+      diameterCacheOut(e2eId, Right(new DiameterTimeoutException("Timeout")))
     
     case RoutedDiameterMessage(diameterMessage, originActor) =>
       log.debug("Received Diameter Request message\n {}\n", diameterMessage.toString())
@@ -150,11 +184,11 @@ class MessageHandler extends Actor with ActorLogging {
       
     case diameterMessage: DiameterMessage =>
       log.debug("Received Diameter Response message\n {}\n", diameterMessage.toString())
-      diameterCacheOut(diameterMessage.endToEndId, Some(diameterMessage))
+      diameterCacheOut(diameterMessage.endToEndId, Left(diameterMessage))
       
     // Radius
     case CancelRadiusRequest(authenticator) =>
-      radiusCacheOut(authenticator, None)
+      radiusCacheOut(authenticator, Right(new RadiusTimeoutException("Timeout")))
         
     case RadiusServerRequest(radiusPacket, originActor, origin) =>
       log.debug("Received Radius Request message\n {}\n", radiusPacket.toString())
@@ -162,6 +196,6 @@ class MessageHandler extends Actor with ActorLogging {
       
     case RadiusClientResponse(radiusPacket: RadiusPacket, authenticator: Array[Byte]) =>
       log.debug("Received Radius Response message\n {}\n", radiusPacket.toString())
-      radiusCacheOut(authenticator, Some(radiusPacket))
+      radiusCacheOut(authenticator, Left(radiusPacket))
 	}
 }

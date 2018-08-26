@@ -33,8 +33,7 @@ object RadiusAVP {
     val vendorId = if(iCode == 26) UByteString.getUnsigned32(it).toInt else 0
     val dataOffset = if (vendorId == 0) 2 else 8
     val code = if(vendorId == 0) iCode else UByteString.fromUnsignedByte(it.getByte)
-    val lastIndex = if(vendorId == 0) iLastIndex else UByteString.fromUnsignedByte(it.getByte) + 8 // TODO: Check this. 8 or 6
-    println(s"Code: $code, LastIndex: $lastIndex")
+    val lastIndex = if(vendorId == 0) iLastIndex else UByteString.fromUnsignedByte(it.getByte) + 6 // TODO: Check this. 8 or 6
     
     // Value
     val data = bytes.slice(dataOffset, lastIndex)
@@ -303,6 +302,15 @@ class Integer64RadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAV
 	}
 }
 
+/**
+ * RadiusPacket object
+ * Methods
+ * 	apply(bytes, secret) --> Builds a RadiusPacket from the network bytes and the shared secret
+ * 	request(code) --> creates an empty RadiusPacket with a new Authenticator. The identifier is 0 (to be replaced later)
+ * 	reply(radiusPacket, isSuccess) --> creates an empty response RadiusPacket with the appropriate code and the Authenticator of the request (to be replaced later)
+ *   
+ */
+
 object RadiusPacket {
   implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
   
@@ -318,7 +326,10 @@ object RadiusPacket {
   val COA_ACK = 44
   val COA_NAK = 45
   
-  def apply(bytes: ByteString, secret: String) : RadiusPacket = {
+  // The request authenticator will be "None" for a request packet: the encryption depends on the packet
+  // authenticator. In the case of a response packet, the requestAuthenticator is needed in order to
+  // perform the decryption.
+  def apply(bytes: ByteString, requestAuthenticator: Option[Array[Byte]], secret: String): RadiusPacket = {
     // code: 1 byte
     // identifier: 1 byte
     // length: 2 byte
@@ -342,7 +353,7 @@ object RadiusPacket {
 				// Skip until next AVP, with padding
 				it.drop(length - 2)
 				
-				appendAVPsFromByteIterator(acc :+ RadiusAVP(clonedIt.getByteString(length), authenticator, secret))
+				appendAVPsFromByteIterator(acc :+ RadiusAVP(clonedIt.getByteString(length), requestAuthenticator.getOrElse(authenticator), secret))
   		}
     }
     
@@ -360,6 +371,8 @@ object RadiusPacket {
     val code = if(isSuccess) radiusPacket.code + 1 else radiusPacket.code + 2
     new RadiusPacket(code, radiusPacket.identifier, radiusPacket.authenticator, Queue[RadiusAVP[Any]]())
   }
+  
+  def replyFailure(radiusPacket: RadiusPacket) = reply(radiusPacket, false)
   
   def encrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
 
@@ -393,7 +406,6 @@ object RadiusPacket {
   }
   
   def decrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
-    
     def prependChunk(decrypted: Array[Byte], ra: Array[Byte], s: Array[Byte], v: Array[Byte]) : Array[Byte] = {
       val decryptedLen = decrypted.length
       if(decryptedLen == v.length) decrypted // If have already encrypted all bytes, we are finished
@@ -430,6 +442,12 @@ object RadiusPacket {
   }
 }
 
+/**
+ * The identifier is modified just before sending the packet
+ * The authenticator is treated as follows
+ * 	In a request packet, it is created new
+ * 	In a response packet, initially is set as the request authenticator, and modified just before sending the packet
+ */
 class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[Byte], var avps: Queue[RadiusAVP[Any]]){
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
@@ -464,7 +482,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     val responseAuthenticator = RadiusPacket.md5(responseBytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)
     
     // patch authenticator
-    //responseBytes.patch(4, new ByteStringBuilder().putBytes(responseAuthenticator).result, 16)
     responseBytes.patch(4, responseAuthenticator, 16)
   }
   
@@ -544,7 +561,7 @@ object RadiusConversions {
   /**
    * Radius AVP from tuple (name, value)
    */
-  implicit def Tuple2AVP(tuple : (String, String)) : RadiusAVP[Any] = {
+  implicit def Tuple2RadiusAVP(tuple : (String, String)) : RadiusAVP[Any] = {
     val (attrName, attrValue) = tuple
     
     val dictItem = RadiusDictionary.avpMapByName(attrName)
@@ -567,12 +584,12 @@ object RadiusConversions {
     }
   }
   
-  implicit def TupleInt2AVP(tuple : (String, Int)) : RadiusAVP[Any] = {
+  implicit def TupleInt2RadiusAVP(tuple : (String, Int)) : RadiusAVP[Any] = {
     val (attrName, attrValue) = tuple
-    TupleLong2AVP((attrName, attrValue.toLong))
+    TupleLong2RadiusAVP((attrName, attrValue.toLong))
   }
   
-  implicit def TupleLong2AVP(tuple : (String, Long)) : RadiusAVP[Any] = {
+  implicit def TupleLong2RadiusAVP(tuple : (String, Long)) : RadiusAVP[Any] = {
     val (attrName, attrValue) = tuple
     
     val dictItem = RadiusDictionary.avpMapByName(attrName)

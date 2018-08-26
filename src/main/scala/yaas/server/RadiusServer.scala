@@ -41,7 +41,7 @@ class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with Acto
         case Some(radiusClientConfig) =>
           try {
             val origin = RadiusActorMessages.RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
-            context.parent ! RadiusActorMessages.RadiusServerRequest(RadiusPacket(data, origin.secret), self, origin)
+            context.parent ! RadiusActorMessages.RadiusServerRequest(RadiusPacket(data, None, origin.secret), self, origin)
           } catch {
             case e: Exception =>
               log.warning(s"Error decoding packet from $remoteIPAddress")

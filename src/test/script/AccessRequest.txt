@@ -1,2 +1,2 @@
 User-Name = "thisIsTheUser@name" 
-User-Password = "very_secret password!" 
+User-Password = "Password sent by test tool a b c d e f g" 

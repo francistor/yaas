@@ -9,6 +9,8 @@ import yaas.coding.diameter.DiameterConversions._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
 
+import scala.util.{Success, Failure}
+
 class GxHandler extends MessageHandler {
   
   log.info("Instantiated GxHandler")
@@ -26,19 +28,21 @@ class GxHandler extends MessageHandler {
     
     // Send request to proxy
     val request = DiameterMessage.request("Gx", "Credit-Control")
-    request << ("Origin-Host" -> DiameterConfigManager.getDiameterConfig.diameterHost)
-    request << ("Origin-Realm" -> DiameterConfigManager.getDiameterConfig.diameterRealm)
     request << ("Destination-Realm" -> "8950AAA")
     request << ("Session-Id" -> "1")
     request << ("Auth-Application-Id" -> "Gx")
     request << ("CC-Request-Type" -> "Initial")
     request << ("CC-Request-Number" -> 1)
-    sendDiameterRequest(request, 5000, (proxyReply) => {
-        if(proxyReply.isDefined) log.info("Received proxy reply {}", proxyReply.get) else log.info("Proxy timeout")
-        val reply = DiameterMessage.reply(message)  
+    
+    sendDiameterRequest(request, 5000).onComplete{
+      case Success(proxyReply) =>
+        log.info("Received proxy reply {}", proxyReply)
+        val reply = DiameterMessage.reply(message) 
         reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
         sendDiameterReply(reply, originActor)
-      }
-    )
+        
+      case Failure(e) =>
+        log.error("Proxy timeout")
+    }
   }
 }

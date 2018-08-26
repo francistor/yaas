@@ -10,6 +10,7 @@ import org.scalatest.FlatSpec
 
 import yaas.dictionary._
 import yaas.coding.radius._
+import yaas.coding.radius.RadiusConversions._
 
 class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
@@ -84,6 +85,22 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
     val packet = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST)
     val userNameAVP = new StringRadiusAVP(1, 0, "theuser@name")
     packet.avps = packet.avps :+ userNameAVP
-    RadiusPacket(packet.getBytes("<secret>"), "<secret>") mustEqual packet
+    RadiusPacket(packet.getBytes("<secret>"), None, "<secret>") mustEqual packet
+  }
+  
+  "Password attribute encryption and decryiption in packet" in {
+    // Request packet
+    val requestPacket = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST)
+    val requestBytestring = requestPacket.getBytes("secret")
+    val requestAuthenticator = requestPacket.authenticator
+    
+    // Response packet
+    val passwordAVP = new OctetsRadiusAVP(2, 0, "This is the password for the test!".getBytes("UTF-8"))
+    val responsePacket = RadiusPacket.reply(requestPacket, true)
+    requestPacket.avps = requestPacket.avps :+ passwordAVP
+    
+    val decodedResponse = RadiusPacket(requestPacket.getResponseBytes("secret"), Some(requestAuthenticator), "secret")
+    decodedResponse >> "User-Password" mustEqual Some(passwordAVP)
+    
   }
 }

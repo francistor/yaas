@@ -769,7 +769,7 @@ object DiameterConversions {
   /**
    * Simple Diameter AVP from tuple (name, value)
    */
-  implicit def Tuple2AVP(tuple : (String, String)) : DiameterAVP[Any] = {
+  implicit def Tuple2DiameterAVP(tuple : (String, String)) : DiameterAVP[Any] = {
     val (attrName, attrValue) = tuple
     
     val dictItem = DiameterDictionary.avpMapByName(attrName)
@@ -839,12 +839,12 @@ object DiameterConversions {
     }
   }
   
-  implicit def TupleInt2AVP(tuple : (String, Int)) : DiameterAVP[Any] = {
+  implicit def TupleInt2DiameterAVP(tuple : (String, Int)) : DiameterAVP[Any] = {
     val (attrName, attrValue) = tuple
-    TupleLong2AVP((attrName, attrValue.toLong))
+    TupleLong2DiameterAVP((attrName, attrValue.toLong))
   }
   
-  implicit def TupleLong2AVP(tuple : (String, Long)) : DiameterAVP[Any] = {
+  implicit def TupleLong2DiameterAVP(tuple : (String, Long)) : DiameterAVP[Any] = {
     val (attrName, attrValue) = tuple
     
     val dictItem = DiameterDictionary.avpMapByName(attrName)
@@ -914,13 +914,13 @@ object DiameterConversions {
   /**
    * Grouped AVP to Seq of (String, (String, String))
    */
-  implicit def GroupedAVP2Seq(avp: GroupedAVP) : Seq[(String, String)] = {
+  implicit def GroupedDiameterAVP2Seq(avp: GroupedAVP) : Seq[(String, String)] = {
     (for {
       avpElement <- avp.value
     } yield (DiameterDictionary.avpMapByCode.get(avpElement.vendorId, avpElement.code).map(_.name).getOrElse("Unknown") -> avpElement.stringValue))
   }
  
-  implicit def Seq2GroupedAVP(tuple : (String, Seq[(String, String)])) : GroupedAVP = {
+  implicit def Seq2GroupedDiameterAVP(tuple : (String, Seq[(String, String)])) : GroupedAVP = {
     val (attrName, avps) = tuple
     
     val dictItem = DiameterDictionary.avpMapByName(attrName)

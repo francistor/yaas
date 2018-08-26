@@ -20,6 +20,7 @@ class RadiusClientSocket(bindIPAddress: String, bindPort: Int) extends Actor wit
   
   import context.system
   
+  // TODO: Handle bind error
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(bindIPAddress, bindPort))
   
   def receive = {
@@ -39,19 +40,19 @@ class RadiusClientSocket(bindIPAddress: String, bindPort: Int) extends Actor wit
         case Some(radiusClientConfig) =>
           try {
             val origin = RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
-            context.parent ! RadiusClientSocketResponse(RadiusPacket(data, origin.secret), origin, bindPort, data)
+            context.parent ! RadiusClientSocketResponse(data, origin, bindPort)
           } catch {
             case e: Exception =>
-              log.warning(s"Error decoding packet from $remoteIPAddress")
+              log.warning(e.getMessage)
           }
           
         case None =>
           log.warning(s"Discarding packet from $remoteIPAddress")
       }
       
-    case RadiusClientSocketRequest(radiusPacket, destination) =>
+    case RadiusClientSocketRequest(bytes, destination) =>
       log.debug(s"Sending radius request to $destination")
-      val request = radiusPacket.getBytes(destination.secret)
+      val request = bytes
       udpEndPoint ! Udp.Send(request, new InetSocketAddress(destination.ipAddress, destination.port))
   }
 }

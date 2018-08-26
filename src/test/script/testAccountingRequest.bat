@@ -13,7 +13,7 @@ SET RADIUS=%BINDIR%\aaa-rt
 SET DIAMETER=%BINDIR%\aaa-dt
 
 REM Test parameters
-SET REQUESTFILE=%_THIS_FILE_DIRNAME%\AccessRequest.txt
+SET REQUESTFILE=%_THIS_FILE_DIRNAME%\AccountingRequest.txt
 
 SET COUNT=1
 
@@ -26,9 +26,9 @@ REM Access-Request -------------------------------------------------------------
 @echo.
 
 echo User-Name = "thisIsTheUser@name" > %REQUESTFILE%
-echo User-Password = "Password sent by test tool a b c d e f g" >> %REQUESTFILE%
+echo NAS-IP-Address = "4.3.2.1" >> %REQUESTFILE%
 
 REM Send the packet
-%RADIUS% -debug verbose -remoteAddress 127.0.0.1:1812 -code Access-Request -request "@%REQUESTFILE%"
+%RADIUS% -debug verbose -remoteAddress 127.0.0.1:1812 -code Accounting-Request -request "@%REQUESTFILE%"
 
 

@@ -23,6 +23,6 @@ object RadiusActorMessages {
   case class RadiusClientResponse(radiusPacket: RadiusPacket, authenticator: Array[Byte])
   
   // Client <--> ClientSocket
-  case class RadiusClientSocketRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint)
-  case class RadiusClientSocketResponse(radiusPacket: RadiusPacket, origin: RadiusEndpoint, clientPort: Int, rawPacket: ByteString)
+  case class RadiusClientSocketRequest(bytes: ByteString, destination: RadiusEndpoint)
+  case class RadiusClientSocketResponse(bytes: ByteString, origin: RadiusEndpoint, clientPort: Int)
 }
