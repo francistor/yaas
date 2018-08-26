@@ -617,13 +617,11 @@ object DiameterMessage {
   /**
    * Builds a Diameter Answer to the specified request with empty attribute list
    */
-  def reply(request: DiameterMessage) = {
+  def answer(request: DiameterMessage) = {
     val diameterConfig = DiameterConfigManager.getDiameterConfig
-    val replyMessage = new DiameterMessage(request.applicationId, request.commandCode, request.hopByHopId, request.endToEndId, Queue(), false, true, false, false)
-    replyMessage << ("Origin-Host" -> diameterConfig.diameterHost)
-    replyMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
-    
-    replyMessage
+    val answerMessage = new DiameterMessage(request.applicationId, request.commandCode, request.hopByHopId, request.endToEndId, Queue(), false, true, false, false)
+    answerMessage << ("Origin-Host" -> diameterConfig.diameterHost)
+    answerMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
   }
 }
 

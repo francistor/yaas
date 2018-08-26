@@ -35,11 +35,11 @@ class GxHandler extends MessageHandler {
     request << ("CC-Request-Number" -> 1)
     
     sendDiameterRequest(request, 5000).onComplete{
-      case Success(proxyReply) =>
-        log.info("Received proxy reply {}", proxyReply)
-        val reply = DiameterMessage.reply(message) 
-        reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-        sendDiameterReply(reply, originActor)
+      case Success(proxyAnswer) =>
+        log.info("Received proxy answer {}", proxyAnswer)
+        val answer = DiameterMessage.answer(message) 
+        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+        sendDiameterAnswer(answer, originActor)
         
       case Failure(e) =>
         log.error("Proxy timeout")

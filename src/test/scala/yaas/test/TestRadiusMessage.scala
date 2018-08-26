@@ -85,18 +85,19 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
     val packet = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST)
     val userNameAVP = new StringRadiusAVP(1, 0, "theuser@name")
     packet.avps = packet.avps :+ userNameAVP
-    RadiusPacket(packet.getBytes("<secret>"), None, "<secret>") mustEqual packet
+    // 150 for the id is an arbitrary value. getRequestBytes will generate an authenticator and modify packet
+    RadiusPacket(packet.getRequestBytes("<secret>", 150), None, "<secret>") mustEqual packet
   }
   
   "Password attribute encryption and decryiption in packet" in {
     // Request packet
     val requestPacket = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST)
-    val requestBytestring = requestPacket.getBytes("secret")
+    val requestBytestring = requestPacket.getRequestBytes("secret", 1)
     val requestAuthenticator = requestPacket.authenticator
     
     // Response packet
     val passwordAVP = new OctetsRadiusAVP(2, 0, "This is the password for the test!".getBytes("UTF-8"))
-    val responsePacket = RadiusPacket.reply(requestPacket, true)
+    val responsePacket = RadiusPacket.response(requestPacket, true)
     requestPacket.avps = requestPacket.avps :+ passwordAVP
     
     val decodedResponse = RadiusPacket(requestPacket.getResponseBytes("secret"), Some(requestAuthenticator), "secret")

@@ -32,9 +32,9 @@ class AccountingRequestHandler extends MessageHandler {
     proxyRequest << ("NAS-IP-Address" -> "1.2.3.4")
 
     sendRadiusGroupRequest("allServers", proxyRequest, 1000).onComplete{
-      case Success(proxyReply) =>
-        val reply = RadiusPacket.reply(radiusPacket, true)
-        sendRadiusReply(reply, originActor, origin)
+      case Success(proxyResponse) =>
+        val response = RadiusPacket.response(radiusPacket, true)
+        sendRadiusResponse(response, originActor, origin)
       case Failure(e) =>
         log.error(e.getMessage)
     }

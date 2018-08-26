@@ -18,9 +18,9 @@ object RadiusActorMessages {
   case class RadiusServerResponse(radiusPacket: RadiusPacket, origin: RadiusEndpoint)
   
   // Router/Client <--> Handler
-  case class RadiusGroupClientRequest(radiusPacket: RadiusPacket, serverGroupName: String, authenticator: Array[Byte])
-  case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, originActor: ActorRef)
-  case class RadiusClientResponse(radiusPacket: RadiusPacket, authenticator: Array[Byte])
+  case class RadiusGroupClientRequest(radiusPacket: RadiusPacket, serverGroupName: String, radiusId: Long)
+  case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, originActor: ActorRef, radiusId: Long)
+  case class RadiusClientResponse(radiusPacket: RadiusPacket, radiusId: Long)
   
   // Client <--> ClientSocket
   case class RadiusClientSocketRequest(bytes: ByteString, destination: RadiusEndpoint)

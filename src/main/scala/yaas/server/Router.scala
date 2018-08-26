@@ -9,11 +9,11 @@ Peer actors
 
 Incoming messages (got from TCPStream handler)
 	request -> send to router as diameterMessage
-	reply -> look up in cache the h2hId and send as diameterMessage to the actor that sent the request
+	anwer -> look up in cache the h2hId and send as diameterMessage to the actor that sent the request
 	
 Outgoing messages (got as actor messages)
 	request (RoutedDiameterMessage) -> store in cache, along with the actor that sent the request, and send to peer
-	reply (DiameterMessage) -> send to peer
+	answer (DiameterMessage) -> send to peer
 	
 In addition, Peers may act as "active" or "passive". "Passive" peers are created by the Router after an incoming
 connection is received, and register in the Router with a DiameterPeerConfig message
@@ -31,11 +31,11 @@ Handler Actor
 
 Incoming messages (got as actor messages)
 	request (RoutedDiameterMessage) -> processed and answered directly to the sending actor
-	reply (DiameterMessage) -> look up in cache for the callback to invoke
+	answer (DiameterMessage) -> look up in cache for the callback to invoke
 	
 Outgoing messages (create actor messages)
 	request (RoutedDiameterMessage) -> store in cache and send to Router
-	reply (DiameterMessage) -> send to Peer that sent the request
+	answer (DiameterMessage) -> send to Peer that sent the request
 
  */
 
@@ -57,6 +57,10 @@ import yaas.server.RadiusActorMessages._
 
 case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
 
+/*
+ * Instrumental Diameter classes
+ */
+
 // Peer tables are made of these items
 object PeerStatus {
   sealed trait Status
@@ -65,16 +69,35 @@ object PeerStatus {
   case object Ready extends Status
 }
 case class DiameterPeerPointer(config: DiameterPeerConfig, status: PeerStatus.Status, actorRefOption: Option[ActorRef])
-case class RadiusServerPointer(config: RadiusServerConfig, var isAlive: Boolean, var nextTimestamp: Long, var accErrors: Int){
-  def getPort(code: Int) = {
-    code match {
-      case RadiusPacket.ACCESS_REQUEST => config.ports.auth
-      case RadiusPacket.ACCOUNTING_REQUEST => config.ports.acct
-      case RadiusPacket.COA_REQUEST => config.ports.coA
-      case RadiusPacket.DISCONNECT_REQUEST => config.ports.dm
-    }
+
+/*
+ * Instrumental Radius classes
+ */
+case class RadiusEndpointStatus(val endPointType: Int, val port: Int, var quarantineTimestamp: Long, var accErrors: Int) {
+  def setQuarantine(quarantineTimeMillis: Long) = { 
+    quarantineTimestamp = System.currentTimeMillis + quarantineTimeMillis
+  }
+  
+  def addErrors(errors: Int) = {
+    accErrors = accErrors + errors
+  }
+  
+  def reset = {
+    accErrors = 0
+    quarantineTimestamp = 0
   }
 }
+
+/*
+ * Used to store the radius servers configuration and runtime status. The availability is tracked per port
+ */
+case class RadiusServerPointer(val name: String, val IPAddress: String, val secret: String, val quarantineTimeMillis: Int, val errorLimit: Int,
+    val endPoints: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
+    
+    
+///////////////////////////////////////////////////////////////////////////////
+// Router
+///////////////////////////////////////////////////////////////////////////////
 
 // Best practise
 object Router {
@@ -83,6 +106,7 @@ object Router {
   // Actor messages
   case class RoutedDiameterMessage(message: DiameterMessage, owner: ActorRef)
   case class PeerDown()
+  case class RadiusClientStats(stats: Map[RadiusEndpoint, (Int, Int)])
 }
 
 // Manages Routes, Peers and Handlers
@@ -124,7 +148,7 @@ class Router() extends Actor with ActorLogging {
   radiusServerCoAPort = radiusConfig.coABindPort
   radiusServerGroups = RadiusConfigManager.getRadiusServerGroups
   radiusClients = RadiusConfigManager.getRadiusClients
-  radiusServers = getRadiusServerPointers(RadiusConfigManager.getRadiusServers)
+  radiusServers = getRadiusServers(RadiusConfigManager.getRadiusServers)
   
   updateHandlerMap(HandlerConfigManager.getHandlerConfig)
   
@@ -217,13 +241,17 @@ class Router() extends Actor with ActorLogging {
   ////////////////////////////////////////////////////////////////////////
   // Radius configuration
   ////////////////////////////////////////////////////////////////////////
-  def getRadiusServerPointers(newServers: Map[String, RadiusServerConfig]) = {
+  
+  def getRadiusServers(newServersConfig: Map[String, RadiusServerConfig]) = {
     // clean radius server list
-    val cleanRadiusServers = radiusServers.flatMap { case(oldServerName, oldServerPointer) => {
+    val cleanRadiusServers = radiusServers.flatMap { case(oldServerName, oldServer) => {
         // Keep only entries for servers with matching names and same configuration
-        newServers.get(oldServerName) match {
-          case Some(newConfig) =>
-            if(newConfig == oldServerPointer.config) Seq((oldServerName, oldServerPointer)) 
+        newServersConfig.get(oldServerName) match {
+          case Some(newServer) =>
+            if(newServer.IPAddress == oldServer.IPAddress &&
+               newServer.errorLimit == oldServer.errorLimit &&
+               newServer.quarantineTimeMillis == oldServer.quarantineTimeMillis &&
+               newServer.secret == oldServer.secret) Seq((oldServerName, oldServer)) 
               else Seq()
            
           case None => Seq()
@@ -232,16 +260,21 @@ class Router() extends Actor with ActorLogging {
     }
     
     // create missing servers
-    newServers.map { case(newServerName, newServerConfig) => {
+    newServersConfig.map { case(newServerName, config) => {
         cleanRadiusServers.get(newServerName) match {
           case None =>
-            (newServerName, RadiusServerPointer(newServerConfig, true, 0, 0))
-          case Some(p) => (newServerName, p)
+            val endPoints = scala.collection.mutable.Map[Int, RadiusEndpointStatus]()
+            if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, config.quarantineTimeMillis, config.errorLimit)
+            if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, config.quarantineTimeMillis, config.errorLimit)
+            if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = new RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, config.quarantineTimeMillis, config.errorLimit)
+            if(config.ports.dm != 0) endPoints(RadiusPacket.DISCONNECT_REQUEST) = new RadiusEndpointStatus(RadiusPacket.DISCONNECT_REQUEST, config.ports.dm, config.quarantineTimeMillis, config.errorLimit)
+
+            (newServerName, new RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
+          case Some(rs) => (newServerName, rs)
         }
       }
     }
-  }
-      
+  }   
   
   def newRadiusAuthServerActor(ipAddress: String, bindPort: Int) = {
     context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusAuthServer")
@@ -320,12 +353,38 @@ class Router() extends Actor with ActorLogging {
 	      // No route
 	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
-	        // TODO: Reply with error message if peer not Ready
+	        // TODO: Answer with error message if peer not Ready
 	    }
 	    
     /*
      * Radius messages
      */
+	    
+	  case RadiusClientStats(stats) =>
+	    
+	    // Iterate through all the configured endpoints
+	    // If there are stats reported, update the endpoint status
+	    for {
+	      (serverName, radiusServerPointer) <- radiusServers
+	      (ept, endpoint) <- radiusServerPointer.endPoints 
+	    } {
+	      stats.get(RadiusEndpoint(radiusServerPointer.IPAddress, endpoint.port, radiusServerPointer.secret)) match {
+	        case Some((successes, errors)) => 
+	          // If there are successes, reset the old errors if any
+	          if(successes > 0) endpoint.reset
+	          // Add the errors if there are only errors
+	          else endpoint.addErrors(errors)
+	          
+	          // Put in quarantine if necessary
+	          if(endpoint.accErrors > radiusServerPointer.errorLimit){
+	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endpoint.port, radiusServerPointer.quarantineTimeMillis)
+	            endpoint.quarantineTimestamp = System.currentTimeMillis
+	          }
+	          
+	        case _ =>
+	      }
+	    }
+	    
 	  case RadiusServerRequest(packet, actorRef, origin) =>
 	    packet.code match {
 	    case RadiusPacket.ACCESS_REQUEST =>
@@ -347,19 +406,26 @@ class Router() extends Actor with ActorLogging {
     	  }
 	    }
 	    
-	  case RadiusGroupClientRequest(radiusPacket, serverGroupName, authenticator) =>
+	  case RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusId) =>
 	    // Find the radius destination
 	    radiusServerGroups.get(serverGroupName) match {
+	      
 	      case Some(serverGroup) =>
-	        // Get the target server
-	        val availableServers = serverGroup.servers.filter(radiusServers(_).isAlive)
+	        // Filter available servers
+	        val now = System.currentTimeMillis
+	        val availableServers = serverGroup.servers.filter(
+	          radiusServers(_).endPoints.get(radiusPacket.code) match {
+	            case Some(ep) if(ep.quarantineTimestamp < now) => true
+	            case _ => false
+	          }
+	        )
 	        val nServers = availableServers.length
 	        if(nServers > 0){
 	          val serverIndex = if(serverGroup.policy == "random") scala.util.Random.nextInt(nServers) else 0
 	          val radiusServer = radiusServers(availableServers(serverIndex))
 	          radiusClientActor ! RadiusClientRequest(radiusPacket, 
-	                  RadiusEndpoint(radiusServer.config.IPAddress, radiusServer.getPort(radiusPacket.code), radiusServer.config.secret),
-	                  sender)
+	                  RadiusEndpoint(radiusServer.IPAddress, radiusServer.endPoints(radiusPacket.code).port, radiusServer.secret),
+	                  sender, radiusId)
 	        }
 	        else log.warning("No available server found for group {}", serverGroupName)
 	        

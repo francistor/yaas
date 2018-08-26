@@ -33,10 +33,10 @@ class AccessRequestHandler extends MessageHandler {
     proxyRequest.avps = Queue[RadiusAVP[Any]](passwordAVP)
 
     sendRadiusGroupRequest("allServers", proxyRequest, 1000).onComplete{
-      case Success(proxyReply) =>
-        val reply = RadiusPacket.reply(radiusPacket)
-        reply << ("User-Password" -> "Password sent by YAAS a b c d e f g")
-        sendRadiusReply(reply, originActor, origin)
+      case Success(proxyResponse) =>
+        val response = RadiusPacket.response(radiusPacket)
+        response << ("User-Password" -> "Password sent by YAAS a b c d e f g")
+        sendRadiusResponse(response, originActor, origin)
       case Failure(e) =>
         log.error(e.getMessage)
     }

@@ -29,6 +29,6 @@ echo User-Name = "thisIsTheUser@name" > %REQUESTFILE%
 echo NAS-IP-Address = "4.3.2.1" >> %REQUESTFILE%
 
 REM Send the packet
-%RADIUS% -debug verbose -remoteAddress 127.0.0.1:1812 -code Accounting-Request -request "@%REQUESTFILE%"
+%RADIUS% -debug verbose -retryLimit 0 -remoteAddress 127.0.0.1:1812 -code Accounting-Request -request "@%REQUESTFILE%"
 
 

@@ -13,4 +13,8 @@ class IDGenerator {
     endToEndId += 1
     endToEndId
   }
+  
+  def nextRadiusId : Long = {
+    (System.currentTimeMillis() / 1000) * 4294967296L + nextEndToEndId
+  }
 }

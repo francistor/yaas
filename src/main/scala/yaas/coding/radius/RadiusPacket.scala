@@ -307,7 +307,7 @@ class Integer64RadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAV
  * Methods
  * 	apply(bytes, secret) --> Builds a RadiusPacket from the network bytes and the shared secret
  * 	request(code) --> creates an empty RadiusPacket with a new Authenticator. The identifier is 0 (to be replaced later)
- * 	reply(radiusPacket, isSuccess) --> creates an empty response RadiusPacket with the appropriate code and the Authenticator of the request (to be replaced later)
+ * 	response(radiusPacket, isSuccess) --> creates an empty response RadiusPacket with the appropriate code and the Authenticator of the request (to be replaced later)
  *   
  */
 
@@ -360,19 +360,19 @@ object RadiusPacket {
     new RadiusPacket(code, identifier, authenticator, appendAVPsFromByteIterator(Queue()))
   }
   
-  // Generates a new radius packet with the specified code. The identifier will be replaced before being sent
-  // and the authenticator is new
+  // Generates a new radius packet with the specified code. The identifier and authenticator will be replaced
+  // before sending the packet (prepare Method)
   def request(code: Int) = {
     new RadiusPacket(code, 0 /* to be replaced */, RadiusPacket.newAuthenticator, Queue[RadiusAVP[Any]]())
   }
   
   // Generates a new radius packet as response for the specified radius request
-  def reply(radiusPacket: RadiusPacket, isSuccess : Boolean = true) = {
+  def response(radiusPacket: RadiusPacket, isSuccess : Boolean = true) = {
     val code = if(isSuccess) radiusPacket.code + 1 else radiusPacket.code + 2
     new RadiusPacket(code, radiusPacket.identifier, radiusPacket.authenticator, Queue[RadiusAVP[Any]]())
   }
   
-  def replyFailure(radiusPacket: RadiusPacket) = reply(radiusPacket, false)
+  def responseFailure(radiusPacket: RadiusPacket) = response(radiusPacket, false)
   
   def encrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
 
@@ -452,7 +452,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
-  def getBytes(secret: String) : ByteString = {
+  private def getBytes(secret: String) : ByteString = {
     // code: 1 byte
     // identifier: 1 byte
     // length: 2: 2 byte
@@ -476,7 +476,37 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     result.patch(2, new ByteStringBuilder().putShort(result.length).result, 2)
   }
   
-  // To be used to generate the radius response
+  /*
+   * Patches id and authenticator
+   * If access request, authenticator is created new and the AVP are encrypted using this value
+   * If accounting request, no encryption can take place (!! used 0 as the authenticator), and the request authenticator is calculated as a md5 hash
+   * 
+   */
+  def getRequestBytes(secret: String, id: Int) : ByteString = {
+    
+    identifier = id
+    code match {
+      case RadiusPacket.ACCOUNTING_REQUEST =>
+        // Just is case it was filled
+        authenticator = List.fill[Byte](16)(0).toArray
+        val bytes = getBytes(secret)
+        
+        // Authenticator is md5(code+identifier+zeroed authenticator+request attributes+secret)
+        // patch authenticator
+        bytes.patch(4, RadiusPacket.md5(bytes.concat(ByteString.fromString(secret, "UTF-8")).toArray), 16)
+        
+      case _ => 
+        authenticator = RadiusPacket.newAuthenticator
+        getBytes(secret)
+    }
+    
+  }
+  
+  /*
+   * The authenticator and id will be already set to the request packet
+   * The patched authenticator to be sent is always a md5 hash with the request authenticator
+   * 
+   */
   def getResponseBytes(secret: String): ByteString = {
     val responseBytes = getBytes(secret)
     val responseAuthenticator = RadiusPacket.md5(responseBytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)

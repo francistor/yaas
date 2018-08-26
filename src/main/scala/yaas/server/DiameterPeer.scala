@@ -311,7 +311,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     
     log.info(s"CER <-- $peerHostName")
     
-    val reply = DiameterMessage.reply(message)
+    val answer = DiameterMessage.answer(message)
     
     // Check host name
     DiameterConfigManager.getDiameterPeerConfig.get(message >> "Origin-Host") match {
@@ -327,9 +327,9 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     }
     
     def sendFailure = {
-      reply << ("Result-Code" -> DiameterMessage.DIAMETER_UNKNOWN_PEER)
+      answer << ("Result-Code" -> DiameterMessage.DIAMETER_UNKNOWN_PEER)
       
-      self ! BaseDiameterMessageToSend(reply)
+      self ! BaseDiameterMessageToSend(answer)
       log.warning(s"Sending CEA with failure because Peer is unknonw. Received message $message")
       
       self ! PoisonPill
@@ -344,24 +344,24 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
       val diameterConfig = DiameterConfigManager.getDiameterConfig
       val bindAddress = diameterConfig.bindAddress
           
-      if(diameterConfig.bindAddress != "0.0.0.0") reply << ("Host-IP-Address" -> diameterConfig.bindAddress)
-      reply << ("Vendor-Id" -> diameterConfig.vendorId)
-      reply << ("Firmware-Revision" -> diameterConfig.firmwareRevision)
+      if(diameterConfig.bindAddress != "0.0.0.0") answer << ("Host-IP-Address" -> diameterConfig.bindAddress)
+      answer << ("Vendor-Id" -> diameterConfig.vendorId)
+      answer << ("Firmware-Revision" -> diameterConfig.firmwareRevision)
       
       // Add supported applications
       for (route <- DiameterConfigManager.getDiameterRouteConfig){
          if(route.applicationId != "*"){
            DiameterDictionary.appMapByName.get(route.applicationId).map(dictItem => {
-             if(dictItem.appType == Some("auth")) reply << ("Auth-Application-Id", dictItem.code)
-             if(dictItem.appType == Some("acct")) reply << ("Acct-Application-Id", dictItem.code)
+             if(dictItem.appType == Some("auth")) answer << ("Auth-Application-Id", dictItem.code)
+             if(dictItem.appType == Some("acct")) answer << ("Acct-Application-Id", dictItem.code)
            })
          }
       }
       
-      reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+      answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
       
-      // Reply with CEA
-      self ! BaseDiameterMessageToSend(reply)
+      // Answer with CEA
+      self ! BaseDiameterMessageToSend(answer)
       
       // Register actor in router
       context.parent ! diameterPeerConfig
@@ -383,11 +383,11 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     
     log.info(s"DPR <-- $peerHostName")
     
-    val reply = DiameterMessage.reply(message)
+    val answer = DiameterMessage.answer(message)
     
-    reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+    answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
     
-    self ! BaseDiameterMessageToSend(reply)
+    self ! BaseDiameterMessageToSend(answer)
     
     context.parent ! Router.PeerDown
     
@@ -425,11 +425,11 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
   def handleDWR(message: DiameterMessage) = {
     log.info(s"DWR <-- $peerHostName")
     
-    val reply = DiameterMessage.reply(message)
+    val answer = DiameterMessage.answer(message)
     
-    reply << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+    answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
     
-    self ! BaseDiameterMessageToSend(reply)
+    self ! BaseDiameterMessageToSend(answer)
     
     log.info(s"DWA --> $peerHostName")
   }
