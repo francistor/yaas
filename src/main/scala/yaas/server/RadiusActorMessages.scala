@@ -3,7 +3,7 @@ package yaas.server
 import akka.actor.{ActorRef}
 import akka.util.ByteString
 
-import yaas.coding.radius.RadiusPacket
+import yaas.coding.RadiusPacket
 
 /**
  * Holder of messages exchanged between Actors for Radius protocol

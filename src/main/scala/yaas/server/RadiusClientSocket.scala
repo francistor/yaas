@@ -7,7 +7,7 @@ import akka.io.{IO, Udp}
 import java.net.InetSocketAddress
 
 import yaas.config.RadiusConfigManager
-import yaas.coding.radius.RadiusPacket
+import yaas.coding.RadiusPacket
 import yaas.server.RadiusActorMessages._
 
 object RadiusClientSocket {

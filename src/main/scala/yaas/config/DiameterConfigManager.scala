@@ -15,7 +15,7 @@ case class DiameterRouteConfig(realm: String, applicationId: String, peers: Opti
 object DiameterConfigManager {
 
   // For deserialization of Json
-  private implicit val formats = DefaultFormats
+  private implicit val jsonFormats = DefaultFormats
 
   // General config
   private var diameterConfig = ConfigManager.getConfigObject("diameterServer.json").extract[DiameterServerConfig]

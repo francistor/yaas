@@ -6,8 +6,7 @@ import akka.event.{Logging, LoggingReceive}
 import scala.concurrent.duration._
 import scala.concurrent.Promise
 
-import yaas.coding.diameter.{DiameterMessage}
-import yaas.coding.radius.{RadiusPacket}
+import yaas.coding.{DiameterMessage, RadiusPacket}
 import yaas.server.Router._
 import yaas.server.RadiusActorMessages._
 

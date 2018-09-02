@@ -6,8 +6,8 @@ import akka.event.{ Logging, LoggingReceive }
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
 import yaas.server.Router.RoutedDiameterMessage
-import yaas.coding.diameter.DiameterMessage
-import yaas.coding.diameter.DiameterConversions._
+import yaas.coding.DiameterMessage
+import yaas.coding.DiameterConversions._
 import yaas.config.{DiameterPeerConfig}
 import akka.stream._
 import akka.stream.scaladsl._
@@ -77,7 +77,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig]) extends Actor with Ac
     .map(frame => {
       // Decode message
       try{
-        val decodedMessage = yaas.coding.diameter.DiameterMessage(frame)
+        val decodedMessage = yaas.coding.DiameterMessage(frame)
         // If Base, handle in this PeerActor
         if(decodedMessage.applicationId == 0) self ! BaseDiameterMessageReceived(decodedMessage)
         else {

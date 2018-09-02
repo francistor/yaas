@@ -1,7 +1,5 @@
 package yaas.test
 
-import scala.collection.mutable.Queue
-
 import akka.actor.ActorSystem
 import akka.util.{ByteStringBuilder, ByteString}
 import akka.testkit.{TestKit}
@@ -9,8 +7,8 @@ import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
 import org.scalatest.FlatSpec
 
 import yaas.dictionary._
-import yaas.coding.diameter._
-import yaas.coding.diameter.DiameterConversions._
+import yaas.coding._
+import yaas.coding.DiameterConversions._
 
 class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
@@ -110,13 +108,13 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   }
   
   "Grouped serialization and deserialization" in {
-    val groupedAVP = new GroupedAVP(18, true, false, 1001, Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
+    val groupedAVP = new GroupedAVP(18, true, false, 1001, scala.collection.mutable.Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
     DiameterAVP(groupedAVP.getBytes) mustEqual groupedAVP
   }
   
   "Diameter Message serialization and deserialization" in {
-    val groupedAVP = new GroupedAVP(18, true, false, 1001, Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
-    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, Queue(groupedAVP) /* value */, isRequest = true /* isRequest */)
+    val groupedAVP = new GroupedAVP(18, true, false, 1001, scala.collection.mutable.Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
+    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, scala.collection.immutable.Queue(groupedAVP) /* value */, isRequest = true /* isRequest */)
     val serializedMessage = diameterMessage.getBytes
     val unserializedDiameterMessage = DiameterMessage(serializedMessage)
     //unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)

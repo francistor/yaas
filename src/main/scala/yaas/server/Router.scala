@@ -50,9 +50,9 @@ import com.typesafe.config.ConfigFactory
 import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
 import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
 import yaas.config.{HandlerConfigManager, HandlerConfig}
-import yaas.coding.diameter.DiameterMessage
-import yaas.coding.diameter.DiameterConversions._
-import yaas.coding.radius.RadiusPacket
+import yaas.coding.DiameterMessage
+import yaas.coding.DiameterConversions._
+import yaas.coding.RadiusPacket
 import yaas.server.RadiusActorMessages._
 
 case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])

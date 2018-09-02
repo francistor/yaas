@@ -3,13 +3,12 @@ package yaas.handlers
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
 import yaas.server._
-import yaas.coding.diameter._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
-import yaas.coding.radius._
-import yaas.coding.radius.RadiusPacket._
+import yaas.coding._
+import yaas.coding.RadiusPacket._
 import yaas.server.RadiusActorMessages._
-import yaas.coding.radius.RadiusConversions._
+import yaas.coding.RadiusConversions._
 
 import scala.util.{Success, Failure}
 

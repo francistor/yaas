@@ -1,13 +1,19 @@
-package yaas.coding.diameter
+package yaas.coding
 
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
-import scala.collection.mutable.Queue
 
 import yaas.dictionary._
 import yaas.config.DiameterConfigManager
 import yaas.util.IDGenerator
 import yaas.util.UByteString
+import yaas.util.OctetOps
+
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
+
+import scala.collection.immutable.Queue
 
 class DiameterCodingException(val msg: String) extends java.lang.Exception(msg: String)
 
@@ -184,6 +190,14 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
 
     s"$tab[$attributeName = $attributeValue]"
   } 
+  
+  def getName = {
+    DiameterDictionary.avpMapByCode.get((vendorId, code)).map(_.name).getOrElse("UNKNOWN")
+  }
+  
+  def getType = {
+    DiameterDictionary.avpMapByCode.get((vendorId, code)).map(_.diameterType).getOrElse(DiameterTypes.NONE)
+  }
 }
 
 class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -197,7 +211,7 @@ class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   }
   
   override def stringValue = {
-    new String(value.toArray, "UTF-8")
+    OctetOps.octetsToString(value)
   }
 }
 
@@ -215,7 +229,7 @@ class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   }
   
   override def stringValue = {
-    new String(value.toArray, "UTF-8")
+    OctetOps.octetsToString(value)
   }
 }
 
@@ -310,10 +324,10 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   }
 }
 
-class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: scala.collection.mutable.Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, {
-        var avps = Queue[DiameterAVP[Any]]()
+        var avps = scala.collection.mutable.Queue[DiameterAVP[Any]]()
         var idx = 0
         while(idx < bytes.length){
           val l = UByteString.getUnsigned24(bytes.slice(idx + 5, idx + 8))
@@ -628,8 +642,7 @@ object DiameterMessage {
 /**
  * Represents a Diameter Message
  */
-// TODO: Queue should be immutable
-class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, val avps: Queue[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
+class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, var avps: Queue[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
@@ -682,12 +695,12 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    * Insert AVP in message
    */  
   def << (avp: DiameterAVP[Any]) : DiameterMessage = {
-    avps += avp
+    avps = avps :+ avp
     this
   }
   
   def <<< (avp: GroupedAVP) : DiameterMessage = {
-    avps += avp
+    avps = avps :+ avp
     this
   }
   
@@ -754,6 +767,8 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
 
 object DiameterConversions {
   
+  implicit var jsonFormats = DefaultFormats
+  
   /**
    * Simple Diameter AVP to String (value)
    */
@@ -778,7 +793,7 @@ object DiameterConversions {
     
     dictItem.diameterType match {
       case DiameterTypes.OCTETSTRING => 
-        new OctetStringAVP(code, isVendorSpecific, isMandatory, vendorId, attrValue.getBytes("UTF-8").toList)
+        new OctetStringAVP(code, isVendorSpecific, isMandatory, vendorId, OctetOps.stringToOctets(attrValue))
         
       case DiameterTypes.INTEGER_32 =>
         new Integer32AVP(code, isVendorSpecific, isMandatory, vendorId, attrValue.toInt)
@@ -929,10 +944,169 @@ object DiameterConversions {
     
     if(dictItem.diameterType != DiameterTypes.GROUPED) throw new DiameterCodingException("Tried to code a grouped attribute for a non grouped attribute name")
     
-    val gavp = new GroupedAVP(code, isVendorSpecific, isMandatory, vendorId, Queue[DiameterAVP[Any]]())
+    val gavp = new GroupedAVP(code, isVendorSpecific, isMandatory, vendorId, scala.collection.mutable.Queue[DiameterAVP[Any]]())
     for(avp <- avps) {
       gavp << avp
     }
     gavp
   }
+  
+  /**
+   * Helper for custom DiameterMessage Serializer
+   * Useful for handling types correctly
+   */
+  def TupleJson2DiameterAVP(tuple: (String, JValue)): DiameterAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    
+    val dictItem = DiameterDictionary.avpMapByName(attrName)
+    val code = dictItem.code
+    val isVendorSpecific = dictItem.vendorId != 0
+    val vendorId = dictItem.vendorId
+    
+    dictItem.diameterType match {
+      case DiameterTypes.OCTETSTRING => 
+        new OctetStringAVP(code, isVendorSpecific, false, vendorId, OctetOps.stringToOctets(attrValue.extract[String]))
+        
+      case DiameterTypes.INTEGER_32 =>
+        new Integer32AVP(code, isVendorSpecific, false, vendorId, attrValue.extract[Int])
+      
+      case DiameterTypes.INTEGER_64 =>
+        new Integer64AVP(code, isVendorSpecific, false, vendorId, attrValue.extract[Long])
+      
+      case DiameterTypes.UNSIGNED_32 =>
+        new Unsigned32AVP(code, isVendorSpecific, false, vendorId, attrValue.extract[Int])
+      
+      case DiameterTypes.UNSIGNED_64 =>
+        // Problem here. Only signed is supported
+        new Unsigned64AVP(code, isVendorSpecific, false, vendorId, attrValue.extract[Int])
+      
+      case DiameterTypes.FLOAT_32 =>
+        new Float32AVP(code, isVendorSpecific, false, vendorId, attrValue.extract[Float])
+      
+      case DiameterTypes.FLOAT_64 =>
+        new Float64AVP(code, isVendorSpecific, false, vendorId, attrValue.extract[Double])
+      
+      case DiameterTypes.GROUPED =>
+        val avps = for {
+          JObject(javps) <- attrValue
+          avp <- javps
+        } yield TupleJson2DiameterAVP(avp)
+        
+        new GroupedAVP(code, isVendorSpecific, false, vendorId, scala.collection.mutable.Queue[DiameterAVP[Any]](avps: _*))
+      
+      case DiameterTypes.ADDRESS =>
+        new AddressAVP(code, isVendorSpecific, false, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
+      
+      case DiameterTypes.TIME =>
+        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+        new TimeAVP(code, isVendorSpecific, false, vendorId, sdf.parse(attrValue.extract[String]))
+      
+      case DiameterTypes.UTF8STRING =>
+        new UTF8StringAVP(code, isVendorSpecific, false, vendorId, attrValue.extract[String])
+        
+      case DiameterTypes.DIAMETERIDENTITY =>
+        new DiameterIdentityAVP(code, isVendorSpecific, false, vendorId, attrValue.extract[String])
+        
+      case DiameterTypes.DIAMETERURI =>
+        // TODO: Check syntax using regex
+        new DiameterURIAVP(code, isVendorSpecific, false, vendorId, attrValue.extract[String])
+        
+      case DiameterTypes.ENUMERATED =>
+        new EnumeratedAVP(code, isVendorSpecific, false, vendorId, dictItem.asInstanceOf[EnumeratedAVPDictItem].values(attrValue.extract[String]))
+        
+      case DiameterTypes.IPFILTERRULE =>
+        // TODO: Check syntax using regex
+        new IPFilterRuleAVP(code, isVendorSpecific, false, vendorId, attrValue.extract[String])
+      
+      case DiameterTypes.RADIUS_IPV4ADDRESS =>
+        new IPv4AddressAVP(code, isVendorSpecific, false, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
+
+      case DiameterTypes.RADIUS_IPV6ADDRESS =>
+        new IPv6AddressAVP(code, isVendorSpecific, false, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
+
+      case DiameterTypes.RADIUS_IPV6PREFIX =>
+        new IPv6PrefixAVP(code, isVendorSpecific, false, vendorId, attrValue.extract[String])
+    }
+  }
+  
+  def diameterAVPToJField(avp: DiameterAVP[Any]): JField = {
+    avp match {
+        
+        case avp: OctetStringAVP => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
+        
+        case avp: Integer32AVP => JField(avp.getName, JInt(avp.value))
+      
+        case avp: Integer64AVP => JField(avp.getName, JLong(avp.value))
+      
+        case avp: Unsigned32AVP => JField(avp.getName, JLong(avp.value))
+      
+        case avp: Unsigned64AVP => JField(avp.getName, JLong(avp.value))
+      
+        case avp: Float32AVP => JField(avp.getName, JDouble(avp.value))
+      
+        case avp: Float64AVP => JField(avp.getName, JDouble(avp.value))
+        
+        case avp: GroupedAVP =>
+          val childs = for {child <- avp.value} yield diameterAVPToJField(child)
+          JField(avp.getName, childs.toList)
+      
+        case avp: AddressAVP => JField(avp.getName, JString(avp.stringValue))
+        
+        case avp: TimeAVP => JField(avp.getName, JString(avp.stringValue))
+        
+        case avp: UTF8StringAVP => JField(avp.getName, JString(avp.value))
+
+        case avp: DiameterIdentityAVP => JField(avp.getName, JString(avp.value))
+        
+        case avp: DiameterURIAVP => JField(avp.getName, JString(avp.value))
+        
+        case avp: EnumeratedAVP => JField(avp.getName, JString(avp.stringValue))
+        
+        case avp: IPFilterRuleAVP => JField(avp.getName, JString(avp.value))
+        
+        case avp: IPv4AddressAVP => JField(avp.getName, JString(avp.stringValue))
+        
+        case avp: IPv6AddressAVP => JField(avp.getName, JString(avp.stringValue))
+        
+        case avp: IPv6PrefixAVP => JField(avp.getName, JString(avp.stringValue))
+
+        }
+  }
+  
+  class DiameterMessageSerializer(implicit idGen: IDGenerator) extends CustomSerializer[DiameterMessage](implicit jsonFormats => (
+  {
+    case jv: JValue =>
+      val avps = for {
+        JObject(javps) <- (jv \ "avps")
+        (k, v) <- javps
+      } yield TupleJson2DiameterAVP((k, v))
+      
+      new DiameterMessage(
+         (jv \ "applicationId").extract[Long],
+         (jv \ "commandCode").extract[Int],
+         (jv \ "hopByHopId").extract[Option[Int]].getOrElse(idGen.nextHopByHopId),
+         (jv \ "endToEndId").extract[Option[Int]].getOrElse(idGen.nextEndToEndId),
+         Queue[DiameterAVP[Any]](avps: _*),
+         (jv \ "isRequest").extract[Option[Boolean]].getOrElse(true),
+         (jv \ "isProxiable").extract[Option[Boolean]].getOrElse(true),
+         (jv \ "isError").extract[Option[Boolean]].getOrElse(false),
+         (jv \ "isRetransmission").extract[Option[Boolean]].getOrElse(false)
+         )
+  },
+  {
+    case dm : DiameterMessage =>
+      val javps = for {
+        avp <- dm.avps.toList
+      } yield diameterAVPToJField(avp)
+
+      ("applicationId" -> dm.applicationId) ~
+      ("commandCode" -> dm.commandCode) ~ 
+      ("hopByHopId" -> dm.hopByHopId) ~
+      ("avps" -> JObject(javps)) ~
+      ("isRequest" -> dm.isRequest) ~
+      ("isProxyable" -> dm.isProxyable) ~
+      ("isError" -> dm.isError) ~
+      ("isRetransmission" -> dm.isRetransmission)
+  }
+  ))
 }

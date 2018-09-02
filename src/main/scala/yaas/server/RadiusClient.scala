@@ -7,7 +7,7 @@ import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPil
 import akka.event.{ Logging, LoggingReceive }
 import yaas.config.RadiusServerConfig
 import yaas.server.RadiusActorMessages._
-import yaas.coding.radius.RadiusPacket
+import yaas.coding.RadiusPacket
 import yaas.util._
 
 // This Actor handles the communication with upstream radius servers

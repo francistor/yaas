@@ -1,10 +1,15 @@
-package yaas.coding.radius
+package yaas.coding
 
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
 import scala.collection.immutable.Queue
 
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
+
 import yaas.util.UByteString
+import yaas.util.OctetOps
 import yaas.dictionary._
 
 class RadiusCodingException(val msg: String) extends java.lang.Exception(msg: String)
@@ -130,6 +135,14 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     
     s"[$attrName = $attrValue]"
   }
+  
+  def getName = {
+    RadiusDictionary.avpMapByCode.get((vendorId, code)).map(_.name).getOrElse("UNKNOWN")
+  }
+  
+  def getType = {
+    RadiusDictionary.avpMapByCode.get((vendorId, code)).map(_.radiusType).getOrElse(RadiusTypes.NONE)
+  }
 }
 
 class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends RadiusAVP[List[Byte]](code, vendorId, value) {
@@ -143,7 +156,7 @@ class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radi
 	}
 
 	override def stringValue = {
-    new String(value.toArray, "UTF-8")
+    OctetOps.octetsToString(value)
 	}
 }
 
@@ -172,13 +185,12 @@ class OctetsRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radiu
 		this(code, vendorId, bytes.toList)
 	}
 	
-
 	def getPayloadBytes = {
     ByteString.fromArray(value.toArray)
 	}
 
 	override def stringValue = {
-    new String(value.toArray, "UTF-8")
+	  OctetOps.octetsToString(value)
 	}
 }
 
@@ -282,7 +294,7 @@ class InterfaceIdRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends 
 	}
 
 	override def stringValue = {
-			new String(value.toArray, "UTF-8")
+			OctetOps.octetsToString(value)
 	}
 }
 
@@ -499,7 +511,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         authenticator = RadiusPacket.newAuthenticator
         getBytes(secret)
     }
-    
   }
   
   /*
@@ -568,7 +579,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         if( x.code != code || 
             x.identifier != identifier || 
             !x.authenticator.sameElements(authenticator) ||
-            !x.avps.equals(avps)) false else true
+            !x.avps.sameElements(avps)) false else true
       case _ => 
         false
     }
@@ -577,6 +588,8 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
 
 
 object RadiusConversions {
+  
+  implicit var jsonFormats = DefaultFormats + new RadiusPacketSerializer
   
   /**
    * Radius AVP to String (value)
@@ -600,16 +613,17 @@ object RadiusConversions {
     val vendorId = dictItem.vendorId
     
     dictItem.radiusType match {
-      case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, attrValue.getBytes("UTF-8").toList)
+      case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue)
-      case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.toInt)
+      case RadiusTypes.INTEGER =>
+        new IntegerRadiusAVP(code, vendorId, dictItem.enumValues.get(attrValue))
       case RadiusTypes.TIME=>
         val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
         new TimeRadiusAVP(code, vendorId, sdf.parse(attrValue))
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
       case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
       case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue)
-      case RadiusTypes.IFID => new InterfaceIdRadiusAVP(code, vendorId, attrValue.getBytes("UTF-8").toList)
+      case RadiusTypes.IFID => new InterfaceIdRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue))
       case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.toLong)
     }
   }
@@ -638,6 +652,107 @@ object RadiusConversions {
       case RadiusTypes.IFID => throw new RadiusCodingException(s"Invalid value $attrValue for attribute $attrName")
       case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.toLong)
     }
+  }
+
+  /**
+   * Helper for custom RadiusPacket Serializer
+   * Useful for handling types correctly
+   */
+  def TupleJson2RadiusAVP(tuple: (String, JValue)): RadiusAVP[Any] = {
+    val (attrName, attrValue) = tuple
+    
+    val dictItem = RadiusDictionary.avpMapByName(attrName)
+    val code = dictItem.code
+    val isVendorSpecific = dictItem.vendorId != 0
+    val vendorId = dictItem.vendorId
+    
+    dictItem.radiusType match {
+      case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue.extract[String]))
+      case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue.extract[String])
+      case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.extract[Int])
+      case RadiusTypes.TIME=>
+        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+        new TimeRadiusAVP(code, vendorId, sdf.parse(attrValue.extract[String]))
+      case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
+      case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
+      case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue.extract[String])
+      case RadiusTypes.IFID => new InterfaceIdRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue.extract[String]))
+      case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.extract[Long])
+    }
+  }
+
+  
+   /*
+   * Radius packet JSON
+   * 
+   * {
+   * 	code: <code>,
+   *  identifier: <id>,
+   *  authenticator: <authenticator>,
+   *  avps: {
+   *  	attrName1: <attrValue>
+   *    attrName2: [<attrValueA>, <attrValueB>]
+   *    ...
+   *  }
+   * }
+   */
+
+  
+  class RadiusPacketSerializer extends CustomSerializer[RadiusPacket](implicit jsonFormats => (
+  {
+    case jv: JValue =>
+      val avps = for {
+        JObject(javps) <- (jv \ "avps")
+        avp <- javps
+      } yield TupleJson2RadiusAVP(avp)
+      
+      new RadiusPacket(
+         (jv \ "code").extract[Int],
+         (jv \ "identifier").extract[Option[Int]].getOrElse(0),
+         OctetOps.stringToOctets(
+             (jv \ "authenticator").extract[Option[String]].getOrElse("0")
+          ).toArray,
+         Queue[RadiusAVP[Any]](avps: _*) 
+         )
+  },
+  {
+    case rp : RadiusPacket =>
+      val javps = for {
+        avp <- rp.avps.toList
+      } yield
+        avp match {
+          case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
+          case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
+          case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
+          case avp: TimeRadiusAVP =>
+            val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+            JField(avp.getName, JString(sdf.format(avp.value)))
+          case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
+          case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
+          case avp: IPv6PrefixRadiusAVP => JField(avp.getName, JString(avp.toString))
+          case avp: InterfaceIdRadiusAVP => JField(avp.getName, JString(avp.toString))
+          case avp: Integer64RadiusAVP => JField(avp.getName, JInt(avp.value))
+        }
+
+      ("code" -> rp.code) ~
+      ("id" -> rp.identifier) ~ 
+      ("authenticator" -> OctetOps.octetsToString(rp.authenticator.toList)) ~
+      ("avps" -> JObject(javps))
+  }
+  ))
+  
+  /**
+   * For implicit conversion from RadiusPacket to JSON
+   */
+  implicit def radiusPacketToJson(rp: RadiusPacket): JValue = {
+    Extraction.decompose(rp)
+  }
+  
+  /**
+   * For implicit conversion from JSON to RadiusPacket
+   */
+  implicit def jsonToRadiusPacket(jv: JValue): RadiusPacket = {
+    jv.extract[RadiusPacket]
   }
 }
 

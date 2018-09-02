@@ -103,7 +103,7 @@
 			{
 				"code": 25,
 				"name": "Class",
-				"type": "Octets"
+				"type": "String"
 			},
 			{
 				"code": 27,
@@ -118,17 +118,17 @@
 			{
 				"code": 30,
 				"name": "Called-Station-Id",
-				"type": "Octets"
+				"type": "String"
 			},
 			{
 				"code": 31,
 				"name": "Calling-Station-Id",
-				"type": "Octets"
+				"type": "String"
 			},
 			{
 				"code": 32,
 				"name": "NAS-Identifier",
-				"type": "Octets"
+				"type": "String"
 			},
 			{
 				"code": 33,

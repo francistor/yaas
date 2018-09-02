@@ -9,8 +9,14 @@ import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
 import org.scalatest.FlatSpec
 
 import yaas.dictionary._
-import yaas.coding.radius._
-import yaas.coding.radius.RadiusConversions._
+import yaas.coding._
+import yaas.coding.RadiusConversions._
+import yaas.util.OctetOps
+
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization.{read, write, writePretty}
 
 class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
@@ -102,6 +108,22 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
     
     val decodedResponse = RadiusPacket(requestPacket.getResponseBytes("secret"), Some(requestAuthenticator), "secret")
     decodedResponse >> "User-Password" mustEqual Some(passwordAVP)
+  }
+  
+  "RadiusPacket serialization and deserialization" in {
+    val radiusPacket = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST)
+    radiusPacket << ("User-Name" -> "frg@tid.es")
+    radiusPacket << ("User-Password" -> OctetOps.fromUTF8ToHex("secret password!"))
+    radiusPacket << ("NAS-IP-Address" -> "1.2.3.4")
+    radiusPacket << ("Service-Type" -> "Outbound")
+    radiusPacket << ("CHAP-Password" -> "0011ABCD")
+    radiusPacket << ("Class" -> "class-1")
+    radiusPacket << ("Class" -> "class-2")
+    
+    val jsonRadiusPacket: JValue = radiusPacket
+    val deserializedRadiusPacket: RadiusPacket = jsonRadiusPacket
+    
+    deserializedRadiusPacket mustEqual radiusPacket
     
   }
 }
