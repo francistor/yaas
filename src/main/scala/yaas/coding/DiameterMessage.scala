@@ -758,7 +758,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
             x.isRequest != isRequest ||
             x.isProxyable != isProxyable ||
             x.isRetransmission != isRetransmission ||
-            !x.avps.equals(avps)) false else true
+            !x.avps.sameElements(avps)) false else true
       case _ => false
     }
   }
@@ -767,7 +767,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
 
 object DiameterConversions {
   
-  implicit var jsonFormats = DefaultFormats
+  implicit var jsonFormats = DefaultFormats + new DiameterMessageSerializer
   
   /**
    * Simple Diameter AVP to String (value)
@@ -952,10 +952,10 @@ object DiameterConversions {
   }
   
   /**
-   * Helper for custom DiameterMessage Serializer
+   * Helpers for custom DiameterMessage Serializer
    * Useful for handling types correctly
    */
-  def TupleJson2DiameterAVP(tuple: (String, JValue)): DiameterAVP[Any] = {
+  def JField2DiameterAVP(tuple: (String, JValue)): DiameterAVP[Any] = {
     val (attrName, attrValue) = tuple
     
     val dictItem = DiameterDictionary.avpMapByName(attrName)
@@ -990,7 +990,7 @@ object DiameterConversions {
         val avps = for {
           JObject(javps) <- attrValue
           avp <- javps
-        } yield TupleJson2DiameterAVP(avp)
+        } yield JField2DiameterAVP(avp)
         
         new GroupedAVP(code, isVendorSpecific, false, vendorId, scala.collection.mutable.Queue[DiameterAVP[Any]](avps: _*))
       
@@ -1073,19 +1073,20 @@ object DiameterConversions {
         }
   }
   
-  class DiameterMessageSerializer(implicit idGen: IDGenerator) extends CustomSerializer[DiameterMessage](implicit jsonFormats => (
+  class DiameterMessageSerializer extends CustomSerializer[DiameterMessage](implicit jsonFormats => (
   {
     case jv: JValue =>
+      
       val avps = for {
         JObject(javps) <- (jv \ "avps")
         (k, v) <- javps
-      } yield TupleJson2DiameterAVP((k, v))
+      } yield JField2DiameterAVP((k, v))
       
       new DiameterMessage(
          (jv \ "applicationId").extract[Long],
          (jv \ "commandCode").extract[Int],
-         (jv \ "hopByHopId").extract[Option[Int]].getOrElse(idGen.nextHopByHopId),
-         (jv \ "endToEndId").extract[Option[Int]].getOrElse(idGen.nextEndToEndId),
+         (jv \ "hopByHopId").extract[Int],
+         (jv \ "endToEndId").extract[Int],
          Queue[DiameterAVP[Any]](avps: _*),
          (jv \ "isRequest").extract[Option[Boolean]].getOrElse(true),
          (jv \ "isProxiable").extract[Option[Boolean]].getOrElse(true),
@@ -1095,6 +1096,7 @@ object DiameterConversions {
   },
   {
     case dm : DiameterMessage =>
+      
       val javps = for {
         avp <- dm.avps.toList
       } yield diameterAVPToJField(avp)
@@ -1102,6 +1104,7 @@ object DiameterConversions {
       ("applicationId" -> dm.applicationId) ~
       ("commandCode" -> dm.commandCode) ~ 
       ("hopByHopId" -> dm.hopByHopId) ~
+      ("endToEndId" -> dm.endToEndId) ~
       ("avps" -> JObject(javps)) ~
       ("isRequest" -> dm.isRequest) ~
       ("isProxyable" -> dm.isProxyable) ~
@@ -1109,4 +1112,18 @@ object DiameterConversions {
       ("isRetransmission" -> dm.isRetransmission)
   }
   ))
+  
+  /**
+   * For implicit conversion from DiameterMessage to JSON
+   */
+  implicit def diameterMessageToJson(dm: DiameterMessage): JValue = {
+    Extraction.decompose(dm)
+  }
+  
+  /**
+   * For implicit conversion from JSON to DiameterMessage
+   */
+  implicit def jsonToDiameterMessage(jv: JValue): DiameterMessage = {
+    jv.extract[DiameterMessage]
+  }
 }

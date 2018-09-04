@@ -10,6 +10,11 @@ import yaas.dictionary._
 import yaas.coding._
 import yaas.coding.DiameterConversions._
 
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization.{read, write, writePretty}
+
 class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
   
@@ -140,14 +145,29 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   }
   
   "Adding and retrieving grouped avp to Diameter Message" in {
-    val message = DiameterMessage.request("Gx", "Credit-Control")
+    val diameterMessage = DiameterMessage.request("Gx", "Credit-Control")
     val userIMSI = "99999"
     
     // Add AVP to Diameter message
     val gavp = ("Subscription-Id", Seq(("Subscription-Id-Type" -> "EndUserIMSI"), ("Subscription-Id-Data", userIMSI)))
-    message << gavp
+    diameterMessage << gavp
     
     // Retrieve value
-    ((message >>> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
+    ((diameterMessage >>> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
+  }
+  
+  "DiameterMessage serialization and deserialization" in {
+    val diameterMessage = DiameterMessage.request("Gx", "Credit-Control")
+    val userIMSI = "99999"
+    
+    // Add AVP to Diameter message
+    val gavp = ("Subscription-Id", Seq(("Subscription-Id-Type" -> "EndUserIMSI"), ("Subscription-Id-Data", userIMSI)))
+    diameterMessage << gavp << ("Framed-IP-Address" -> "1.2.3.4") << ("Session-Id", "This-is-the-session-id")
+    
+    val jsonDiameterMessage: JValue = diameterMessage
+    
+    val deserializedDiameterMessage: DiameterMessage = diameterMessage
+    
+    deserializedDiameterMessage mustEqual diameterMessage
   }
 }
