@@ -454,6 +454,8 @@ object RadiusPacket {
   }
 }
 
+case class RadiusPacketKey(remoteHost: String, code: String)
+
 /**
  * The identifier is modified just before sending the packet
  * The authenticator is treated as follows
@@ -755,4 +757,5 @@ object RadiusConversions {
     jv.extract[RadiusPacket]
   }
 }
+
 

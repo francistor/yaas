@@ -47,6 +47,7 @@ import akka.stream.scaladsl._
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
+import yaas.stats.StatsServer
 import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
 import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
 import yaas.config.{HandlerConfigManager, HandlerConfig}
@@ -114,6 +115,9 @@ class Router() extends Actor with ActorLogging {
   
   import Router._
   
+  // Create stats server
+  val statsServer = context.actorOf(StatsServer.props)
+  
   // Empty initial maps to working objects
   // Diameter
 	var diameterServerIPAddress = "0.0.0.0"
@@ -165,7 +169,7 @@ class Router() extends Actor with ActorLogging {
   }
   
   // Radius client
-  val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts), "RadiusClient")
+  val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient")
   
   ////////////////////////////////////////////////////////////////////////
   // Diameter configuration
@@ -193,7 +197,7 @@ class Router() extends Actor with ActorLogging {
 	    if(cleanPeersHostMap.get(hostName) == None){
 	      if(peerConfig.connectionPolicy.equalsIgnoreCase("active")){
 	        // Create actor, which will initiate the connection.
-	       (hostName, DiameterPeerPointer(peerConfig, PeerStatus.Starting, Some(context.actorOf(DiameterPeer.props(Some(peerConfig)), hostName))))
+	       (hostName, DiameterPeerPointer(peerConfig, PeerStatus.Starting, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName))))
 	      }
 	      else {
 	        (hostName, DiameterPeerPointer(peerConfig, PeerStatus.Down, None))
@@ -216,7 +220,7 @@ class Router() extends Actor with ActorLogging {
     
     // Create new handlers if needed
     val newHandlerMap = conf.map { case (name, clazz) => 
-      if(cleanHandlerMap.get(name) == None) (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]]), name + "-handler"))
+      if(cleanHandlerMap.get(name) == None) (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], statsServer), name + "-handler"))
       // Already created
       else (name, cleanHandlerMap(name))
     }
@@ -277,15 +281,15 @@ class Router() extends Actor with ActorLogging {
   }   
   
   def newRadiusAuthServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusAuthServer")
+    context.actorOf(RadiusServer.props(ipAddress, bindPort, statsServer), "RadiusAuthServer")
   }
   
   def newRadiusAcctServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusAcctServer")
+    context.actorOf(RadiusServer.props(ipAddress, bindPort, statsServer), "RadiusAcctServer")
   }
     
   def newRadiusCoAServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort), "RadiusCoAServer")
+    context.actorOf(RadiusServer.props(ipAddress, bindPort, statsServer), "RadiusCoAServer")
   }
   
 
@@ -304,7 +308,7 @@ class Router() extends Actor with ActorLogging {
         connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
       } else {
         // Create handling actor and send it the connection. The Actor will register itself as peer or die
-        val peerActor = context.actorOf(DiameterPeer.props(None))
+        val peerActor = context.actorOf(DiameterPeer.props(None, statsServer))
         peerActor ! connection
       }
     }))(Keep.left).run()

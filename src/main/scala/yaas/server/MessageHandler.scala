@@ -1,14 +1,16 @@
 package yaas.server
 
-import akka.actor.{ActorSystem, Actor, ActorRef, Props, Cancellable}
+import akka.actor.{Actor, ActorRef, Props, Cancellable}
 import akka.actor.ActorLogging
-import akka.event.{Logging, LoggingReceive}
+import akka.event.{LoggingReceive}
 import scala.concurrent.duration._
 import scala.concurrent.Promise
-
-import yaas.coding.{DiameterMessage, RadiusPacket}
+import yaas.coding.{DiameterMessage, DiameterMessageKey, RadiusPacket}
 import yaas.server.Router._
 import yaas.server.RadiusActorMessages._
+import akka.actor.actorRef2Scala
+import scala.Left
+import scala.Right
 
 // Diameter Exceptions
 class DiameterResponseException(msg: String) extends Exception(msg)
@@ -28,7 +30,7 @@ object MessageHandler {
 /**
  * Base class for all handlers, including also methods for sending messages
  */
-class MessageHandler extends Actor with ActorLogging {
+class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   
   import MessageHandler._
   
@@ -51,7 +53,7 @@ class MessageHandler extends Actor with ActorLogging {
     val promise = Promise[DiameterMessage]
     
     // Publish in cache
-    diameterCacheIn(diameterMessage.endToEndId, timeoutMillis, promise)
+    diameterCacheIn(diameterMessage, timeoutMillis, promise)
     
     // Send request using router
     context.parent ! diameterMessage
@@ -69,17 +71,17 @@ class MessageHandler extends Actor with ActorLogging {
   // Diameter Cache
   ////////////////////////////////
   
-  case class DiameterRequestEntry(promise: Promise[DiameterMessage], timer: Cancellable)
+  case class DiameterRequestEntry(promise: Promise[DiameterMessage], timer: Cancellable, key: DiameterMessageKey)
   val diameterRequestCache = scala.collection.mutable.Map[Long, DiameterRequestEntry]()
   
-  def diameterCacheIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
+  def diameterCacheIn(diameterMessage: DiameterMessage, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
     // Schedule timer
-    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelDiameterRequest(e2eId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelDiameterRequest(diameterMessage.endToEndId))
  
     // Add to map
-    diameterRequestCache.put(e2eId, DiameterRequestEntry(promise, timer))
+    diameterRequestCache.put(diameterMessage.endToEndId, DiameterRequestEntry(promise, timer, diameterMessage.key))
     
-    log.debug("Diameter Cache In -> {}", e2eId)
+    log.debug("Diameter Cache In -> {}", diameterMessage.endToEndId)
   }
   
   def diameterCacheOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {

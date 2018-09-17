@@ -17,5 +17,13 @@ libraryDependencies ++=
     "org.json4s" 		%% "json4s-jackson"  % "3.6.0"
   )
   
+scriptClasspath += "../conf"
+batScriptExtraDefines += """set APP_CLASSPATH = %APP_LIB_DIR%\..\conf\%1;%APP_CLASSPATH%"""
+batScriptExtraDefines += """call :add_java "-Dinstance=%1""""
+
+bashScriptExtraDefines += """set app_classpath = $lib_dir/../conf/$1:$app_classpath"""
+bashScriptExtraDefines += """call :add_java "-Dinstance=$1""""
+
+  
 
 

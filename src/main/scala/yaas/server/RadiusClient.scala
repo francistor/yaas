@@ -13,13 +13,13 @@ import yaas.util._
 // This Actor handles the communication with upstream radius servers
 
 object RadiusClient {
-  def props(bindIPAddress: String, basePort: Int, numPorts: Int) = Props(new RadiusClient(bindIPAddress, basePort, numPorts))
+  def props(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) = Props(new RadiusClient(bindIPAddress, basePort, numPorts, statsServer))
  
   // Messages
   case object Clean
 }
 
-class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int) extends Actor with ActorLogging {
+class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) extends Actor with ActorLogging {
   
   import RadiusClient._
   

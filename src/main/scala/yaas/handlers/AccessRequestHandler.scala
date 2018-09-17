@@ -11,8 +11,9 @@ import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusConversions._
 
 import scala.util.{Success, Failure}
+import yaas.server.MessageHandler
 
-class AccessRequestHandler extends MessageHandler {
+class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccessRequestHandler")
   

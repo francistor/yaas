@@ -10,8 +10,9 @@ import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
 
 import scala.util.{Success, Failure}
+import yaas.server.MessageHandler
 
-class GxHandler extends MessageHandler {
+class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated GxHandler")
   

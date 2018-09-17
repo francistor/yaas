@@ -637,7 +637,14 @@ object DiameterMessage {
     answerMessage << ("Origin-Host" -> diameterConfig.diameterHost)
     answerMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
   }
+  
+  val EMPTY_FIELD = "<void>"
 }
+
+/**
+ * Used for stats
+ */
+case class DiameterMessageKey(originHost: String, originRealm: String, destinationHost: String, destinationRealm: String, applicationId: String, commandCode: String)
 
 /**
  * Represents a Diameter Message
@@ -727,7 +734,18 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
         else None
       case None => None
     }
-  } 
+  }
+    
+  // Generate case class DiameterMessageKey(originHost: String, originRealm: String, destinationHost: String, destinationRealm: String, applicationId: String, commandCode: String)
+  def key = {
+    val originHost = (this >> "Origin-Host").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    val originRealm = (this >> "Origin-Realm").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    val destinationHost = (this >> "Destination-Host").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    val destinationRealm = (this >> "Destination-Realm").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    
+    DiameterMessageKey(originHost, originRealm, destinationHost, destinationRealm, applicationId.toString, commandCode.toString)
+  }
+
   
   def application : String = {
     DiameterDictionary.appMapByCode.get(applicationId).map(_.name).getOrElse("Unknown")
@@ -761,7 +779,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
             !x.avps.sameElements(avps)) false else true
       case _ => false
     }
-  }
+  } 
 }
 
 
@@ -1127,3 +1145,4 @@ object DiameterConversions {
     jv.extract[DiameterMessage]
   }
 }
+

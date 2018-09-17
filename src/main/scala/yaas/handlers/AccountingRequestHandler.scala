@@ -11,8 +11,9 @@ import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusConversions._
 
 import scala.util.{Success, Failure}
+import yaas.server.MessageHandler
 
-class AccountingRequestHandler extends MessageHandler {
+class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccountingRequestHandler")
   

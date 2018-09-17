@@ -13,10 +13,10 @@ import yaas.server.RadiusActorMessages._
 // This class implements radius server basic functions
 
 object RadiusServer {
-  def props(bindIPAddress: String, bindPort: Int) = Props(new RadiusServer(bindIPAddress, bindPort))
+  def props(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) = Props(new RadiusServer(bindIPAddress, bindPort, statsServer))
 }
 
-class RadiusServer(bindIPAddress: String, bindPort: Int) extends Actor with ActorLogging {
+class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) extends Actor with ActorLogging {
   
   import context.system
   
