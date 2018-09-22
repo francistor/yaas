@@ -44,7 +44,6 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   
   // Span actors
   val socketActors = (for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i))
-  
   def receive = {
     
     case RadiusClientRequest(radiusPacket, destination, originActor, radiusId) =>

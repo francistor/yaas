@@ -5,7 +5,7 @@ import org.json4s.jackson.JsonMethods._
 
 // TODO: Change the name to RadiusProxies, etc.
 case class RadiusThisServerConfig(bindAddress: String, authBindPort: Int, acctBindPort: Int, coABindPort: Int, clientBasePort: Int, numClientPorts: Int)
-case class RadiusPorts(auth: Int, acct: Int, coA: Int, dm: Int) // TODO: Move to Options
+case class RadiusPorts(auth: Int, acct: Int, coA: Int) // TODO: Move to Options
 case class RadiusServerConfig(name: String, IPAddress: String, secret: String, ports: RadiusPorts, errorLimit: Int, quarantineTimeMillis: Int)
 case class RadiusServerGroupConfig(name: String, servers: IndexedSeq[String], policy: String)
 case class RadiusClientConfig(name: String, IPAddress: String, secret: String)
@@ -15,7 +15,7 @@ object RadiusConfigManager {
   private implicit val formats = DefaultFormats
 
   // General config
-  private var radiusConfig = ConfigManager.getConfigObject("radiusServer.json").extract[RadiusThisServerConfig]
+  private var radiusConfig = ConfigManager.getConfigObject("radiusServer.json").extractOrElse[RadiusThisServerConfig](RadiusThisServerConfig("0", 0, 0, 0, 0, 0))
   
   // Radius servers
   private var radiusServers = (for {

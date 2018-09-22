@@ -2,13 +2,14 @@
 	"servers" : 
 	[
 		{
-        "name": "superserver",
+        "name": "yaasserver",
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
-          "auth": 11812,
-          "acct": 11813,
-          "coA": 13799
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799,
+          "dm": 3799
         },
         "errorLimit": 20,
         "quarantineTimeMillis": 4000
@@ -18,7 +19,7 @@
 	[
 	  {
         "name": "allServers",
-        "servers": ["superserver"],
+        "servers": ["yaasserver"],
         "policy": "random"
       }
 	]

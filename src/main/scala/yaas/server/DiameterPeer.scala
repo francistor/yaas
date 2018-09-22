@@ -91,6 +91,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
           if(decodedMessage.isRequest){
             context.parent ! decodedMessage
             StatOps.pushDiameterRequestReceived(statsServer, peerHostName, decodedMessage)
+            log.debug(s">> Received diameter request $decodedMessage")
           }
           // If response, check where to send it to, and clean from cache
           else {
@@ -98,6 +99,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
               case Some(RequestEntry(hopByHopId, timestamp, destActor, messageKey)) => 
                 destActor ! decodedMessage
                 StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, decodedMessage, timestamp)
+                log.debug(s">> Received diameter answer $decodedMessage")
               case None =>
                 log.warning(s"Unsolicited or staled response $decodedMessage")
             }
@@ -141,36 +143,44 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   def receiveConnected(ks: KillSwitch, q: SourceQueueWithComplete[ByteString], remote: String) : Receive = {
     
     case BaseDiameterMessageReceived(message) =>
-      log.debug(s"Received Base Diameter Message $message")
       if(!message.isRequest) {
         cacheOut(message.hopByHopId) match {
           case Some(RequestEntry(hopByHopId, timestamp, sendingActor, key)) =>
             StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, message, timestamp)
+            log.debug(s">> Received diameter answer $message")
           case None =>
             // Unsolicited or stalled response. 
         }
-      } else StatOps.pushDiameterRequestReceived(statsServer, peerHostName, message)
+      } else{
+        StatOps.pushDiameterRequestReceived(statsServer, peerHostName, message)
+        log.debug(s">> Received diameter request $message")
+      }
           
       handleDiameterBase(message)
       
     case BaseDiameterMessageToSend(message) =>
-      log.debug(s"Sending Base Diameter Message $message")
       q.offer(message.getBytes)
       if(message.isRequest){
         cacheIn(message, self)
         StatOps.pushDiameterRequestSent(statsServer, peerHostName, message)
-      } else StatOps.pushDiameterAnswerSent(statsServer, peerHostName, message)
+        log.debug(s"<< Sent diameter request $message")
+      } else{
+        StatOps.pushDiameterAnswerSent(statsServer, peerHostName, message)
+        log.debug(s"<< Sent diameter answer $message")
+      }
       
     // Message to send a answer to peer
     case message: DiameterMessage => 
       q.offer(message.getBytes)
       StatOps.pushDiameterAnswerSent(statsServer, peerHostName, message)
+      log.debug(s"<< Sent diameter answer $message")
       
     // Message to send request to peer
     case RoutedDiameterMessage(message, originActor) =>
       cacheIn(message, originActor)
       q.offer(message.getBytes)
       StatOps.pushDiameterRequestSent(statsServer, peerHostName, message)
+      log.debug(s"<< Sent diameter request $message")
 
     case Clean => 
       cacheClean

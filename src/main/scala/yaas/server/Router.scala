@@ -159,13 +159,13 @@ class Router() extends Actor with ActorLogging {
   // Diameter Server socket
   implicit val actorSytem = context.system
   implicit val materializer = ActorMaterializer()
-  if(diameterServerIPAddress != "0") startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
+  if(diameterServerIPAddress.contains(".") && diameterServerPort > 0) startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
   
   // Radius server actors
-  if(radiusServerIPAddress != "0"){
-    newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
-    newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
-    newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
+  if(radiusServerIPAddress.contains(".")){
+    if(radiusServerAuthPort > 0 ) newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
+    if(radiusServerAcctPort > 0 ) newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
+    if(radiusServerCoAPort > 0 ) newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
   }
   
   // Radius client
@@ -271,8 +271,7 @@ class Router() extends Actor with ActorLogging {
             if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, config.quarantineTimeMillis, config.errorLimit)
             if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, config.quarantineTimeMillis, config.errorLimit)
             if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = new RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, config.quarantineTimeMillis, config.errorLimit)
-            if(config.ports.dm != 0) endPoints(RadiusPacket.DISCONNECT_REQUEST) = new RadiusEndpointStatus(RadiusPacket.DISCONNECT_REQUEST, config.ports.dm, config.quarantineTimeMillis, config.errorLimit)
-
+            
             (newServerName, new RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
           case Some(rs) => (newServerName, rs)
         }

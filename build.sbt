@@ -18,11 +18,13 @@ libraryDependencies ++=
   )
   
 scriptClasspath += "../conf"
-batScriptExtraDefines += """set APP_CLASSPATH = %APP_LIB_DIR%\..\conf\%1;%APP_CLASSPATH%"""
-batScriptExtraDefines += """call :add_java "-Dinstance=%1""""
+batScriptExtraDefines += """if [%1] == [] (set INSTANCE=default) else (set INSTANCE=%1)"""
+batScriptExtraDefines += """set APP_CLASSPATH=%APP_LIB_DIR%\..\conf\%INSTANCE%;%APP_CLASSPATH%"""
+batScriptExtraDefines += """call :add_java "-Dinstance=%INSTANCE%""""
 
-bashScriptExtraDefines += """set app_classpath = $lib_dir/../conf/$1:$app_classpath"""
-bashScriptExtraDefines += """call :add_java "-Dinstance=$1""""
+bashScriptExtraDefines += """set INSTANCE=${1:=default}"""
+bashScriptExtraDefines += """set app_classpath = $lib_dir/../conf/$INSTANCE:$app_classpath"""
+bashScriptExtraDefines += """call :add_java "-Dinstance=$INSTANCE""""
 
   
 

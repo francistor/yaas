@@ -1,4 +1,4 @@
 [
-	{"realm": "8950AAA", "applicationId": "*", "peers": ["host.8950AAA"], "policy": "fixed"},
-	{"realm": "yaas", "applicationId": "Gx", "handler": "GxHandler"}
+	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"},
+	{"realm": "yaasserver", "applicationId": "Gx", "handler": "GxHandler"}
 ]

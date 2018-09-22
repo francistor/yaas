@@ -40,7 +40,5 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
       case Failure(e) =>
         log.error(e.getMessage)
     }
-    
-    
   }
 }

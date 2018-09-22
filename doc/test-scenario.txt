@@ -17,7 +17,13 @@ Nokia rt						-> Yaas								-> Nokia AAA
 	
 
 	
-	
+= Test scenario with yass only
+
+client									server									superserver
+	- diameterHost = client.yaasclient		- diameterHost = server.yaasserver		- diameterHost = superserver.yaassuperserver
+	- diameterPort = 3867					- diameterPort = 3868					- diameterPort = 3869
+											- RadiusAuth = 1812						- radiusAuth = 11812
+											- RadiusAcct = 1813						- radiusAcct = 11813
 	
 	
 

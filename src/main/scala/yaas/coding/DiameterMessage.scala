@@ -652,6 +652,7 @@ case class DiameterMessageKey(originHost: String, originRealm: String, destinati
 class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, var avps: Queue[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
   
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
+  val lineSeparator = sys.props("line.separator")
   
   def getBytes: ByteString = {
     // Diameter Message is
@@ -760,9 +761,9 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     val application = DiameterDictionary.appMapByCode.get(applicationId)
     val applicationName = application.map(_.name).getOrElse("Unknown")
     val commandName = application.map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
-    val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty() + "\n")
+    val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty() + lineSeparator)
     
-    s"\n$applicationName - $commandName\n$header\n$prettyAVPs"
+    s"${lineSeparator}${applicationName} - ${commandName}${lineSeparator}${header}${lineSeparator}${prettyAVPs}"
   }
   
   override def equals(other: Any): Boolean = {

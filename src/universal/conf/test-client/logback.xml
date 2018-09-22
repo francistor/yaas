@@ -19,7 +19,7 @@
     	</encoder>
 	</appender>
 
-	<root level="DEBUG">          
+	<root level="INFO">          
     	<appender-ref ref="default-console" />
     	<appender-ref ref="default-file" />
   	</root>

@@ -96,7 +96,9 @@ object ConfigManager {
     )
     
     co match {
-      case Some(j) => j
+      case Some(j) => 
+        configObjectCache(objectName) = j
+        j
       case None => throw new java.util.NoSuchElementException(objectName)
     }
   }

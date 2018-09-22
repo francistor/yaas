@@ -29,7 +29,7 @@ class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
     
     // Send request to proxy
     val request = DiameterMessage.request("Gx", "Credit-Control")
-    request << ("Destination-Realm" -> "8950AAA")
+    request << ("Destination-Realm" -> "yaassuperserver")
     request << ("Session-Id" -> "1")
     request << ("Auth-Application-Id" -> "Gx")
     request << ("CC-Request-Type" -> "Initial")
