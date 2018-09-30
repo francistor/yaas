@@ -3,6 +3,6 @@
 	"authBindPort": 1812,
 	"acctBindPort": 1813,
 	"coABindPort": 3799,
-	"clientBasePort": 30000,
+	"clientBasePort": 42000,
 	"numClientPorts": 1
 }

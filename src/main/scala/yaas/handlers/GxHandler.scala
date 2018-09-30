@@ -18,29 +18,29 @@ class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   implicit val idGen = new IDGenerator
   
-  override def handleDiameterMessage(message : DiameterMessage, originActor: ActorRef) = {
+  override def handleDiameterMessage(requestMessage : DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
     
-    message.command match {
-      case "Credit-Control" => handleCCR(message, originActor)
+    requestMessage.command match {
+      case "Credit-Control" => handleCCR(requestMessage, originActor, receivedTimestamp)
     }
   }
   
-  def handleCCR(message : DiameterMessage, originActor: ActorRef) = {
+  def handleCCR(requestMessage : DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
     
     // Send request to proxy
-    val request = DiameterMessage.request("Gx", "Credit-Control")
-    request << ("Destination-Realm" -> "yaassuperserver")
-    request << ("Session-Id" -> "1")
-    request << ("Auth-Application-Id" -> "Gx")
-    request << ("CC-Request-Type" -> "Initial")
-    request << ("CC-Request-Number" -> 1)
+    val proxyRequest = DiameterMessage.request("Gx", "Credit-Control")
+    proxyRequest << ("Destination-Realm" -> "yaassuperserver")
+    proxyRequest << ("Session-Id" -> "1")
+    proxyRequest << ("Auth-Application-Id" -> "Gx")
+    proxyRequest << ("CC-Request-Type" -> "Initial")
+    proxyRequest << ("CC-Request-Number" -> 1)
     
-    sendDiameterRequest(request, 5000).onComplete{
+    sendDiameterRequest(proxyRequest, 5000).onComplete{
       case Success(proxyAnswer) =>
         log.info("Received proxy answer {}", proxyAnswer)
-        val answer = DiameterMessage.answer(message) 
+        val answer = DiameterMessage.answer(requestMessage) 
         answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-        sendDiameterAnswer(answer, originActor)
+        sendDiameterAnswer(answer, requestMessage, originActor, receivedTimestamp)
         
       case Failure(e) =>
         log.error("Proxy timeout")

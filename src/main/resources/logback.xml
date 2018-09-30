@@ -1,31 +1,36 @@
 <configuration debug="false" scan="true">
-	<appender name="default-file" class="ch.qos.logback.core.FileAppender">
+	<appender name="default-file-appender" class="ch.qos.logback.core.FileAppender">
 	    <file>log/aaa_${instance:-default}.log</file>
 	    <encoder>
       		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     	</encoder>
 	</appender>
 
-	<appender name="default-console" class="ch.qos.logback.core.ConsoleAppender">
+	<appender name="default-console-appender" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
       		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     	</encoder>
 	</appender>
 	
-	<appender name="peer-log" class="ch.qos.logback.core.FileAppender">
+	<appender name="peer-appender" class="ch.qos.logback.core.FileAppender">
 	    <file>log/aaa_peer_${instance:-default}.log</file>
 	    <encoder>
       		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     	</encoder>
 	</appender>
 
-	<root level="DEBUG">          
-    	<appender-ref ref="default-console" />
-    	<appender-ref ref="default-file" />
+	<root level="WARN">          
+    	<appender-ref ref="default-console-appender" />
+    	<appender-ref ref="default-file-appender" />
   	</root>
   	
+  	<logger name="yaas" level="DEBUG" additivity="false">
+    	<appender-ref ref="default-console-appender" />
+    	<appender-ref ref="default-file-appender" />
+  	</logger>
+  	
   	<logger name="yaas.server.DiameterPeer" level="DEBUG" additivity="false">
-  		<appender-ref ref="peer-log" />
+  		<appender-ref ref="peer-appender" />
   	</logger>
 
 </configuration>

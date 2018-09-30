@@ -9,6 +9,7 @@ import java.net.InetSocketAddress
 import yaas.coding._
 import yaas.config.RadiusConfigManager
 import yaas.server.RadiusActorMessages._
+import yaas.stats.StatOps
 
 // This class implements radius server basic functions
 
@@ -41,7 +42,9 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
         case Some(radiusClientConfig) =>
           try {
             val origin = RadiusActorMessages.RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
-            context.parent ! RadiusActorMessages.RadiusServerRequest(RadiusPacket(data, None, origin.secret), self, origin)
+            val packet = RadiusPacket(data, None, origin.secret)
+            context.parent ! RadiusActorMessages.RadiusServerRequest(packet, self, origin)
+            StatOps.pushRadiusServerRequest(statsServer, origin, packet)
           } catch {
             case e: Exception =>
               log.warning(s"Error decoding packet from $remoteIPAddress")
@@ -49,11 +52,13 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
           
         case None =>
           log.warning(s"Discarding packet from $remoteIPAddress")
+          StatOps.pushRadiusServerDrop(statsServer: ActorRef, remoteIPAddress, remotePort)
       }
       
     case RadiusServerResponse(radiusPacket, origin) =>
       log.debug(s"Sending radius response to $origin")
       val response = radiusPacket.getResponseBytes(origin.secret)
       udpEndPoint ! Udp.Send(response, new InetSocketAddress(origin.ipAddress, origin.port))
+      StatOps.pushRadiusServerResponse(statsServer, origin, radiusPacket)
   }
 }

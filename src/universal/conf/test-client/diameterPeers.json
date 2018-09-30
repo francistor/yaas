@@ -5,5 +5,12 @@
         "port": 3868,
 		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 300000
+	},
+	{
+		"diameterHost": "non-existing-server.yaasserver",
+        "IPAddress": "192.168.250.1",
+        "port": 3868,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000
 	}
 ]

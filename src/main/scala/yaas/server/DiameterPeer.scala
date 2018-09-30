@@ -205,7 +205,6 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   }
   
   override def preStart = {
-    
     // If active peer, try to establish connection here
     config match {
       case Some(conf) if(conf.connectionPolicy == "active") =>

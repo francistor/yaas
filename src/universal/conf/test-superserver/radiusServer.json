@@ -1,0 +1,8 @@
+{
+	"bindAddress": "0.0.0.0",
+	"authBindPort": 11812,
+	"acctBindPort": 11813,
+	"coABindPort": 13799,
+	"clientBasePort": 45000,
+	"numClientPorts": 1
+}

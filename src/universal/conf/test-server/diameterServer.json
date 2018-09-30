@@ -1,0 +1,10 @@
+{
+	"bindAddress": "127.0.0.1",
+	"bindPort": 3868,
+	"diameterHost": "server.yaasserver",
+	"diameterRealm": "yaasserver",
+	"vendorId": 1101,
+	"productName": "Lever",
+	"firmwareRevision": 1,
+	"connectionInterval": 10000
+}

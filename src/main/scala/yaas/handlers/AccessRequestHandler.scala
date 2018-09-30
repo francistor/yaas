@@ -17,14 +17,14 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
   
   log.info("Instantiated AccessRequestHandler")
   
-  override def handleRadiusMessage(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint) = {
+  override def handleRadiusMessage(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, receivedTimestamp: Long) = {
     // Should always be an access-request anyway
     radiusPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(radiusPacket, originActor, origin)
+      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(radiusPacket, originActor, origin, receivedTimestamp)
     }
   }
   
-  def handleAccessRequest(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint) = {
+  def handleAccessRequest(requestPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, receivedTimestamp: Long) = {
     import scala.collection.immutable.Queue
     
     // Proxy to upstream server
@@ -32,11 +32,11 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     val proxyRequest = RadiusPacket.request(ACCESS_REQUEST)
     proxyRequest.avps = Queue[RadiusAVP[Any]](passwordAVP)
 
-    sendRadiusGroupRequest("allServers", proxyRequest, 1000).onComplete{
+    sendRadiusGroupRequest("allServers", proxyRequest, 1000, 0).onComplete{
       case Success(proxyResponse) =>
-        val response = RadiusPacket.response(radiusPacket)
-        response << ("User-Password" -> "Password sent by YAAS a b c d e f g")
-        sendRadiusResponse(response, originActor, origin)
+        val responsePacket = RadiusPacket.response(requestPacket)
+        responsePacket << ("User-Password" -> "Password sent by YAAS a b c d e f g")
+        sendRadiusResponse(responsePacket, requestPacket, originActor, origin, receivedTimestamp)
       case Failure(e) =>
         log.error(e.getMessage)
     }

@@ -454,7 +454,6 @@ object RadiusPacket {
   }
 }
 
-case class RadiusPacketKey(remoteHost: String, code: String)
 
 /**
  * The identifier is modified just before sending the packet
@@ -556,7 +555,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
       case None => Queue[RadiusAVP[Any]]()
     }
   }
-  
   
   override def toString() = {
     val codeString = code match {
