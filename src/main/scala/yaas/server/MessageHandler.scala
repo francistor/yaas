@@ -4,7 +4,8 @@ import akka.actor.{Actor, ActorRef, Props, Cancellable}
 import akka.actor.ActorLogging
 import akka.event.{LoggingReceive}
 import scala.concurrent.duration._
-import scala.concurrent.Promise
+import scala.concurrent.{Promise, Future}
+import scala.util.{Success, Failure}
 import akka.actor.actorRef2Scala
 import scala.{Left, Right}
 import yaas.coding.{DiameterMessage, DiameterMessageKey, RadiusPacket}
@@ -21,10 +22,14 @@ class DiameterTimeoutException(msg: String) extends DiameterResponseException(ms
 class RadiusResponseException(msg:String) extends Exception(msg)
 class RadiusTimeoutException(msg: String) extends RadiusResponseException(msg)
 
+// Context classes. Just to avoid passing too many opaque parameters from request to response
+case class DiameterRequestContext(diameterRequest: DiameterMessage, originActor: ActorRef, receivedTimestamp: Long)
+case class RadiusRequestContext(requestPacket: RadiusPacket, origin: RadiusEndpoint, originActor: ActorRef, receivedTimestamp: Long)
+
 object MessageHandler {
   // Messages
-  case class CancelDiameterRequest(e2eId: Long) 
-  case class CancelRadiusRequest(radiusId: Long)
+  case class DiameterRequestTimeout(e2eId: Long) 
+  case class RadiusRequestTimeout(radiusId: Long)
 }
 
 /**
@@ -41,142 +46,150 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   ////////////////////////////////
   // Diameter 
   ////////////////////////////////
-  
-  def sendDiameterAnswer(answerMessage: DiameterMessage, requestMessage: DiameterMessage, originActor: ActorRef, requestTimestamp: Long) = {
-    originActor ! answerMessage
+  def sendDiameterAnswer(answerMessage: DiameterMessage) (implicit ctx: DiameterRequestContext) = {
+    ctx.originActor ! answerMessage
     
-    StatOps.pushDiameterHandlerServer(statsServer, requestMessage, answerMessage, System.currentTimeMillis - requestTimestamp)
+    StatOps.pushDiameterHandlerServer(statsServer, ctx.diameterRequest, answerMessage, System.currentTimeMillis - ctx.receivedTimestamp)
     log.debug(">> Diameter answer sent\n {}\n", answerMessage.toString())
   }
   
   def sendDiameterRequest(requestMessage: DiameterMessage, timeoutMillis: Int) = {
-    
+    val sentTimestamp = System.currentTimeMillis
     val promise = Promise[DiameterMessage]
     
-    // Publish in cache
-    diameterCacheIn(requestMessage, timeoutMillis, promise)
+    // Publish in request map
+    diameterRequestMapIn(requestMessage.endToEndId, timeoutMillis, promise)
     
     // Send request using router
     context.parent ! requestMessage
-    
     log.debug(">> Diameter request sent\n {}\n", requestMessage.toString())
     
-    promise.future
+    // Side-effect action when future is resolved
+    promise.future.andThen {
+      case Success(ans) =>
+        StatOps.pushDiameterHandlerClient(statsServer, requestMessage.key, ans, System.currentTimeMillis - sentTimestamp)
+      case Failure(ex) =>
+        StatOps.pushDiameterHandlerClientTimeout(statsServer, requestMessage.key)
+    }
   }
   
-  def handleDiameterMessage(requestMessage: DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
+  // To be overriden in Handler Classes
+  def handleDiameterMessage(ctx: DiameterRequestContext) = {
     log.warning("Default diameter handleMessage does nothing")
   }
   
   ////////////////////////////////
-  // Diameter Cache
+  // Diameter Request Map
   ////////////////////////////////
+  case class DiameterRequestMapEntry(promise: Promise[DiameterMessage], timer: Cancellable)
+  val diameterRequestMap = scala.collection.mutable.Map[Long, DiameterRequestMapEntry]()
   
-  case class DiameterRequestEntry(promise: Promise[DiameterMessage], timer: Cancellable, key: DiameterMessageKey, sentTimestamp: Long)
-  val diameterRequestCache = scala.collection.mutable.Map[Long, DiameterRequestEntry]()
-  
-  def diameterCacheIn(diameterMessage: DiameterMessage, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
+  def diameterRequestMapIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
     // Schedule timer
-    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelDiameterRequest(diameterMessage.endToEndId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, DiameterRequestTimeout(e2eId))
  
     // Add to map
-    diameterRequestCache.put(diameterMessage.endToEndId, DiameterRequestEntry(promise, timer, diameterMessage.key, System.currentTimeMillis))
+    diameterRequestMap.put(e2eId, DiameterRequestMapEntry(promise, timer))
     
-    log.debug("Diameter Cache In -> {}", diameterMessage.endToEndId)
+    log.debug("Diameter RequestMap In -> {}", e2eId)
   }
   
-  def diameterCacheOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {
-    // Remove cache entry
-    diameterRequestCache.remove(e2eId) match {
+  def diameterRequestMapOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {
+    // Remove Map entry
+    diameterRequestMap.remove(e2eId) match {
       case Some(requestEntry) =>
+        // Cancel timer
         requestEntry.timer.cancel()
         messageOrError match {
+          // If response received, fulfill promise with success
           case Left(diameterAnswer) =>
-            log.debug("Diameter Cache Out <- {}", e2eId)
-            StatOps.pushDiameterHandlerClient(statsServer, requestEntry.key, diameterAnswer, System.currentTimeMillis - requestEntry.sentTimestamp) 
+            log.debug("Diameter Request Map Out <- {}", e2eId)
             requestEntry.promise.success(diameterAnswer)
             
+          // If error, fullfull promise with error
           case Right(e) =>
-            log.debug("Diameter Cache Timeout <- {}", e2eId)
-            StatOps.pushDiameterHandlerClientTimeout(statsServer, requestEntry.key)
+            log.debug("Diameter Timeout <- {}", e2eId)
             requestEntry.promise.failure(e)
         }
       
       case None =>
-        log.warning("Diameter Cache (Not found) {}. Unsolicited or stalled answer", e2eId)
+        log.warning("Diameter Request not found for E2EId: {}. Unsolicited or stalled answer", e2eId)
     }
   }
   
   ////////////////////////////////
   // Radius
   ////////////////////////////////
-  def sendRadiusResponse(responsePacket: RadiusPacket, requestPacket: RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, requestTimestamp: Long) = {
-    originActor ! RadiusServerResponse(responsePacket, origin)
+  def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext) = {
+    ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin)
     
-    StatOps.pushRadiusHandlerResponse(statsServer, origin, requestPacket, responsePacket, System.currentTimeMillis - requestTimestamp)
+    StatOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, System.currentTimeMillis - ctx.receivedTimestamp)
     log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
   }
   
-  def handleRadiusMessage(radiusPacket: RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, requestTimestamp: Long) = {
+  def sendRadiusGroupRequest(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int): Future[RadiusPacket] = {
+    val promise = Promise[RadiusPacket]
+    
+    val sentTimestamp = System.currentTimeMillis
+    
+    // Publish in request Map
+    val radiusId = e2EIdGenerator.nextRadiusId
+    radiusRequestMapIn(radiusId, timeoutMillis, promise)
+    
+    // Send request using router
+    context.parent ! RadiusGroupClientRequest(requestPacket, serverGroupName, radiusId)
+    
+    log.debug(">> Radius request sent\n {}\n", requestPacket.toString())
+    
+    promise.future.recoverWith {
+      case e if(retries > 0) =>
+        StatOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
+        sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1)
+    }.andThen {
+      case Failure(e) =>
+        StatOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
+      case Success(responsePacket) =>
+        StatOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, System.currentTimeMillis - sentTimestamp) 
+    }
+  }
+  
+  // To be overriden in Handler Classes
+  def handleRadiusMessage(radiusRequestContext: RadiusRequestContext) = {
     log.warning("Default radius handleMessage does nothing")
   }
   
-  def sendRadiusGroupRequest(serverGroupName: String, radiusPacket: RadiusPacket, timeoutMillis: Int, retries: Int) = {
-    
-    val promise = Promise[RadiusPacket]
-    
-    // Publish in cache
-    val radiusId = e2EIdGenerator.nextRadiusId
-    radiusCacheIn(radiusId, timeoutMillis, promise, radiusPacket.code, serverGroupName, retries)
-    
-    // Send request using router
-    context.parent ! RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusId)
-    
-    log.debug(">> Radius request sent\n {}\n", radiusPacket.toString())
-    
-    promise.future
-  }
-  
   ////////////////////////////////
-  // Radius Cache
+  // Radius Request Map
   ////////////////////////////////
-  case class RadiusRequestEntry(promise: Promise[RadiusPacket], timer: Cancellable, reqCode: Int, sentTimestamp: Long, group: String, retries: Int, timeoutMillis: Int)
-  val radiusRequestCache = scala.collection.mutable.Map[Long, RadiusRequestEntry]()
+  case class RadiusRequestMapEntry(promise: Promise[RadiusPacket], timer: Cancellable, sentTimestamp: Long)
+  val radiusRequestMap = scala.collection.mutable.Map[Long, RadiusRequestMapEntry]()
   
-  def radiusCacheIn(radiusId: Long, timeoutMillis: Int, promise: Promise[RadiusPacket], reqCode: Int, group: String, retries: Int) = {
+  def radiusRequestMapIn(radiusId: Long, timeoutMillis: Int, promise: Promise[RadiusPacket]) = {
     // Schedule timer
-    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.CancelRadiusRequest(radiusId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.RadiusRequestTimeout(radiusId))
     
     // Add to map
-    radiusRequestCache.put(radiusId, RadiusRequestEntry(promise, timer, reqCode, System.currentTimeMillis, group, retries, timeoutMillis))
+    radiusRequestMap.put(radiusId, RadiusRequestMapEntry(promise, timer, System.currentTimeMillis))
     
-    log.debug("Radius Cache In -> {}", radiusId)
+    log.debug("Radius Request Map In -> {}", radiusId)
   }
   
-  def radiusCacheOut(radiusId: Long, radiusPacketOrError: Either[RadiusPacket, Exception]) = {
-    radiusRequestCache.remove(radiusId) match {
+  def radiusRequestMapOut(radiusId: Long, radiusPacketOrError: Either[RadiusPacket, Exception]) = {
+    radiusRequestMap.remove(radiusId) match {
       case Some(requestEntry) =>
         requestEntry.timer.cancel()
         radiusPacketOrError match {
           case Left(radiusPacket) =>
-            log.debug("Radius Cache Out <- {}", radiusId)
-            StatOps.pushRadiusHandlerRequest(statsServer, requestEntry.group, requestEntry.reqCode, radiusPacket, System.currentTimeMillis -requestEntry.sentTimestamp) 
+            log.debug("Radius Request Map Out <- {}", radiusId)
             requestEntry.promise.success(radiusPacket)
             
           case Right(e) =>
-            log.debug("Radius Cache Timeout <- {}", radiusId)
-            if(requestEntry.retries == 0){
-              StatOps.pushRadiusHandlerTimeout(statsServer, requestEntry.group, requestEntry.reqCode)
-              requestEntry.promise.failure(e)
-            } else {
-              log.debug("Radius Cache Retry <- {}", radiusId)
-              StatOps.pushRadiusHandlerRetransmission(statsServer, requestEntry.group, requestEntry.reqCode)
-              radiusCacheIn(radiusId, requestEntry.timeoutMillis, requestEntry.promise, requestEntry.reqCode, requestEntry.group, requestEntry.retries -1)
-            }
+            log.debug("Radius Request Map Timeout <- {}", radiusId)
+            requestEntry.promise.failure(e)
         }
         
       case None =>
-        log.warning("Radius Cache (Not Found) {}. Unsolicited or stalled response", radiusId)
+        log.warning("Radius Request (Not Found) {}. Unsolicited or stalled response", radiusId)
     }
   }
   
@@ -186,27 +199,28 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   def receive  = LoggingReceive {
     
     // Diameter
-    case CancelDiameterRequest(e2eId) => 
-      diameterCacheOut(e2eId, Right(new DiameterTimeoutException("Timeout")))
+    case DiameterRequestTimeout(e2eId) => 
+      diameterRequestMapOut(e2eId, Right(new DiameterTimeoutException("Timeout")))
     
-    case RoutedDiameterMessage(diameterMessage, originActor) =>
-      log.debug("<< Diameter request received\n {}\n", diameterMessage.toString())
-      handleDiameterMessage(diameterMessage, originActor, System.currentTimeMillis)
+    case RoutedDiameterMessage(diameterRequest, originActor) =>
+      log.debug("<< Diameter request received\n {}\n", diameterRequest.toString())
+      handleDiameterMessage(DiameterRequestContext(diameterRequest, originActor, System.currentTimeMillis))
       
-    case diameterMessage: DiameterMessage =>
-      log.debug("<< Diameter anwer received\n {}\n", diameterMessage.toString())
-      diameterCacheOut(diameterMessage.endToEndId, Left(diameterMessage))
+    case diameterAnswer: DiameterMessage =>
+      log.debug("<< Diameter anwer received\n {}\n", diameterAnswer.toString())
+      diameterRequestMapOut(diameterAnswer.endToEndId, Left(diameterAnswer))
       
     // Radius
-    case CancelRadiusRequest(radiusId) =>
-      radiusCacheOut(radiusId, Right(new RadiusTimeoutException("Timeout")))
+    case RadiusRequestTimeout(radiusId) =>
+      log.debug("<< Radius timeout\n {}\n", radiusId)
+      radiusRequestMapOut(radiusId, Right(new RadiusTimeoutException("Timeout")))
         
-    case RadiusServerRequest(radiusPacket, originActor, origin) =>
-      log.debug("<< Radius request received\n {}\n", radiusPacket.toString())
-      handleRadiusMessage(radiusPacket, originActor, origin, System.currentTimeMillis)
+    case RadiusServerRequest(requestPacket, originActor, origin) =>
+      log.debug("<< Radius request received\n {}\n", requestPacket.toString())
+      handleRadiusMessage(RadiusRequestContext(requestPacket, origin, originActor, System.currentTimeMillis))
       
-    case RadiusClientResponse(radiusPacket: RadiusPacket, radiusId: Long) =>
-      log.debug("<< Radius response received\n {}\n", radiusPacket.toString())
-      radiusCacheOut(radiusId, Left(radiusPacket))
+    case RadiusClientResponse(radiusResponse: RadiusPacket, radiusId: Long) =>
+      log.debug("<< Radius response received\n {}\n", radiusResponse.toString())
+      radiusRequestMapOut(radiusId, Left(radiusResponse))
 	}
 }

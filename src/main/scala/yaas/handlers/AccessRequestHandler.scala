@@ -17,14 +17,14 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
   
   log.info("Instantiated AccessRequestHandler")
   
-  override def handleRadiusMessage(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, receivedTimestamp: Long) = {
+  override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
-    radiusPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(radiusPacket, originActor, origin, receivedTimestamp)
+    ctx.requestPacket.code match {
+      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(ctx)
     }
   }
   
-  def handleAccessRequest(requestPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, receivedTimestamp: Long) = {
+  def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     import scala.collection.immutable.Queue
     
     // Proxy to upstream server
@@ -34,9 +34,9 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
 
     sendRadiusGroupRequest("allServers", proxyRequest, 1000, 0).onComplete{
       case Success(proxyResponse) =>
-        val responsePacket = RadiusPacket.response(requestPacket)
+        val responsePacket = RadiusPacket.response(ctx.requestPacket)
         responsePacket << ("User-Password" -> "Password sent by YAAS a b c d e f g")
-        sendRadiusResponse(responsePacket, requestPacket, originActor, origin, receivedTimestamp)
+        sendRadiusResponse(responsePacket)
       case Failure(e) =>
         log.error(e.getMessage)
     }

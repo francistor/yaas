@@ -37,7 +37,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   val lastRadiusPortIds = Map[RadiusEndpoint, RadiusPortId]().withDefaultValue(RadiusPortId(basePort, 0))
   
   // For each radius destination, the map of identifiers to requests
-  val requestCache = Map[RadiusEndpoint, Map[RadiusPortId, RadiusRequestRef]]().withDefaultValue(Map())
+  val requestMap = Map[RadiusEndpoint, Map[RadiusPortId, RadiusRequestRef]]().withDefaultValue(Map())
   
   // For each radius destination, store the stats
   var endpointSuccesses = Map[RadiusEndpoint, Int]().withDefaultValue(0)
@@ -47,33 +47,33 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   val socketActors = (for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i))
   def receive = {
     
-    case RadiusClientRequest(radiusPacket, destination, originActor, radiusId) =>
+    case RadiusClientRequest(requestPacket, destination, originActor, radiusId) =>
       // Get port and id
       val radiusPortId = nextRadiusPortId(destination)
       
       // Get packet to send
-      val bytes = radiusPacket.getRequestBytes(destination.secret, radiusPortId.id)
+      val bytes = requestPacket.getRequestBytes(destination.secret, radiusPortId.id)
       
-      // Populate cache
-      pushToRequestCache(destination, radiusPortId, RadiusRequestRef(originActor, radiusPacket.authenticator, radiusId, destination, radiusPacket.code, System.currentTimeMillis()))
-      log.debug(s"Pushed entry to request cache: $destination -> $radiusPortId")
+      // Populate request Map
+      pushToRequestMap(destination, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, destination, requestPacket.code, System.currentTimeMillis()))
+      log.debug(s"Pushed entry to request Map: $destination -> $radiusPortId")
       
       // Send message to socket Actor
       socketActors(radiusPortId.port - basePort) ! RadiusClientSocketRequest(bytes, destination)
       
       // Add stats
-      StatOps.pushRadiusClientRequest(statsServer, destination, radiusPacket)
+      StatOps.pushRadiusClientRequest(statsServer, destination, requestPacket.code)
       
     case RadiusClientSocketResponse(bytes, origin, clientPort) =>
       val identifier = UByteString.getUnsignedByte(bytes.slice(1, 2))
-      // Look in cache
+      // Look in request Map
       val radiusPortId = RadiusPortId(clientPort, identifier)
-      log.debug(s"Looking for entry in request cache: $origin -> $radiusPortId")
-      requestCache(origin).remove(radiusPortId) match {
+      log.debug(s"Looking for entry in request Map: $origin -> $radiusPortId")
+      requestMap(origin).remove(radiusPortId) match {
         case Some(RadiusRequestRef(originActor, authenticator, radiusId, origin, reqCode, requestTimestamp)) =>
-          val radiusPacket = RadiusPacket(bytes, Some(authenticator), origin.secret)
+          val responsePacket = RadiusPacket(bytes, Some(authenticator), origin.secret)
           // Check authenticator
-          val code = radiusPacket.code
+          val code = responsePacket.code
           // Verify authenticator
           if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, authenticator, origin.secret)){
             log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
@@ -81,8 +81,8 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
             StatOps.pushRadiusClientDrop(statsServer, origin.ipAddress, origin.port)
           }
           else {
-            originActor ! RadiusClientResponse(radiusPacket, radiusId)
-            StatOps.pushRadiusClientResponse(statsServer, origin, reqCode, radiusPacket, System.currentTimeMillis() - requestTimestamp)
+            originActor ! RadiusClientResponse(responsePacket, radiusId)
+            StatOps.pushRadiusClientResponse(statsServer, origin, reqCode, responsePacket.code, System.currentTimeMillis() - requestTimestamp)
           }
           
           // Update stats
@@ -99,11 +99,11 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
       
       // Gather the requests that that are older than the timeout, and remove them
       for {
-        (endpoint, requestMap) <- requestCache
-        (portId, requestRef) <- requestMap
+        (endpoint, endpointRequestMap) <- requestMap
+        (portId, requestRef) <- endpointRequestMap
       } if(requestRef.requestTimestamp < thresholdTimestamp) {
         endpointErrors(endpoint) = endpointErrors(endpoint) + 1
-        requestCache(endpoint).remove(portId).foreach(reqRef => StatOps.pushRadiusClientTimeout(statsServer, reqRef.endPoint, reqRef.requestCode))
+        requestMap(endpoint).remove(portId).foreach(reqRef => StatOps.pushRadiusClientTimeout(statsServer, reqRef.endPoint, reqRef.requestCode))
       }
       
       // Build immutable map to send as message
@@ -133,11 +133,11 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   }
   
   // Helper function
-  def pushToRequestCache(destination: RadiusEndpoint, radiusPortId: RadiusPortId, reqRef: RadiusRequestRef) = {
-    requestCache.get(destination) match {
-      case Some(destinationMap) => destinationMap.put(radiusPortId, reqRef)
+  def pushToRequestMap(destination: RadiusEndpoint, radiusPortId: RadiusPortId, reqRef: RadiusRequestRef) = {
+    requestMap.get(destination) match {
+      case Some(endpointRequestMap) => endpointRequestMap.put(radiusPortId, reqRef)
       case None =>
-        requestCache.put(destination, Map[RadiusPortId, RadiusRequestRef]((radiusPortId, reqRef)))
+        requestMap.put(destination, Map[RadiusPortId, RadiusRequestRef]((radiusPortId, reqRef)))
     }
   }
   

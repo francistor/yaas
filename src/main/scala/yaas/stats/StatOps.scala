@@ -73,26 +73,26 @@ object StatOps {
   /////////////////////////////////////////
   
   // Server
-  def pushRadiusServerRequest(statsActor: ActorRef, org: RadiusEndpoint, reqPacket: RadiusPacket) = {
-    statsActor ! RadiusServerRequestKey(s"${org.ipAddress}:${org.port}", reqPacket.code.toString)
+  def pushRadiusServerRequest(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int) = {
+    statsActor ! RadiusServerRequestKey(s"${org.ipAddress}:${org.port}", reqCode.toString)
   }
   
   def pushRadiusServerDrop(statsActor: ActorRef, ipAddress: String, port: Int) = {
     statsActor ! RadiusServerDropKey(s"${ipAddress}:${port}")
   }
   
-  def pushRadiusServerResponse(statsActor: ActorRef, org: RadiusEndpoint, resPacket: RadiusPacket) = {
-    statsActor ! RadiusServerResponseKey(s"${org.ipAddress}:${org.port}", resPacket.code.toString)
+  def pushRadiusServerResponse(statsActor: ActorRef, org: RadiusEndpoint, resCode: Int) = {
+    statsActor ! RadiusServerResponseKey(s"${org.ipAddress}:${org.port}", resCode.toString)
   }
   
   // Client
-  def pushRadiusClientRequest(statsActor: ActorRef, dest: RadiusEndpoint, reqPacket: RadiusPacket) = {
-    statsActor ! RadiusClientRequestKey(s"${dest.ipAddress}:${dest.port}", reqPacket.code.toString)
+  def pushRadiusClientRequest(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int) = {
+    statsActor ! RadiusClientRequestKey(s"${dest.ipAddress}:${dest.port}", reqCode.toString)
   }
   
-  def pushRadiusClientResponse(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int, resPacket: RadiusPacket, responseTime: Long) = {
+  def pushRadiusClientResponse(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int, resCode: Int, responseTime: Long) = {
     val rt : String = Math.ceil(Math.log(responseTime)).toString
-    statsActor ! RadiusClientResponseKey(s"${dest.ipAddress}:${dest.port}", reqCode.toString, resPacket.code.toString, rt)
+    statsActor ! RadiusClientResponseKey(s"${dest.ipAddress}:${dest.port}", reqCode.toString, resCode.toString, rt)
   }
   
   def pushRadiusClientTimeout(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int) = {
@@ -104,23 +104,23 @@ object StatOps {
   }
   
   // Handler server
-  def pushRadiusHandlerResponse(statsActor: ActorRef, org: RadiusEndpoint, reqPacket: RadiusPacket, resPacket: RadiusPacket, responseTime: Long) = {
+  def pushRadiusHandlerResponse(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int, resCode: Int, responseTime: Long) = {
     val rt : String = Math.ceil(Math.log(responseTime)).toString
-    statsActor ! RadiusHandlerResponseKey(s"${org.ipAddress}:${org.port}", reqPacket.code.toString, resPacket.code.toString, rt)
+    statsActor ! RadiusHandlerResponseKey(s"${org.ipAddress}:${org.port}", reqCode.toString, resCode.toString, rt)
   }
     
-  def pushRadiusHandlerDrop(statsActor: ActorRef, org: RadiusEndpoint, reqPacket: RadiusPacket) = {
-    statsActor ! RadiusHandlerDropKey(s"${org.ipAddress}:${org.port}", reqPacket.code.toString)
+  def pushRadiusHandlerDrop(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int) = {
+    statsActor ! RadiusHandlerDroppedKey(s"${org.ipAddress}:${org.port}", reqCode.toString)
   }
   
   // Handler client
-  def pushRadiusHandlerRequest(statsActor: ActorRef, group: String, reqCode: Int, resPacket: RadiusPacket, responseTime: Long) = {
+  def pushRadiusHandlerRequest(statsActor: ActorRef, group: String, reqCode: Int, resCode: Int, responseTime: Long) = {
     val rt : String = Math.ceil(Math.log(responseTime)).toString
-    statsActor ! RadiusHandlerRequestKey(group, reqCode.toString, resPacket.code.toString, rt)
+    statsActor ! RadiusHandlerRequestKey(group, reqCode.toString, resCode.toString, rt)
   }
   
   def pushRadiusHandlerRetransmission(statsActor: ActorRef, group: String, reqCode: Int) = {
-    statsActor ! RadiusHandlerDropKey(group, reqCode.toString)
+    statsActor ! RadiusHandlerDroppedKey(group, reqCode.toString)
   }
   
   def pushRadiusHandlerTimeout(statsActor: ActorRef, group: String, reqCode: Int) = {

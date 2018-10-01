@@ -42,9 +42,9 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
         case Some(radiusClientConfig) =>
           try {
             val origin = RadiusActorMessages.RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
-            val packet = RadiusPacket(data, None, origin.secret)
-            context.parent ! RadiusActorMessages.RadiusServerRequest(packet, self, origin)
-            StatOps.pushRadiusServerRequest(statsServer, origin, packet)
+            val requestPacket = RadiusPacket(data, None, origin.secret)
+            context.parent ! RadiusActorMessages.RadiusServerRequest(requestPacket, self, origin)
+            StatOps.pushRadiusServerRequest(statsServer, origin, requestPacket.code)
           } catch {
             case e: Exception =>
               log.warning(s"Error decoding packet from $remoteIPAddress")
@@ -55,10 +55,10 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
           StatOps.pushRadiusServerDrop(statsServer: ActorRef, remoteIPAddress, remotePort)
       }
       
-    case RadiusServerResponse(radiusPacket, origin) =>
+    case RadiusServerResponse(responsePacket, origin) =>
       log.debug(s"Sending radius response to $origin")
-      val response = radiusPacket.getResponseBytes(origin.secret)
-      udpEndPoint ! Udp.Send(response, new InetSocketAddress(origin.ipAddress, origin.port))
-      StatOps.pushRadiusServerResponse(statsServer, origin, radiusPacket)
+      val responseBytes = responsePacket.getResponseBytes(origin.secret)
+      udpEndPoint ! Udp.Send(responseBytes, new InetSocketAddress(origin.ipAddress, origin.port))
+      StatOps.pushRadiusServerResponse(statsServer, origin, responsePacket.code)
   }
 }

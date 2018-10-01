@@ -18,14 +18,15 @@ class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   implicit val idGen = new IDGenerator
   
-  override def handleDiameterMessage(requestMessage : DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
+  //override def handleDiameterMessage(requestMessage : DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
+  override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     
-    requestMessage.command match {
-      case "Credit-Control" => handleCCR(requestMessage, originActor, receivedTimestamp)
+    ctx.diameterRequest.command match {
+      case "Credit-Control" => handleCCR(ctx)
     }
   }
   
-  def handleCCR(requestMessage : DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
+  def handleCCR(implicit ctx: DiameterRequestContext) = {
     
     // Send request to proxy
     val proxyRequest = DiameterMessage.request("Gx", "Credit-Control")
@@ -38,9 +39,9 @@ class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
     sendDiameterRequest(proxyRequest, 5000).onComplete{
       case Success(proxyAnswer) =>
         log.info("Received proxy answer {}", proxyAnswer)
-        val answer = DiameterMessage.answer(requestMessage) 
+        val answer = DiameterMessage.answer(ctx.diameterRequest) 
         answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-        sendDiameterAnswer(answer, requestMessage, originActor, receivedTimestamp)
+        sendDiameterAnswer(answer)
         
       case Failure(e) =>
         log.error("Proxy timeout")

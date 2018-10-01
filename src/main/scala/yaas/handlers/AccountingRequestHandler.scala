@@ -17,14 +17,14 @@ class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(sta
   
   log.info("Instantiated AccountingRequestHandler")
   
-  override def handleRadiusMessage(radiusPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, receivedTimestamp: Long) = {
+  override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
-    radiusPacket.code match {
-      case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(radiusPacket, originActor, origin, receivedTimestamp)
+    ctx.requestPacket.code match {
+      case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(ctx)
     }
   }
   
-  def handleAccountingRequest(requestPacket : RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, receivedTimestamp: Long) = {
+  def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
     import scala.collection.immutable.Queue
     
     // Proxy to upstream server
@@ -33,8 +33,8 @@ class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(sta
 
     sendRadiusGroupRequest("allServers", proxyRequest, 1000, 0).onComplete{
       case Success(proxyResponse) =>
-        val responsePacket = RadiusPacket.response(requestPacket, true)
-        sendRadiusResponse(responsePacket, requestPacket, originActor, origin, receivedTimestamp)
+        val responsePacket = RadiusPacket.response(ctx.requestPacket, true)
+        sendRadiusResponse(responsePacket)
       case Failure(e) =>
         log.error(e.getMessage)
     }

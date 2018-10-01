@@ -178,7 +178,7 @@ object StatsServer {
       }
     }
   }
-  case class RadiusHandlerDropKey(rh: String, rq: String) extends RadiusStatsKey {
+  case class RadiusHandlerDroppedKey(rh: String, rq: String) extends RadiusStatsKey {
     def getValue(key : String) = {
       key match {
         case "rh" => rh; case "rq" => rq
@@ -206,6 +206,10 @@ object StatsServer {
       }
     }
   }
+  
+  // Get stat messages
+  case class GetDiameterStats(statName: String, params: List[String])
+  case class GetRadiusStats(statName: String, params: List[String])
   
   def props() = Props(new StatsServer)
   
@@ -245,18 +249,6 @@ class StatsServer extends Actor with ActorLogging {
     .toList
   }
   
-  def getDiameterRequestReceivedStats(keys: List[String]) = getDiameterStats(diameterRequestReceivedStats, keys)
-  def getDiameterAnswerReceivedStats(keys: List[String]) = getDiameterStats(diameterAnswerReceivedStats, keys)
-  def getDiameterRequestTimeoutStats(keys: List[String]) = getDiameterStats(diameterRequestTimeoutStats, keys)
-  def getDiameterAnswerSentStats(keys: List[String]) = getDiameterStats(diameterAnswerSentStats, keys)
-  def getDiameterRequestSentStats(keys: List[String]) = getDiameterStats(diameterRequestSentStats, keys)
-  
-  def getDiameterRequestDroppedStats(keys: List[String]) = getDiameterStats(diameterRequestDroppedStats, keys)
-  
-  def getDiameterHandlerServerStats(keys: List[String]) = getDiameterStats(diameterHandlerServerStats, keys)
-  def getDiamterHandlerClientStats(keys: List[String]) = getDiameterStats(diameterHandlerClientStats, keys)
-  def getDiamterClientTimeout(keys: List[String]) = getDiameterStats(diameterHandlerClientTimeoutStats, keys)
-  
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +265,7 @@ class StatsServer extends Actor with ActorLogging {
   private val radiusHandlerDroppedStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
   private val radiusHandlerRequestStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
   private val radiusHandlerRetransmissionStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
-  private val radiusHandlerRequestTimeoutStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
+  private val radiusHandlerTimeoutStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
 
   
   /**
@@ -285,27 +277,16 @@ class StatsServer extends Actor with ActorLogging {
      .toList
   }
   
-  def getRadiusServerRequestStats(keys : List[String]) = getRadiusStats(radiusServerRequestStats, keys)
-  def getRadiusServerDropStats(keys : List[String]) = getRadiusStats(radiusServerDropStats, keys)
-  def getRadiusServerResponseStats(keys : List[String]) = getRadiusStats(radiusServerResponseStats, keys)
-  
-  def getRadiusClientRequestStats(keys : List[String]) = getRadiusStats(radiusClientRequestStats, keys)
-  def getRadiusClientResponseStats(keys : List[String]) = getRadiusStats(radiusClientResponseStats, keys)
-  def getRadiusClientTimeoutStats(keys : List[String]) = getRadiusStats(radiusClientTimeoutStats, keys)
-  def getRadiusClientDroppedStats(keys : List[String]) = getRadiusStats(radiusClientDroppedStats, keys)
-  
-  def getRadiusHandlerResponseStats(keys : List[String]) = getRadiusStats(radiusHandlerResponseStats, keys)
-  def getRadiusHandlerDropStats(keys : List[String]) = getRadiusStats(radiusHandlerDroppedStats, keys)
-  def getRadiusHandlerRequestStats(keys : List[String]) = getRadiusStats(radiusHandlerRequestStats, keys)
-  def getRadiusHandlerRetransmissionStats(keys : List[String]) = getRadiusStats(radiusHandlerRetransmissionStats, keys)
-  def getRadiusHandlerRequestTimeoutStats(keys : List[String]) = getRadiusStats(radiusHandlerRequestTimeoutStats, keys)
-  
-  
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Receive
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
   
   def receive = {
+    /*
+     * Statistics update
+     */
+    
+    // Diameter
     case s: DiameterRequestReceivedKey => diameterRequestReceivedStats(s) = diameterRequestReceivedStats(s) + 1
     case s: DiameterAnswerReceivedKey => diameterAnswerReceivedStats(s) = diameterAnswerReceivedStats(s) + 1
     case s: DiameterRequestTimeoutKey => diameterRequestTimeoutStats(s) = diameterRequestTimeoutStats(s) + 1
@@ -317,5 +298,53 @@ class StatsServer extends Actor with ActorLogging {
     case s: DiameterHandlerServerKey => diameterHandlerServerStats(s) = diameterHandlerServerStats(s) + 1
     case s: DiameterHandlerClientKey => diameterHandlerClientStats(s) = diameterHandlerClientStats(s) + 1
     case s: DiameterHandlerClientTimeoutKey => diameterHandlerClientTimeoutStats(s) = diameterHandlerClientTimeoutStats(s) + 1
+    
+    // Radius
+    case s: RadiusServerRequestKey => radiusServerRequestStats(s) = radiusServerRequestStats(s) + 1
+    case s: RadiusServerDropKey => radiusServerDropStats(s) = radiusServerDropStats(s) + 1
+    case s: RadiusServerResponseKey => radiusServerResponseStats(s) = radiusServerResponseStats(s) + 1
+    
+    case s: RadiusClientRequestKey => radiusClientRequestStats(s) = radiusClientRequestStats(s) + 1
+    case s: RadiusClientResponseKey => radiusClientResponseStats(s) = radiusClientResponseStats(s) + 1
+    case s: RadiusClientTimeoutKey => radiusClientTimeoutStats(s) = radiusClientTimeoutStats(s) + 1
+    case s: RadiusClientDroppedKey => radiusClientDroppedStats(s) = radiusClientDroppedStats(s) + 1
+    
+    case s: RadiusHandlerResponseKey => radiusHandlerResponseStats(s) = radiusHandlerResponseStats(s) + 1
+    case s: RadiusHandlerDroppedKey => radiusHandlerDroppedStats(s) = radiusHandlerDroppedStats(s) + 1
+    case s: RadiusHandlerTimeoutKey => radiusHandlerTimeoutStats(s) = radiusHandlerTimeoutStats(s) + 1
+    
+    /*
+     * Statistics query
+     */
+    case GetDiameterStats(statName, paramList) =>
+      statName match {
+        case "diameterRequestReceived" => getDiameterStats(diameterRequestReceivedStats, paramList)
+        case "diameterAnswerReceived" => getDiameterStats(diameterAnswerReceivedStats, paramList)
+        case "diameterRequestTimeout" => getDiameterStats(diameterRequestTimeoutStats, paramList)
+        case "diameterAnswerSent" => getDiameterStats(diameterAnswerSentStats, paramList)
+        case "diameterRequestSent" => getDiameterStats(diameterRequestSentStats, paramList)
+        
+        case "diameterRequestDropped" => getDiameterStats(diameterRequestDroppedStats, paramList)
+        
+        case "diameterHandlerServer" => getDiameterStats(diameterHandlerServerStats, paramList)
+        case "diameterHandlerClient" => getDiameterStats(diameterHandlerClientStats, paramList)
+        case "diameterHandlerClientTimeout" => getDiameterStats(diameterHandlerClientTimeoutStats, paramList)
+      }
+      
+    case GetRadiusStats(statName, paramList) =>
+      statName match {
+        case "radiusServerRequest" => getRadiusStats(radiusServerRequestStats, paramList)
+        case "radiusServerDrop" => getRadiusStats(radiusServerDropStats, paramList)
+        case "radiusServerResponse" => getRadiusStats(radiusServerResponseStats, paramList)
+        
+        case "radiusClientRequest" => getRadiusStats(radiusClientRequestStats, paramList)
+        case "radiusClientResponse" => getRadiusStats(radiusClientResponseStats, paramList)
+        case "radiusClientTimeout" => getRadiusStats(radiusClientTimeoutStats, paramList)
+        case "radiusClientDropped" => getRadiusStats(radiusClientDroppedStats, paramList)
+        
+        case "radiusHandlerResponse" => getRadiusStats(radiusHandlerResponseStats, paramList)
+        case "radiusHandlerDropped" => getRadiusStats(radiusHandlerDroppedStats, paramList)
+        case "radiusHandlerTimeout" => getRadiusStats(radiusHandlerTimeoutStats, paramList)
+      }
   }
 }
