@@ -215,17 +215,19 @@ object StatsServer {
   
 }
 
+case class RadiusStatsItem(keyMap: Map[String, String], counter: Long)
+case class DiameterStatsItem(keyMap: Map[String, String], counter: Long)
+
 class StatsServer extends Actor with ActorLogging {
   
   import StatsServer._
-  
-  case class RadiusStatsItem(keyMap: Map[String, String], counter: Long)
-  case class DiameterStatsItem(keyMap: Map[String, String], counter: Long)
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Diameter
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Peer stats
+  
+  // Contain the counter value for each received combination of keys
   private val diameterRequestReceivedStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   private val diameterAnswerReceivedStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   private val diameterRequestTimeoutStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
@@ -240,8 +242,7 @@ class StatsServer extends Actor with ActorLogging {
   
   /**
    * Get stats items aggregated by the specified keys
-   * Returns a List of DiameterStatsItem[List[String], Long], where the List[String] is a list of the different (discrete) values for the
-   * keys List
+   * Returns a List of DiameterStatsItem, which contains the map from key->value and the associated counter value
    */
   private def getDiameterStats(statsMap: scala.collection.mutable.Map[DiameterStatsKey, Long], keys : List[String]) = {
     statsMap.groupBy{ case (statsKey, value) => statsKey.getAggrValue(keys)}
@@ -272,9 +273,10 @@ class StatsServer extends Actor with ActorLogging {
    * Get stats items aggregated by the specified keys
    */
   def getRadiusStats(statsMap: scala.collection.mutable.Map[RadiusStatsKey, Long], keys: List[String]) = {
-     statsMap.groupBy{case (statsKey, value) => statsKey.getAggrValue(keys)}
-     .map{case (k, v) => RadiusStatsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
-     .toList
+      // The key for the aggregation is the list of values for the specified keys
+      statsMap.groupBy{case (statsKey, value) => statsKey.getAggrValue(keys)} 
+      .map{case (k, v) => RadiusStatsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
+      .toList
   }
   
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -318,32 +320,32 @@ class StatsServer extends Actor with ActorLogging {
      */
     case GetDiameterStats(statName, paramList) =>
       statName match {
-        case "diameterRequestReceived" => getDiameterStats(diameterRequestReceivedStats, paramList)
-        case "diameterAnswerReceived" => getDiameterStats(diameterAnswerReceivedStats, paramList)
-        case "diameterRequestTimeout" => getDiameterStats(diameterRequestTimeoutStats, paramList)
-        case "diameterAnswerSent" => getDiameterStats(diameterAnswerSentStats, paramList)
-        case "diameterRequestSent" => getDiameterStats(diameterRequestSentStats, paramList)
+        case "diameterRequestReceived" => 
+        case "diameterAnswerReceived" => sender ! getDiameterStats(diameterAnswerReceivedStats, paramList)
+        case "diameterRequestTimeout" => sender ! getDiameterStats(diameterRequestTimeoutStats, paramList)
+        case "diameterAnswerSent" => sender ! getDiameterStats(diameterAnswerSentStats, paramList)
+        case "diameterRequestSent" => sender ! getDiameterStats(diameterRequestSentStats, paramList)
         
-        case "diameterRequestDropped" => getDiameterStats(diameterRequestDroppedStats, paramList)
+        case "diameterRequestDropped" => sender ! getDiameterStats(diameterRequestDroppedStats, paramList)
         
-        case "diameterHandlerServer" => getDiameterStats(diameterHandlerServerStats, paramList)
-        case "diameterHandlerClient" => getDiameterStats(diameterHandlerClientStats, paramList)
-        case "diameterHandlerClientTimeout" => getDiameterStats(diameterHandlerClientTimeoutStats, paramList)
+        case "diameterHandlerServer" => sender ! getDiameterStats(diameterHandlerServerStats, paramList)
+        case "diameterHandlerClient" => sender ! getDiameterStats(diameterHandlerClientStats, paramList)
+        case "diameterHandlerClientTimeout" => sender ! getDiameterStats(diameterHandlerClientTimeoutStats, paramList)
       }
       
     case GetRadiusStats(statName, paramList) =>
       statName match {
-        case "radiusServerRequest" => getRadiusStats(radiusServerRequestStats, paramList)
-        case "radiusServerDrop" => getRadiusStats(radiusServerDropStats, paramList)
-        case "radiusServerResponse" => getRadiusStats(radiusServerResponseStats, paramList)
+        case "radiusServerRequest" => sender ! getRadiusStats(radiusServerRequestStats, paramList)
+        case "radiusServerDrop" => sender ! getRadiusStats(radiusServerDropStats, paramList)
+        case "radiusServerResponse" => sender ! getRadiusStats(radiusServerResponseStats, paramList)
         
-        case "radiusClientRequest" => getRadiusStats(radiusClientRequestStats, paramList)
-        case "radiusClientResponse" => getRadiusStats(radiusClientResponseStats, paramList)
-        case "radiusClientTimeout" => getRadiusStats(radiusClientTimeoutStats, paramList)
-        case "radiusClientDropped" => getRadiusStats(radiusClientDroppedStats, paramList)
+        case "radiusClientRequest" => sender ! getRadiusStats(radiusClientRequestStats, paramList)
+        case "radiusClientResponse" => sender ! getRadiusStats(radiusClientResponseStats, paramList)
+        case "radiusClientTimeout" => sender ! getRadiusStats(radiusClientTimeoutStats, paramList)
+        case "radiusClientDropped" => sender ! getRadiusStats(radiusClientDroppedStats, paramList)
         
-        case "radiusHandlerResponse" => getRadiusStats(radiusHandlerResponseStats, paramList)
-        case "radiusHandlerDropped" => getRadiusStats(radiusHandlerDroppedStats, paramList)
+        case "radiusHandlerResponse" => sender ! getRadiusStats(radiusHandlerResponseStats, paramList)
+        case "radiusHandlerDropped" => sender ! getRadiusStats(radiusHandlerDroppedStats, paramList)
         case "radiusHandlerTimeout" => getRadiusStats(radiusHandlerTimeoutStats, paramList)
       }
   }

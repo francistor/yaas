@@ -10,7 +10,7 @@
         "diameterHost": "superserver.yaassuperserver",
         "IPAddress": "127.0.0.1",
         "port": 3869,
-		"connectionPolicy": "passive",
+		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 300000
 	}
 ]

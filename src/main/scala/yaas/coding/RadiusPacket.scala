@@ -614,7 +614,7 @@ object RadiusConversions {
     
     dictItem.radiusType match {
       case RadiusTypes.OCTETS => 
-        new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue.substring(2)))
+        new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue)
       case RadiusTypes.INTEGER =>
         new IntegerRadiusAVP(code, vendorId, dictItem.enumValues.get(attrValue))

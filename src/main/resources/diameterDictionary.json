@@ -999,7 +999,7 @@
 						"Host-IP-Address": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
 						"Vendor-Id":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
 						"Product-Name":{"minOccurs": 1, "maxOccurs": 1},
-						"Origin-State-Id":{"maxOccurs": 1},
+						"Origin-State-Id":{"mandatory": true, "maxOccurs": 1},
 						"Supported-Vendor-Id":{"mandatory": true},
 						"Auth-Application-Id":{"mandatory": true},
 						"Inband-Security-Id":{},

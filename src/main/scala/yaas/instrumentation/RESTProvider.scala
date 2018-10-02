@@ -11,6 +11,8 @@ import scala.util.{Success, Failure}
 import scala.concurrent.duration._
 import yaas.server.Router._
 import yaas.server.DiameterPeerPointer
+import yaas.stats.StatsServer._
+import yaas.stats.{DiameterStatsItem, RadiusStatsItem}
 
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 //import org.json4s._
@@ -55,6 +57,14 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging with J
           case Failure(ex) =>
             log.error(ex, ex.getMessage)
             complete(StatusCodes.ServiceUnavailable)
+        }
+      }
+    } ~
+    pathPrefix("stats"){
+      pathPrefix("diameterRequestReceived") {
+        parameter('agg) { aggValue =>
+          val q = statsServer ? GetDiameterStats("diameterRequestReceived", aggValue.split(",").toList)
+          complete(q.mapTo[List[DiameterStatsItem]])
         }
       }
     }

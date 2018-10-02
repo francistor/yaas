@@ -93,9 +93,9 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
             StatOps.pushDiameterRequestReceived(statsServer, peerHostName, decodedMessage)
             log.debug(s">> Received diameter request $decodedMessage")
           }
-          // If response, check where to send it to, and clean from cache
+          // If response, check where to send it to, and clean from map
           else {
-            cacheOut(decodedMessage.hopByHopId) match {
+            requestMapOut(decodedMessage.hopByHopId) match {
               case Some(RequestEntry(hopByHopId, timestamp, destActor, messageKey)) => 
                 destActor ! decodedMessage
                 StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, decodedMessage, timestamp)
@@ -144,7 +144,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     
     case BaseDiameterMessageReceived(message) =>
       if(!message.isRequest) {
-        cacheOut(message.hopByHopId) match {
+        requestMapOut(message.hopByHopId) match {
           case Some(RequestEntry(hopByHopId, timestamp, sendingActor, key)) =>
             StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, message, timestamp)
             log.debug(s">> Received diameter answer $message")
@@ -161,7 +161,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     case BaseDiameterMessageToSend(message) =>
       q.offer(message.getBytes)
       if(message.isRequest){
-        cacheIn(message, self)
+        requestMapIn(message, self)
         StatOps.pushDiameterRequestSent(statsServer, peerHostName, message)
         log.debug(s"<< Sent diameter request $message")
       } else{
@@ -177,13 +177,13 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
       
     // Message to send request to peer
     case RoutedDiameterMessage(message, originActor) =>
-      cacheIn(message, originActor)
+      requestMapIn(message, originActor)
       q.offer(message.getBytes)
       StatOps.pushDiameterRequestSent(statsServer, peerHostName, message)
       log.debug(s"<< Sent diameter request $message")
 
     case Clean => 
-      cacheClean
+      requestMapClean
       cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanIntervalMillis milliseconds, self, Clean))
       
     case CERTimeout =>
@@ -253,25 +253,25 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   }
   
   ////////////////////////////////////////////////////////////////////////////
-  // Cache
+  // Request Map
   ////////////////////////////////////////////////////////////////////////////
   case class RequestEntry(hopByHopId: Long, timestamp: Long, sendingActor: ActorRef, key: DiameterMessageKey)
   
-  val requestCache = scala.collection.mutable.Map[Int, RequestEntry]()
+  val requestMap = scala.collection.mutable.Map[Int, RequestEntry]()
   
-  def cacheIn(diameterMessage: DiameterMessage, sendingActor: ActorRef) = {
-    log.debug("Cache in {}", diameterMessage.hopByHopId)
-    requestCache(diameterMessage.hopByHopId) = RequestEntry(diameterMessage.hopByHopId, System.currentTimeMillis(), sendingActor, diameterMessage.key)
+  def requestMapIn(diameterMessage: DiameterMessage, sendingActor: ActorRef) = {
+    log.debug("Request Map in {}", diameterMessage.hopByHopId)
+    requestMap(diameterMessage.hopByHopId) = RequestEntry(diameterMessage.hopByHopId, System.currentTimeMillis(), sendingActor, diameterMessage.key)
   }
   
-  def cacheOut(hopByHopId : Int) : Option[RequestEntry] = {
-    log.debug("Cache out {}", hopByHopId)
-    requestCache.remove(hopByHopId)
+  def requestMapOut(hopByHopId : Int) : Option[RequestEntry] = {
+    log.debug("Request Map out {}", hopByHopId)
+    requestMap.remove(hopByHopId)
   }
   
-  def cacheClean = {
+  def requestMapClean = {
     val targetTimestamp = System.currentTimeMillis() - 10000 // Fixed 10 seconds timeout to delete old messages. TODO: This should be a configuration parameter
-    requestCache.retain((k, v) => v.timestamp > targetTimestamp)
+    requestMap.retain((k, v) => v.timestamp > targetTimestamp)
   }
   
   ////////////////////////////////////////////////////////////////////////////
@@ -303,6 +303,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     message << ("Vendor-Id" -> 1)
     message << ("Product-Name" -> "Yaas")
     message << ("Firmware-Revision" -> 1)
+    message << ("Origin-State-Id" -> 1)
     
     // Add supported applications
     for (route <- DiameterConfigManager.getDiameterRouteConfig){

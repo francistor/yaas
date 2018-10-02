@@ -1,5 +1,6 @@
 package yaas.util
 
+
 object OctetOps {
   
   // Given a List of bytes, returns a string of the form 0x(hex chars)
@@ -15,9 +16,9 @@ object OctetOps {
 	// If the format is 0x(hex chars), parses as hexadecimal values (input must be even number of chars)
 	// otherwise tries to parse it as a UTF-8 string
   def stringToOctets(str: String): List[Byte] = {
-    if(str.startsWith("0x")) UTF8StringToOctets(str)
+    if(!str.startsWith("0x")) UTF8StringToOctets(str)
     else (for {
-      i <- 0 to str.length - 1 if i % 2 == 0
+      i <- 2 to str.length - 1 if i % 2 == 0
       v = Integer.parseInt(str.substring(i, i+2), 16)
     } yield v.toByte).toList
   }      
