@@ -512,9 +512,9 @@ class Router() extends Actor with ActorLogging {
 	   * Instrumentation messages
 	   */
     case IXGetPeerStatus =>
-      val peerStatus: scala.collection.immutable.Map[String, DiameterPeerPointer] = for {
-        (hostName, diameterPeerPointer) <- peerHostMap.toMap
-      } yield (hostName, diameterPeerPointer.copy())
+      val peerStatus: scala.collection.immutable.Map[String, StatOps.DiameterPeerStat] = for {
+        (hostName, dpp) <- peerHostMap.toMap
+      } yield (hostName, StatOps.DiameterPeerStat(dpp.config.copy(), dpp.status))
       
       sender ! peerStatus
 

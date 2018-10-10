@@ -34,7 +34,7 @@ class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
     proxyRequest << ("Session-Id" -> "1")
     proxyRequest << ("Auth-Application-Id" -> "Gx")
     proxyRequest << ("CC-Request-Type" -> "Initial")
-    proxyRequest << ("CC-Request-Number" -> 1)
+    proxyRequest << ("CC-Request-Number" -> System.currentTimeMillis / 1000)
     
     sendDiameterRequest(proxyRequest, 5000).onComplete{
       case Success(proxyAnswer) =>

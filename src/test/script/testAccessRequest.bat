@@ -15,7 +15,7 @@ SET DIAMETER=%BINDIR%\aaa-dt
 REM Test parameters
 SET REQUESTFILE=%_THIS_FILE_DIRNAME%\AccessRequest.txt
 
-SET COUNT=1
+SET COUNT=1000
 
 REM Delete Garbage
 del /Q _THIS_FILE_DIRNAME\out\*.* 2>nul
@@ -29,6 +29,6 @@ echo User-Name = "thisIsTheUser@name" > %REQUESTFILE%
 echo User-Password = "Password sent by test tool a b c d e f g" >> %REQUESTFILE%
 
 REM Send the packet
-%RADIUS% -debug verbose -remoteAddress 127.0.0.1:1812 -code Access-Request -request "@%REQUESTFILE%"
+%RADIUS% -debug info -count %COUNT% -remoteAddress 127.0.0.1:1812 -code Access-Request -request "@%REQUESTFILE%"
 
 

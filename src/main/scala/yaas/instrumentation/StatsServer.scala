@@ -319,34 +319,46 @@ class StatsServer extends Actor with ActorLogging {
      * Statistics query
      */
     case GetDiameterStats(statName, paramList) =>
-      statName match {
-        case "diameterRequestReceived" => 
-        case "diameterAnswerReceived" => sender ! getDiameterStats(diameterAnswerReceivedStats, paramList)
-        case "diameterRequestTimeout" => sender ! getDiameterStats(diameterRequestTimeoutStats, paramList)
-        case "diameterAnswerSent" => sender ! getDiameterStats(diameterAnswerSentStats, paramList)
-        case "diameterRequestSent" => sender ! getDiameterStats(diameterRequestSentStats, paramList)
-        
-        case "diameterRequestDropped" => sender ! getDiameterStats(diameterRequestDroppedStats, paramList)
-        
-        case "diameterHandlerServer" => sender ! getDiameterStats(diameterHandlerServerStats, paramList)
-        case "diameterHandlerClient" => sender ! getDiameterStats(diameterHandlerClientStats, paramList)
-        case "diameterHandlerClientTimeout" => sender ! getDiameterStats(diameterHandlerClientTimeoutStats, paramList)
+      try{
+        statName match {
+          case "diameterRequestReceived" => sender ! getDiameterStats(diameterRequestReceivedStats, paramList)
+          case "diameterAnswerReceived" => sender ! getDiameterStats(diameterAnswerReceivedStats, paramList)
+          case "diameterRequestTimeout" => sender ! getDiameterStats(diameterRequestTimeoutStats, paramList)
+          case "diameterAnswerSent" => sender ! getDiameterStats(diameterAnswerSentStats, paramList)
+          case "diameterRequestSent" => sender ! getDiameterStats(diameterRequestSentStats, paramList)
+          
+          case "diameterRequestDropped" => sender ! getDiameterStats(diameterRequestDroppedStats, paramList)
+          
+          case "diameterHandlerServer" => sender ! getDiameterStats(diameterHandlerServerStats, paramList)
+          case "diameterHandlerClient" => sender ! getDiameterStats(diameterHandlerClientStats, paramList)
+          case "diameterHandlerClientTimeout" => sender ! getDiameterStats(diameterHandlerClientTimeoutStats, paramList)
+        }
+      } 
+      catch {
+        case e: Throwable => sender ! akka.actor.Status.Failure(e)
       }
       
     case GetRadiusStats(statName, paramList) =>
-      statName match {
-        case "radiusServerRequest" => sender ! getRadiusStats(radiusServerRequestStats, paramList)
-        case "radiusServerDrop" => sender ! getRadiusStats(radiusServerDropStats, paramList)
-        case "radiusServerResponse" => sender ! getRadiusStats(radiusServerResponseStats, paramList)
-        
-        case "radiusClientRequest" => sender ! getRadiusStats(radiusClientRequestStats, paramList)
-        case "radiusClientResponse" => sender ! getRadiusStats(radiusClientResponseStats, paramList)
-        case "radiusClientTimeout" => sender ! getRadiusStats(radiusClientTimeoutStats, paramList)
-        case "radiusClientDropped" => sender ! getRadiusStats(radiusClientDroppedStats, paramList)
-        
-        case "radiusHandlerResponse" => sender ! getRadiusStats(radiusHandlerResponseStats, paramList)
-        case "radiusHandlerDropped" => sender ! getRadiusStats(radiusHandlerDroppedStats, paramList)
-        case "radiusHandlerTimeout" => getRadiusStats(radiusHandlerTimeoutStats, paramList)
+      try{
+        statName match {
+          case "radiusServerRequest" => sender ! getRadiusStats(radiusServerRequestStats, paramList)
+          case "radiusServerDrop" => sender ! getRadiusStats(radiusServerDropStats, paramList)
+          case "radiusServerResponse" => sender ! getRadiusStats(radiusServerResponseStats, paramList)
+          
+          case "radiusClientRequest" => sender ! getRadiusStats(radiusClientRequestStats, paramList)
+          case "radiusClientResponse" => sender ! getRadiusStats(radiusClientResponseStats, paramList)
+          case "radiusClientTimeout" => sender ! getRadiusStats(radiusClientTimeoutStats, paramList)
+          case "radiusClientDropped" => sender ! getRadiusStats(radiusClientDroppedStats, paramList)
+          
+          case "radiusHandlerResponse" => sender ! getRadiusStats(radiusHandlerResponseStats, paramList)
+          case "radiusHandlerDropped" => sender ! getRadiusStats(radiusHandlerDroppedStats, paramList)
+          case "radiusHandlerRequest" => sender ! getRadiusStats(radiusHandlerRequestStats, paramList)
+          case "radiusHandlerRetransmission" => sender ! getRadiusStats(radiusHandlerRetransmissionStats, paramList)
+          case "radiusHandlerTimeout" => getRadiusStats(radiusHandlerTimeoutStats, paramList)
+        }
+      } 
+      catch {
+        case e: Throwable => sender ! akka.actor.Status.Failure(e)
       }
   }
 }

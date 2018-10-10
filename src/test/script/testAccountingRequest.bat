@@ -15,7 +15,7 @@ SET DIAMETER=%BINDIR%\aaa-dt
 REM Test parameters
 SET REQUESTFILE=%_THIS_FILE_DIRNAME%\AccountingRequest.txt
 
-SET COUNT=1
+SET COUNT=5
 
 REM Delete Garbage
 del /Q _THIS_FILE_DIRNAME\out\*.* 2>nul
@@ -29,6 +29,6 @@ echo User-Name = "thisIsTheUser@name" > %REQUESTFILE%
 echo NAS-IP-Address = "4.3.2.1" >> %REQUESTFILE%
 
 REM Send the packet
-%RADIUS% -debug verbose -retryLimit 0 -remoteAddress 127.0.0.1:1812 -code Accounting-Request -request "@%REQUESTFILE%"
+%RADIUS% -debug verbose -count %COUNT% -retryLimit 0 -remoteAddress 127.0.0.1:1812 -code Accounting-Request -request "@%REQUESTFILE%"
 
 
