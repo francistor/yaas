@@ -59,11 +59,12 @@ import yaas.coding.RadiusPacket
 import yaas.server.RadiusActorMessages._
 import yaas.stats.StatOps
 
-case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
 
 /********************************
   Instrumental Diameter classes
  ********************************/
+
+case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
 
 // Peer tables are made of these items
 object PeerStatus {
@@ -180,12 +181,12 @@ class Router() extends Actor with ActorLogging {
   val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient")
   
   // Initialize
-  updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
-  updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
-  updateHandlerMap(HandlerConfigManager.getHandlerConfig)
+  peerHostMap = updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
+  diameterRoutes = updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
+  handlerMap = updateHandlerMap(HandlerConfigManager.getHandlerConfig)
   
   // Start timer for re-evalutation of peer status
-  context.system.scheduler.scheduleOnce(config.getInt("peerCheckTimeSeconds") seconds, self, PeerMapTimer)
+  context.system.scheduler.scheduleOnce(diameterConfig.peerCheckTimeSeconds seconds, self, PeerMapTimer)
   
   ////////////////////////////////////////////////////////////////////////
   // Diameter configuration
@@ -207,25 +208,19 @@ class Router() extends Actor with ActorLogging {
 	      Seq((hostName, peerPointer))
 	  }
 	  
-	  // Create new peers if needed
-	  val newPeerHostMap = conf.map { case (hostName, peerConfig) => 
-	    // Create if needed
-	    if(cleanPeersHostMap.get(hostName) == None){
-	      if(peerConfig.connectionPolicy.equalsIgnoreCase("active")){
-	        // Create actor, which will initiate the connection.
-	       (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName))))
-	      }
-	      else {
-	        (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
-	      }
+	  val newPeerHostMap = conf.map { case (hostName, peerConfig) =>
+	    cleanPeersHostMap.get(hostName) match {
+	      case None | Some(DiameterPeerPointer(_, 0, _)) =>
+	        // Not found or disconnected
+	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")) (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName))))
+	        else (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
+	      case Some(dpp) =>
+	        (hostName, dpp)
 	    }
-	    // Was already created
-	    else (hostName, cleanPeersHostMap(hostName))
 	  }
 	  
 	  // Update maps
-	  // TODO: Do same as in getRadiusServerPointers (return instead of modify var)
-	  peerHostMap = scala.collection.mutable.Map() ++ newPeerHostMap
+	  scala.collection.mutable.Map() ++ newPeerHostMap
 	}
   
   def updateHandlerMap(conf: Map[String, String]) = {
@@ -241,16 +236,14 @@ class Router() extends Actor with ActorLogging {
       else (name, cleanHandlerMap(name))
     }
     
-    handlerMap = Map() ++ newHandlerMap
+    Map() ++ newHandlerMap
   }
 	
-	def updateDiameterRoutes(conf: Seq[DiameterRouteConfig]){
+	def updateDiameterRoutes(conf: Seq[DiameterRouteConfig]) = {
 	  // Just copy
-	  val newDiameterRoutes = for {
+	  for {
 	    route <- conf
 	  } yield DiameterRoute(route.realm, route.applicationId, route.peers, route.policy, route.handler)
-	      
-	  diameterRoutes = newDiameterRoutes
 	}
 	
 	// Utility function to get a route
@@ -428,7 +421,7 @@ class Router() extends Actor with ActorLogging {
     	  }
 	    }
 	    
-	  case RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusId) =>
+	  case RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusId, retryNum) =>
 	    // Find the radius destination
 	    radiusServerGroups.get(serverGroupName) match {
 	      
@@ -443,7 +436,8 @@ class Router() extends Actor with ActorLogging {
 	        )
 	        val nServers = availableServers.length
 	        if(nServers > 0){
-	          val serverIndex = if(serverGroup.policy == "random") scala.util.Random.nextInt(nServers) else 0
+	          val a = radiusPacket.authenticator
+	          val serverIndex = retryNum + (if(serverGroup.policy == "random") (radiusPacket.authenticator(0).toInt % nServers) else 0)
 	          val radiusServer = radiusServers(availableServers(serverIndex))
 	          radiusClientActor ! RadiusClientRequest(radiusPacket, 
 	                  RadiusEndpoint(radiusServer.IPAddress, radiusServer.endPoints(radiusPacket.code).port, radiusServer.secret),
@@ -492,21 +486,22 @@ class Router() extends Actor with ActorLogging {
 	    
 	  case PeerDown =>
 	    // Find the peer whose Actor is the one sending the down message
-	    peerHostMap.find{case (hostName, peerPointer) => Some(sender).equals(peerPointer.actorRefOption)} match {
+	    peerHostMap.find{case (hostName, peerPointer) => peerPointer.actorRefOption.map(r => r.compareTo(sender) == 0).getOrElse(false)} match {
 	      case Some((hostName, peerPointer)) => 
 	        log.info("Unregistering peer actor for {}", hostName)
 	        peerHostMap(hostName) = DiameterPeerPointer(peerPointer.config, PeerStatus.STATUS_DOWN, None)
 	        
-	      case _ => log.debug("Peer down for unavailable Peer Actor")
+	      case _ => 
+	        log.debug("Peer down for Actor {} not found in peer map", sender.path)
 	    }
 	    
 	  case PeerMapTimer =>
-      updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
-      updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
-      updateHandlerMap(HandlerConfigManager.getHandlerConfig)
+      peerHostMap = updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
+      diameterRoutes = updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
+      handlerMap = updateHandlerMap(HandlerConfigManager.getHandlerConfig)
       
 	    // Start timer for re-evalutation of peer status
-      context.system.scheduler.scheduleOnce(config.getInt("peerCheckTimeSeconds") seconds, self, PeerMapTimer)
+      context.system.scheduler.scheduleOnce(diameterConfig.peerCheckTimeSeconds seconds, self, PeerMapTimer)
 	    
 	  /* 
 	   * Instrumentation messages

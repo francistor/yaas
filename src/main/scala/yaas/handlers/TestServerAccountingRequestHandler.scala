@@ -13,7 +13,7 @@ import yaas.coding.RadiusConversions._
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
-class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class TestServerAccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccountingRequestHandler")
   
@@ -25,18 +25,13 @@ class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(sta
   }
   
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
-    import scala.collection.immutable.Queue
-    
-    // Proxy to upstream server
-    val proxyRequest = RadiusPacket.request(ACCOUNTING_REQUEST)
-    proxyRequest << ("NAS-IP-Address" -> "1.2.3.4")
 
-    sendRadiusGroupRequest("allServers", proxyRequest, 1000, 0).onComplete{
-      case Success(proxyResponse) =>
-        val responsePacket = RadiusPacket.response(ctx.requestPacket, true)
-        sendRadiusResponse(responsePacket)
+    sendRadiusGroupRequest("allServers", ctx.requestPacket.proxyRequest, 1000, 1).onComplete{
+      case Success(response) =>
+        sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
       case Failure(e) =>
         log.error(e.getMessage)
+        dropRadiusPacket
     }
   }
 }

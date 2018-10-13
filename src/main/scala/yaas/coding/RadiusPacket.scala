@@ -143,6 +143,21 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
   def getType = {
     RadiusDictionary.avpMapByCode.get((vendorId, code)).map(_.radiusType).getOrElse(RadiusTypes.NONE)
   }
+  
+  def copy = {
+    this match {
+      case r: UnknownRadiusAVP => new UnknownRadiusAVP(r.code, r.vendorId, r.value)
+      case r: OctetsRadiusAVP => new OctetsRadiusAVP(r.code, r.vendorId, r.value)
+      case r: StringRadiusAVP => new StringRadiusAVP(r.code, r.vendorId, r.value)
+      case r: IntegerRadiusAVP => new IntegerRadiusAVP(r.code, r.vendorId, r.value)
+      case r: TimeRadiusAVP => new TimeRadiusAVP(r.code, r.vendorId, r.value)
+      case r: AddressRadiusAVP => new AddressRadiusAVP(r.code, r.vendorId, r.value)
+      case r: IPv6AddressRadiusAVP => new IPv6AddressRadiusAVP(r.code, r.vendorId, r.value)
+      case r: IPv6PrefixRadiusAVP =>  new IPv6PrefixRadiusAVP(r.code, r.vendorId, r.value)
+      case r: InterfaceIdRadiusAVP =>  new InterfaceIdRadiusAVP(r.code, r.vendorId, r.value)
+      case r: Integer64RadiusAVP => new Integer64RadiusAVP(r.code, r.vendorId, r.value)
+    }
+  }
 }
 
 class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends RadiusAVP[List[Byte]](code, vendorId, value) {
@@ -379,12 +394,23 @@ object RadiusPacket {
   }
   
   // Generates a new radius packet as response for the specified radius request
-  def response(radiusPacket: RadiusPacket, isSuccess : Boolean = true) = {
-    val code = if(isSuccess) radiusPacket.code + 1 else radiusPacket.code + 2
-    new RadiusPacket(code, radiusPacket.identifier, radiusPacket.authenticator, Queue[RadiusAVP[Any]]())
+  def response(requestPacket: RadiusPacket, isSuccess : Boolean = true) = {
+    val code = if(isSuccess) requestPacket.code + 1 else requestPacket.code + 2
+    new RadiusPacket(code, requestPacket.identifier, requestPacket.authenticator, Queue[RadiusAVP[Any]]())
   }
   
-  def responseFailure(radiusPacket: RadiusPacket) = response(radiusPacket, false)
+  // Generates a new failure response radius packet for the specified radius request 
+  def responseFailure(requestPacket: RadiusPacket) = response(requestPacket, false)
+  
+  // Creates a request packet which is a copy of the received packet
+  def proxyRequest(requestPacket: RadiusPacket) = {
+    new RadiusPacket(requestPacket.code, 0, RadiusPacket.newAuthenticator, requestPacket.avps.map(attr => attr.copy))
+  }
+  
+  // Creates a request packet which is a copy of the received packet
+  def proxyResponse(responsePacket: RadiusPacket, requestPacket: RadiusPacket) = {
+    new RadiusPacket(responsePacket.code, requestPacket.identifier, requestPacket.authenticator, responsePacket.avps.map(attr => attr.copy))
+  }
   
   def encrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
 
@@ -513,6 +539,17 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         getBytes(secret)
     }
   }
+
+  // Generates a new radius packet as response for the specified radius request
+  def response(isSuccess : Boolean = true) = RadiusPacket.response(this, isSuccess)
+  
+  // Generates a new failure response radius packet for the specified radius request 
+  def responseFailure = RadiusPacket.response(this, false)
+  
+  // Creates a request packet which is a copy of the received packet
+  def proxyRequest = RadiusPacket.proxyRequest(this)
+  
+  def proxyResponse(responsePacket: RadiusPacket) = RadiusPacket.proxyResponse(responsePacket, this)
   
   /*
    * The authenticator and id will be already set to the request packet

@@ -4,5 +4,6 @@
 	"acctBindPort": 11813,
 	"coABindPort": 13799,
 	"clientBasePort": 45000,
-	"numClientPorts": 1
+	"numClientPorts": 1,
+	"peerCheckTimeSeconds": 10
 }

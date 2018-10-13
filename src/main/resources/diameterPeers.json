@@ -12,5 +12,12 @@
         "port": 3869,
 		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 300000
+	},
+	{
+        "diameterHost": "non-existing-server",
+        "IPAddress": "127.0.0.1",
+        "port": 3000,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000
 	}
 ]

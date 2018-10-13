@@ -119,7 +119,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging with J
   
   bindFuture.onComplete {
     case Success(binding) =>
-      log.info("Instrumentaiton REST server bound to {}", binding.localAddress )
+      log.info("Instrumentation REST server bound to {}", binding.localAddress )
     case Failure(e) =>
        log.error(e.getMessage)
   }

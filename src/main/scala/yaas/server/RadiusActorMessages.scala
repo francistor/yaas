@@ -18,7 +18,7 @@ object RadiusActorMessages {
   case class RadiusServerResponse(radiusPacket: RadiusPacket, origin: RadiusEndpoint)
   
   // Router/Client <--> Handler
-  case class RadiusGroupClientRequest(radiusPacket: RadiusPacket, serverGroupName: String, radiusId: Long)
+  case class RadiusGroupClientRequest(radiusPacket: RadiusPacket, serverGroupName: String, radiusId: Long, retryNum: Int)
   case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, originActor: ActorRef, radiusId: Long)
   case class RadiusClientResponse(radiusPacket: RadiusPacket, radiusId: Long)
   

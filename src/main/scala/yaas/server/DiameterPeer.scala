@@ -212,7 +212,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
         Tcp().outgoingConnection(
             new InetSocketAddress(conf.IPAddress, conf.port), 
             Some(new InetSocketAddress(DiameterConfigManager.getDiameterConfig.bindAddress, 0)), 
-            connectTimeout = 10 seconds)
+            connectTimeout = 5 seconds)
             .joinMat(handler)(Keep.both).run match {
           case (cf, (ks, q)) => 
             // The materialized result from the connection is a Future[Connection]
@@ -228,12 +228,12 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
                 // peerHostMap update will take place when Capabilities-Exchange process is finished
                 
               case Failure(e) =>
-                log.error(s"Unable to connect to Peer $config due to $e")
-                context.stop(self)
+                log.warning(s"Unable to connect to Peer $config due to $e")
+                // Failure will show also in the handler flow and unregistration takes place there
             }
         }
       case _ => 
-        // Peer not in "active" policy. Do not try to establish connection
+        // Peer not with "active" policy. Do not try to establish connection
     }
   
     // Send first cleaning
@@ -242,7 +242,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   
   override def postStop = {
     // TODO: Check if this is called on restart
-    log.info("Closing connection")
+    log.info("Peer postStop. Closing resources")
     killSwitch.map(_.shutdown())
     
     // Clean all timers

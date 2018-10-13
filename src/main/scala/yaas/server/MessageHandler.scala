@@ -127,7 +127,15 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
   }
   
+  def dropRadiusPacket(implicit ctx: RadiusRequestContext) = {
+    StatOps.pushRadiusHandlerDrop(statsServer, ctx.origin, ctx.requestPacket.code)
+  }
+  
   def sendRadiusGroupRequest(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int): Future[RadiusPacket] = {
+    sendRadiusGroupRequestInternal(serverGroupName, requestPacket, timeoutMillis, retries, 0)
+  }
+  
+  def sendRadiusGroupRequestInternal(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int): Future[RadiusPacket] = {
     val promise = Promise[RadiusPacket]
     
     val sentTimestamp = System.currentTimeMillis
@@ -137,14 +145,14 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     radiusRequestMapIn(radiusId, timeoutMillis, promise)
     
     // Send request using router
-    context.parent ! RadiusGroupClientRequest(requestPacket, serverGroupName, radiusId)
+    context.parent ! RadiusGroupClientRequest(requestPacket, serverGroupName, radiusId, retryNum)
     
     log.debug(">> Radius request sent\n {}\n", requestPacket.toString())
     
     promise.future.recoverWith {
       case e if(retries > 0) =>
         StatOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
-        sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1)
+        sendRadiusGroupRequestInternal(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1)
     }.andThen {
       case Failure(e) =>
         StatOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)

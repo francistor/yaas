@@ -4,7 +4,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 // Global diameter properties
-case class DiameterServerConfig(bindAddress: String, bindPort: Int, connectionInterval: Int, diameterHost: String, diameterRealm: String, vendorId: Int, productName: String, firmwareRevision: Int)
+case class DiameterServerConfig(bindAddress: String, bindPort: Int, peerCheckTimeSeconds: Int, diameterHost: String, diameterRealm: String, vendorId: Int, productName: String, firmwareRevision: Int)
 
 // This class represents a diameter peer as read from the configuration file
 case class DiameterPeerConfig(diameterHost: String, IPAddress: String, port: Int, connectionPolicy: String, watchdogIntervalMillis: Int)

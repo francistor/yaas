@@ -29,7 +29,7 @@
     	<appender-ref ref="default-file-appender" />
   	</logger>
   	
-  	<logger name="yaas.server.DiameterPeer" level="DEBUG" additivity="false">
+  	<logger name="yaas.server.DiameterPeer" level="WARN" additivity="false">
   		<appender-ref ref="peer-appender" />
   	</logger>
 

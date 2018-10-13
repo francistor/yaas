@@ -1,5 +1,5 @@
 [
-	{"name": "GxHandler", "clazz": "yaas.handlers.GxHandler"},
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.AccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.AccountingRequestHandler"}
+	{"name": "GxHandler", "clazz": "yaas.handlers.TestSuperServerGxHandler"},
+	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.TestSuperServerAccessRequestHandler"},
+	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.TestSuperServerAccountingRequestHandler"}
 ]

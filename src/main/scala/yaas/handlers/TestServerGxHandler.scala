@@ -12,13 +12,12 @@ import yaas.dictionary.DiameterDictionary
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
-class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class TestServerGxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated GxHandler")
   
   implicit val idGen = new IDGenerator
   
-  //override def handleDiameterMessage(requestMessage : DiameterMessage, originActor: ActorRef, receivedTimestamp: Long) = {
   override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     
     ctx.diameterRequest.command match {
