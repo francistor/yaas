@@ -10,9 +10,9 @@ import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusPacket
 import yaas.util._
 import yaas.stats.StatOps
+import com.typesafe.config.ConfigFactory
 
 // This Actor handles the communication with upstream radius servers
-
 object RadiusClient {
   def props(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) = Props(new RadiusClient(bindIPAddress, basePort, numPorts, statsServer))
  
@@ -20,82 +20,87 @@ object RadiusClient {
   case object Clean
 }
 
+
+case class RadiusPortId(port: Int, id: Int)
+case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, requestCode: Int, requestTimestamp: Long)
+
 class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) extends Actor with ActorLogging {
   
   import RadiusClient._
   
-  val cleanIntervalMillis = 250
-  val clientTimeoutMillis = 6000
+  val config = ConfigFactory.load().getConfig("aaa.radius")
+  
+  val cleanMapIntervalMillis = config.getInt("clientMapIntervalMillis")
+  val clientMapTimeoutMillis = config.getInt("clientMapTimeoutMillis")
   var cleanTimer: Option[Cancellable] = None
   
   implicit val executionContext = context.system.dispatcher
-  
-  case class RadiusPortId(port: Int, id: Int)
-  case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, requestCode: Int, requestTimestamp: Long)
+    
+  // For each radius destination, the map of identifiers (port + id) to requests
+  val requestMap = Map[RadiusEndpoint, Map[RadiusPortId, RadiusRequestRef]]().withDefaultValue(Map())
   
   // Stores the last identifier used for the key RadiusDestination
   val lastRadiusPortIds = Map[RadiusEndpoint, RadiusPortId]().withDefaultValue(RadiusPortId(basePort, 0))
-  
-  // For each radius destination, the map of identifiers to requests
-  val requestMap = Map[RadiusEndpoint, Map[RadiusPortId, RadiusRequestRef]]().withDefaultValue(Map())
   
   // For each radius destination, store the stats
   var endpointSuccesses = Map[RadiusEndpoint, Int]().withDefaultValue(0)
   var endpointErrors = Map[RadiusEndpoint, Int]().withDefaultValue(0)
   
-  // Span actors
+  // Span actors. One for each socket
   val socketActors = (for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i))
+  
+  
   def receive = {
     
-    case RadiusClientRequest(requestPacket, destination, originActor, radiusId) =>
+    case RadiusClientRequest(requestPacket, destinationEndpoint, originActor, radiusId) =>
       // Get port and id
-      val radiusPortId = nextRadiusPortId(destination)
+      val radiusPortId = nextRadiusPortId(destinationEndpoint)
       
       // Get packet to send
-      val bytes = requestPacket.getRequestBytes(destination.secret, radiusPortId.id)
+      val bytes = requestPacket.getRequestBytes(destinationEndpoint.secret, radiusPortId.id)
       
       // Populate request Map
-      pushToRequestMap(destination, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, destination, requestPacket.code, System.currentTimeMillis()))
-      log.debug(s"Pushed entry to request Map: $destination -> $radiusPortId")
+      pushToRequestMap(destinationEndpoint, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, destinationEndpoint, requestPacket.code, System.currentTimeMillis))
+      log.debug(s"Pushed entry to request Map: destinationEndpoint -> $radiusPortId")
       
       // Send message to socket Actor
-      socketActors(radiusPortId.port - basePort) ! RadiusClientSocketRequest(bytes, destination)
+      socketActors(radiusPortId.port - basePort) ! RadiusClientSocketRequest(bytes, destinationEndpoint)
       
       // Add stats
-      StatOps.pushRadiusClientRequest(statsServer, destination, requestPacket.code)
+      StatOps.pushRadiusClientRequest(statsServer, destinationEndpoint, requestPacket.code)
       
-    case RadiusClientSocketResponse(bytes, origin, clientPort) =>
+    case RadiusClientSocketResponse(bytes, originEndpoint, clientPort) =>
       val identifier = UByteString.getUnsignedByte(bytes.slice(1, 2))
       // Look in request Map
       val radiusPortId = RadiusPortId(clientPort, identifier)
-      log.debug(s"Looking for entry in request Map: $origin -> $radiusPortId")
-      requestMap(origin).remove(radiusPortId) match {
-        case Some(RadiusRequestRef(originActor, authenticator, radiusId, origin, reqCode, requestTimestamp)) =>
-          val responsePacket = RadiusPacket(bytes, Some(authenticator), origin.secret)
+      log.debug(s"Looking for entry in request Map: $originEndpoint -> $radiusPortId")
+      
+      requestMap(originEndpoint).remove(radiusPortId) match {
+        case Some(RadiusRequestRef(originActor, reqAuthenticator, radiusId, originEndpoint, reqCode, requestTimestamp)) =>
+          val responsePacket = RadiusPacket(bytes, Some(reqAuthenticator), originEndpoint.secret)
+          
           // Check authenticator
           val code = responsePacket.code
-          // Verify authenticator
-          if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, authenticator, origin.secret)){
+          if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, reqAuthenticator, originEndpoint.secret)){
             log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
-                origin, authenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), bytes.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
-            StatOps.pushRadiusClientDrop(statsServer, origin.ipAddress, origin.port)
+                originEndpoint, reqAuthenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), bytes.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
+            StatOps.pushRadiusClientDrop(statsServer, originEndpoint.ipAddress, originEndpoint.port)
           }
           else {
             originActor ! RadiusClientResponse(responsePacket, radiusId)
-            StatOps.pushRadiusClientResponse(statsServer, origin, reqCode, responsePacket.code, System.currentTimeMillis() - requestTimestamp)
+            StatOps.pushRadiusClientResponse(statsServer, originEndpoint, reqCode, responsePacket.code, System.currentTimeMillis() - requestTimestamp)
           }
           
           // Update stats
-          endpointSuccesses(origin) = endpointSuccesses(origin) + 1
+          endpointSuccesses(originEndpoint) = endpointSuccesses(originEndpoint) + 1
           
         case None =>
           log.warning("Radius request not found for response received")
-          StatOps.pushRadiusClientDrop(statsServer, origin.ipAddress, origin.port)
+          StatOps.pushRadiusClientDrop(statsServer, originEndpoint.ipAddress, originEndpoint.port)
       }
       
     case Clean =>
-      val currentTimestamp = System.currentTimeMillis
-      val thresholdTimestamp = currentTimestamp - clientTimeoutMillis
+      val thresholdTimestamp = System.currentTimeMillis - clientMapTimeoutMillis
       
       // Gather the requests that that are older than the timeout, and remove them
       for {
@@ -119,13 +124,13 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
       endpointSuccesses = Map().withDefaultValue(0)
       endpointErrors = Map().withDefaultValue(0)
       
-      cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanIntervalMillis milliseconds, self, Clean))
+      cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
       
     case _ =>
   }
   
   override def preStart = {
-    cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanIntervalMillis milliseconds, self, Clean))
+    cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
   }
   
   override def postStop = {

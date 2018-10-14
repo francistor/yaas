@@ -697,6 +697,11 @@
 
         "10415":
         [
+        	 {
+                "code": 507,
+                "name": "Flow-Description",
+                "type": "IPFilterRule"
+            },
             {
                 "code": 515,
                 "name": "Max-Requested-Bandwidth-UL",
@@ -706,6 +711,146 @@
                 "code": 516,
                 "name": "Max-Requested-Bandwidth-DL",
                 "type": "Unsigned32"
+            },
+            {
+                "code": 1002,
+                "name": "Charging-Rule-Remove",
+                "type": "Grouped",
+                "group": {
+                    "Charging-Rule-Name": {"minOccurs": 1, "maxOccurs": 1},
+            		"Charging-Rule-Base-Name": {"minOccurs": 1, "maxOccurs": 1}
+                }
+            },
+            {
+            	"code": 1004,
+            	"name": "Charging-Rule-Base-Name",
+            	"type": "UTF8String"
+            },
+            {
+            	"code": 1005,
+            	"name": "Charging-Rule-Name",
+            	"type": "OctetString"
+            },
+            {
+            	"code": 1006,
+            	"name": "Event-Trigger",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"SGSN_CHANGE": 0,
+        			"QOS_CHANGE": 1,
+			        "RAT_CHANGE":2,
+			        "TFT_CHANGE": 3,
+			        "PLMN_CHANGE": 4,
+			        "LOSS_OF_BEARER": 5,
+			        "RECOVERY_OF_BEARER": 6,
+			        "IP-CAN_CHANGE": 7,
+			        "QOS_CHANGE_EXCEEDING_AUTHORIZATION": 11,
+			        "RAI_CHANGE": 12,
+			        "USER_LOCATION_CHANGE": 13,
+			        "NO_EVENT_TRIGGERS": 14,
+			        "OUT_OF_CREDIT": 15,
+			        "REALLOCATION_OF_CREDIT": 16,
+			        "REVALIDATION_TIMEOUT": 17,
+			        "UE_IP_ADDRESS_ALLOCATE": 18,
+			        "UE_IP_ADDRESS_RELEASE": 19,
+			        "DEFAULT_EPS_BEARER_QOS_CHANGE": 20,
+			        "AN_GW_CHANGE": 21,
+			        "SUCCESSFUL_RESOURCE_ALLOCATION": 22,
+			        "RESOURCE_MODIFICATION_REQUEST": 23,
+			        "PGW_TRACE_CONTROL": 24,
+			        "UE_TIME_ZONE_CHANGE": 25,
+			        "TAI_CHANGE": 26,
+			        "ECGI_CHANGE": 27,
+			        "CHARGING_CORRELATION_EXCHANGE": 28,
+			        "APN-AMBR_MODIFICATION_FAILURE": 29,
+			        "USER_CSG_INFORMATION_CHANGE": 30,
+			        "USAGE_REPORT": 33,
+			        "DEFAULT-EPS-BEARER-QOS_MODIFICATION_FAILURE": 34,
+			        "USER_CSG_HYBRID_SUBSCRIBED_INFORMATION_CHANGE": 35,
+			        "USER_CSG_HYBRID_UNSUBSCRIBED_INFORMATION_CHANGE": 36,
+			        "ROUTING_RULE_CHANGE": 37,
+			        "APPLICATION_START": 39,
+			        "APPLICATION_STOP": 40,
+			        "ADC_REVALIDATION_TIMEOUT": 41,
+			        "CS_TO_PS_HANDOVER": 42,
+			        "UE_LOCAL_IP_ADDRESS_CHANGE": 43,
+			        "HENB_LOCAL_IP_ADDRESS_CHANGE": 44,
+			        "ACCESS_NETWORK_INFO_REPORT": 45
+            	}
+            },
+            {
+            	"code": 1007,
+            	"name": "Metering-Method",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"DURATION": 0,
+            		"VOLUME": 1,
+            		"DURATION_VOLUME": 2
+            	}
+            },
+            {
+            	"code": 1008,
+            	"name": "Offline",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"DISABLE_OFFLINE": 0,
+            		"ENABLE_OFFLINE": 1
+            	}
+            },
+            {
+            	"code": 1009,
+            	"name": "Online",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"DISABLE_ONLINE": 0,
+            		"ENABLE_ONLINE": 1
+            	}
+            },
+            {
+            	"code": 1010,
+            	"name": "Precedence",
+            	"type": "Unsigned32"
+            },
+            {
+            	"code": 1011,
+            	"name": "Reporting-Level",
+            	"type": "Enumerated",
+            	"enumValues": {
+					"SERVICE_IDENTIFIER_LEVEL": 0,
+					"RATING_GROUP_LEVEL": 1,
+					"SPONSORED_CONNECTIVITY_LEVEL": 2
+            	}
+            },
+            {
+            	"code": 1012,
+            	"name": "TFT-Filter",
+            	"type": "IPFilterRule"
+            },
+            {
+            	"code": 1013,
+            	"name": "TFT-Packet-Filter-Information",
+            	"type": "Grouped",
+            	"group": {
+            		"3GPP-Precedence": {"minOccurs": 1, "maxOccurs": 1},
+            		"3GPP-TFT-Filter": {"minOccurs": 1, "maxOccurs": 1},
+            		"3GPP-ToS-Traffic-Class": {"minOccurs": 1, "maxOccurs": 1},
+            		"3GPP-Security-Parameter-Index": {"minOccurs": 1, "maxOccurs": 1},
+            		"3GPP-Flow-Label": {"minOccurs": 1, "maxOccurs": 1},
+            		"3GPP-Flow-Direction": {"minOccurs": 1, "maxOccurs": 1}
+            	}
+            },
+            {
+            	"code": 1014,
+            	"name": "ToS-Traffic-Class",
+            	"type": "OctetString"
+            },
+            {
+            	"code": 1015,
+            	"name": "PDP-Session-Operation",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"PDP_SESSION_TERMINATION": 0
+            	}
             },
             {
                 "code": 1016,
@@ -854,6 +999,50 @@
                     "enabled": 0,
                     "disabled": 1
                 }
+            },
+            {
+            	"code": 1056,
+            	"name": "Security-Parameter-Index",
+            	"type": "OctetString"
+            },
+            {
+            	"code": 1057,
+            	"name": "Flow-Label",
+            	"type": "OctetString"
+            },
+            {
+                "code": 1058,
+            	"name": "Flow-Information",
+            	"type": "Grouped",
+            	"group": {
+            	    "3GPP-Flow-Description":{"minOccurs": 1, "maxOccurs": 1},
+                    "3GPP-Packet-Filter-Identifier":{"maxOccurs": 1},
+                    "3GPP-ToS-Traffic-Class":{"maxOccurs": 1},
+                    "3GPP-Security-Parameter-Index":{"maxOccurs": 1},
+                    "3GPP-Flow-Label":{"maxOccurs": 1},
+                    "3GPP-Flow-Direction":{"maxOccurs": 1}
+            	}
+            },
+            {
+            	"code": 1059,
+            	"name": "Packet-Filter-Content",
+            	"type": "IPFilterRule"
+            },
+            {
+            	"code": 1060,
+            	"name": "Packet-Filter-Identifier",
+            	"type": "OctetString"
+            },
+            {
+            	"code": 1080,
+            	"name": "Flow-Direction",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"UNSPECIFIED": 0,
+        			"DOWNLINK": 1,
+        			"UPLINK": 2,
+        			"BIDIRECTIONAL": 3
+            	}
             }
         ],
 		"1001":

@@ -27,13 +27,14 @@ class TestSuperServerAccessRequestHandler(statsServer: ActorRef) extends Message
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
     val requestPacket = ctx.requestPacket
+    val userName: String = requestPacket >> "User-Name"
     val password: String = requestPacket >> "User-Password"
     
     // Will send a response depending on the contents of the User-Name
-    if(password.contains("reject")){
-      sendRadiusResponse(requestPacket.responseFailure << ("Reply-Message" -> "The reply message"))
+    if(userName.contains("reject")){
+      sendRadiusResponse(requestPacket.responseFailure << ("Reply-Message" -> "The reply message!"))
     } 
-    else if(password.contains("drop")){
+    else if(userName.contains("drop")){
       dropRadiusPacket
     } 
     else {

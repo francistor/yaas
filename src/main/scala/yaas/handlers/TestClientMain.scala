@@ -57,7 +57,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   // Helper functions
-  def wait[T](r: Awaitable[T]) = Await.result(r, 3 second)
+  def wait[T](r: Awaitable[T]) = Await.result(r, 10 second)
   def getJson(url: String) = {
     wait(for {
       r <- http.singleRequest(HttpRequest(uri = url))
@@ -88,11 +88,13 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       if((testSuperServerPeers \ "server.yaasserver" \ "status").extract[Int] == 2) ok("Connected to server") else fail("Not connected to server") 
       
       // Auth Request
+      println("[TEST] Access Accept")
       val accessRequest= RadiusPacket.request(ACCESS_REQUEST) << 
-        ("User-Name" -> "accept!") << 
+        ("User-Name" -> "test@accept") << 
         ("User-Password" -> "The user-password!")
-      
       val response = wait(sendRadiusGroupRequest("allServers", accessRequest, 1000, 1))
+      if(response.code == RadiusPacket.ACCESS_ACCEPT) ok("Access-Accept") else fail(s"Received ${response.code}")
+      
       
     } catch {
       case e: Throwable =>

@@ -88,7 +88,6 @@ case class RadiusEndpointStatus(val endPointType: Int, val port: Int, var quaran
   
   def reset = {
     accErrors = 0
-    quarantineTimestamp = 0
   }
 }
 
@@ -96,7 +95,7 @@ case class RadiusEndpointStatus(val endPointType: Int, val port: Int, var quaran
  * Used to store the radius servers configuration and runtime status. The availability is tracked per port
  */
 case class RadiusServerPointer(val name: String, val IPAddress: String, val secret: String, val quarantineTimeMillis: Int, val errorLimit: Int,
-    val endPoints: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
+    val endpointMap: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
     
     
 ///////////////////////////////////////////////////////////////////////////////
@@ -277,9 +276,9 @@ class Router() extends Actor with ActorLogging {
         cleanRadiusServers.get(newServerName) match {
           case None =>
             val endPoints = scala.collection.mutable.Map[Int, RadiusEndpointStatus]()
-            if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, config.quarantineTimeMillis, config.errorLimit)
-            if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, config.quarantineTimeMillis, config.errorLimit)
-            if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = new RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, config.quarantineTimeMillis, config.errorLimit)
+            if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, 0, 0)
+            if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, 0, 0)
+            if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = new RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, 0, 0)
             
             (newServerName, new RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
           case Some(rs) => (newServerName, rs)
@@ -376,27 +375,33 @@ class Router() extends Actor with ActorLogging {
      * Radius messages
      */
 	  case RadiusClientStats(stats) =>
+	    val currentTimestamp = System.currentTimeMillis
 	    
 	    // Iterate through all the configured endpoints
 	    // If there are stats reported, update the endpoint status
 	    for {
 	      (serverName, radiusServerPointer) <- radiusServers
-	      (ept, endpoint) <- radiusServerPointer.endPoints 
+	      (_, epStatus) <- radiusServerPointer.endpointMap
 	    } {
-	      stats.get(RadiusEndpoint(radiusServerPointer.IPAddress, endpoint.port, radiusServerPointer.secret)) match {
+	      stats.get(RadiusEndpoint(radiusServerPointer.IPAddress, epStatus.port, radiusServerPointer.secret)) match {
 	        case Some((successes, errors)) => 
-	          // If there are successes, reset the old errors if any
-	          if(successes > 0) endpoint.reset
-	          // Add the errors if there are only errors
-	          else endpoint.addErrors(errors)
-	          
-	          // Put in quarantine if necessary
-	          if(endpoint.accErrors > radiusServerPointer.errorLimit){
-	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endpoint.port, radiusServerPointer.quarantineTimeMillis)
-	            endpoint.quarantineTimestamp = System.currentTimeMillis
-	          }
+	          // Only if not in quarantine
+	          if(radiusServerPointer.quarantineTimeMillis < currentTimestamp) {
+  	          // If there are successes, reset the old errors if any
+  	          if(successes > 0) epStatus.reset
+  	          // Add the errors if there are only errors
+  	          else epStatus.addErrors(errors)
+  	          
+  	          // Put in quarantine if necessary
+  	          if(epStatus.accErrors > radiusServerPointer.errorLimit){
+  	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, epStatus.port, radiusServerPointer.quarantineTimeMillis)
+  	            epStatus.quarantineTimestamp = System.currentTimeMillis + radiusServerPointer.quarantineTimeMillis
+  	            epStatus.reset
+  	          }
+	          } 
 	          
 	        case _ =>
+	          // No stats reported in the interval for this endpoint
 	      }
 	    }
 	    
@@ -429,7 +434,7 @@ class Router() extends Actor with ActorLogging {
 	        // Filter available servers
 	        val now = System.currentTimeMillis
 	        val availableServers = serverGroup.servers.filter(
-	          radiusServers(_).endPoints.get(radiusPacket.code) match {
+	          radiusServers(_).endpointMap.get(radiusPacket.code) match {
 	            case Some(ep) if(ep.quarantineTimestamp < now) => true
 	            case _ => false
 	          }
@@ -440,7 +445,7 @@ class Router() extends Actor with ActorLogging {
 	          val serverIndex = retryNum + (if(serverGroup.policy == "random") (radiusPacket.authenticator(0).toInt % nServers) else 0)
 	          val radiusServer = radiusServers(availableServers(serverIndex))
 	          radiusClientActor ! RadiusClientRequest(radiusPacket, 
-	                  RadiusEndpoint(radiusServer.IPAddress, radiusServer.endPoints(radiusPacket.code).port, radiusServer.secret),
+	                  RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port, radiusServer.secret),
 	                  sender, radiusId)
 	        }
 	        else log.warning("No available server found for group {}", serverGroupName)
