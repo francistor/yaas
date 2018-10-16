@@ -2,7 +2,7 @@
 	"servers" : 
 	[
 		{
-        "name": "superserver",
+        "name": "test-superserver",
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
@@ -11,7 +11,7 @@
           "coA": 13799
         },
         "errorLimit": 3,
-        "quarantineTimeMillis": 4000
+        "quarantineTimeMillis": 60000
       },
       {
         "name": "non-existing-server",
@@ -23,15 +23,20 @@
           "coA": 13799
         },
         "errorLimit": 3,
-        "quarantineTimeMillis": 4000
+        "quarantineTimeMillis": 60000
       }
 	],
 	"serverGroups" :
 	[
 	  {
         "name": "allServers",
-        "servers": ["non-existing-server, superserver"],
+        "servers": ["non-existing-server", "test-superserver"],
         "policy": "fixed"
+      },
+      {
+      	"name": "superserver",
+      	"servers": ["test-superserver"],
+      	"policy": "random"
       }
 	]
 }

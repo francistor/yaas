@@ -27,7 +27,7 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
     // Proxy to upstream server
-    sendRadiusGroupRequest("allServers", ctx.requestPacket.proxyRequest, 1000, 1).onComplete{
+    sendRadiusGroupRequest("superserver", ctx.requestPacket.proxyRequest, 1000, 1).onComplete{
       case Success(response) => sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
       case Failure(e) =>
         log.error(e.getMessage)

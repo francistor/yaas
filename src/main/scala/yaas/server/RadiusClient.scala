@@ -123,7 +123,6 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
       // Clear
       endpointSuccesses = Map().withDefaultValue(0)
       endpointErrors = Map().withDefaultValue(0)
-      
       cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
       
     case _ =>

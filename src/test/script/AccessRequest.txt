@@ -1,2 +1,2 @@
-User-Name = "test@reject" 
+User-Name = "test@accept" 
 User-Password = "This is the password !" 

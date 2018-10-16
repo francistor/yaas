@@ -2,7 +2,7 @@
 	"servers" : 
 	[
 		{
-        "name": "superserver",
+        "name": "test-superserver",
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
