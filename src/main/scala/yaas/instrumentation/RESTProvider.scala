@@ -90,7 +90,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging with J
             // To validate the input and generate the full list if none is specified
             val allKeys = statName match {
               case "radiusServerRequest" => List("rh", "rq")
-              case "radiusServerDrop" => List("rh")
+              case "radiusServerDropped" => List("rh")
               case "radiusServerResponse" => List("rh", "rs")
               
               case "radiusClientRequest" => List("rh", "rq")

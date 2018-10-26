@@ -30,7 +30,7 @@ class TestSuperServerAccountingRequestHandler(statsServer: ActorRef) extends Mes
     val userName: String = requestPacket >> "User-Name"
     
     // Will send a response depending on the contents of the User-Name
-    if((requestPacket >> "User-Name").contains("drop")){
+    if(userName.contains("drop")){
       dropRadiusPacket
     } 
     else {

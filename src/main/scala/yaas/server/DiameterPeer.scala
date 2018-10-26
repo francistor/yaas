@@ -96,9 +96,9 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
           // If response, check where to send it to, and clean from map
           else {
             requestMapOut(decodedMessage.hopByHopId) match {
-              case Some(RequestEntry(hopByHopId, timestamp, destActor, messageKey)) => 
+              case Some(RequestEntry(hopByHopId, requestTimestamp, destActor, messageKey)) => 
                 destActor ! decodedMessage
-                StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, decodedMessage, timestamp)
+                StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, decodedMessage, requestTimestamp)
                 log.debug(s">> Received diameter answer $decodedMessage")
               case None =>
                 log.warning(s"Unsolicited or staled response $decodedMessage")
@@ -145,8 +145,8 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     case BaseDiameterMessageReceived(message) =>
       if(!message.isRequest) {
         requestMapOut(message.hopByHopId) match {
-          case Some(RequestEntry(hopByHopId, timestamp, sendingActor, key)) =>
-            StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, message, timestamp)
+          case Some(RequestEntry(hopByHopId, requestTimestamp, sendingActor, key)) =>
+            StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, message, requestTimestamp)
             log.debug(s">> Received diameter answer $message")
           case None =>
             // Unsolicited or stalled response. 
@@ -255,7 +255,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   ////////////////////////////////////////////////////////////////////////////
   // Request Map
   ////////////////////////////////////////////////////////////////////////////
-  case class RequestEntry(hopByHopId: Long, timestamp: Long, sendingActor: ActorRef, key: DiameterMessageKey)
+  case class RequestEntry(hopByHopId: Long, requestTimestamp: Long, sendingActor: ActorRef, key: DiameterMessageKey)
   
   val requestMap = scala.collection.mutable.Map[Int, RequestEntry]()
   
@@ -271,7 +271,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   
   def requestMapClean = {
     val targetTimestamp = System.currentTimeMillis() - 10000 // Fixed 10 seconds timeout to delete old messages. TODO: This should be a configuration parameter
-    requestMap.retain((k, v) => v.timestamp > targetTimestamp)
+    requestMap.retain((k, v) => v.requestTimestamp > targetTimestamp)
   }
   
   ////////////////////////////////////////////////////////////////////////////

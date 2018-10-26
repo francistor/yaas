@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory
  */
 object ConfigManager {
   
+  val separator = System.lineSeparator
+  
   val log = LoggerFactory.getLogger(ConfigManager.getClass)
   
   // Case classes for JSON deserialization
@@ -85,12 +87,14 @@ object ConfigManager {
           if(locationType == "URL"){
             val url = base.get +  nameRegex.findFirstMatchIn(objectName).get.group(1)
             log.info(s"Reading $objectName from URL $url")
-            parse(Source.fromURL(url).mkString)
+            // Remove comments
+            parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#")) Seq() else Seq(l)).mkString(separator))
           }
           else {
             val resName = nameRegex.findFirstMatchIn(objectName).get.group(1)
             log.info(s"Reading $objectName from resource $resName")
-            parse(Source.fromResource(resName).mkString)
+            // Remove comments
+            parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#")) Seq() else Seq(l)).mkString(separator))
           }
       }
     )

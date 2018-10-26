@@ -35,6 +35,7 @@ class TestSuperServerAccessRequestHandler(statsServer: ActorRef) extends Message
       sendRadiusResponse(requestPacket.responseFailure << ("Reply-Message" -> "The reply message!"))
     } 
     else if(userName.contains("drop")){
+      // Required for stats
       dropRadiusPacket
     } 
     else {

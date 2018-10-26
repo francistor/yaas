@@ -88,7 +88,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
           }
           else {
             originActor ! RadiusClientResponse(responsePacket, radiusId)
-            StatOps.pushRadiusClientResponse(statsServer, originEndpoint, reqCode, responsePacket.code, System.currentTimeMillis() - requestTimestamp)
+            StatOps.pushRadiusClientResponse(statsServer, originEndpoint, reqCode, responsePacket.code, requestTimestamp)
           }
           
           // Update stats

@@ -26,7 +26,7 @@ class TestServerAccountingRequestHandler(statsServer: ActorRef) extends MessageH
   
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
 
-    sendRadiusGroupRequest("allServers", ctx.requestPacket.proxyRequest, 1000, 1).onComplete{
+    sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete{
       case Success(response) =>
         sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
       case Failure(e) =>

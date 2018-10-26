@@ -22,6 +22,11 @@ object RadiusConfigManager {
     server <- (ConfigManager.getConfigObject("radiusServers.json") \ "servers").extract[List[RadiusServerConfig]]
   } yield (server.name -> server)).toMap
   
+  // Radius servers indexed per IP address
+  private var radiusServerIPAddresses = for {
+    (serverName, serverConfig) <- radiusServers
+  } yield (serverConfig.IPAddress, serverConfig)
+  
   // RadiusServer groups
   private var radiusServerGroups = (for {
     group <- (ConfigManager.getConfigObject("radiusServers.json") \ "serverGroups").extract[List[RadiusServerGroupConfig]]
@@ -34,6 +39,7 @@ object RadiusConfigManager {
   
   def getRadiusConfig = radiusConfig
   def getRadiusServers = radiusServers
+  def getRadiusServerIPAddresses = radiusServerIPAddresses
   def getRadiusServerGroups = radiusServerGroups
   def getRadiusClients = radiusClients
 }

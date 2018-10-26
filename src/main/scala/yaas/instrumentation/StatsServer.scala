@@ -254,7 +254,7 @@ class StatsServer extends Actor with ActorLogging {
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   private val radiusServerRequestStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
-  private val radiusServerDropStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
+  private val radiusServerDroppedStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
   private val radiusServerResponseStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
   
   private val radiusClientRequestStats = scala.collection.mutable.Map[RadiusStatsKey, Long]().withDefaultValue(0)
@@ -303,7 +303,7 @@ class StatsServer extends Actor with ActorLogging {
     
     // Radius
     case s: RadiusServerRequestKey => radiusServerRequestStats(s) = radiusServerRequestStats(s) + 1
-    case s: RadiusServerDropKey => radiusServerDropStats(s) = radiusServerDropStats(s) + 1
+    case s: RadiusServerDropKey => radiusServerDroppedStats(s) = radiusServerDroppedStats(s) + 1
     case s: RadiusServerResponseKey => radiusServerResponseStats(s) = radiusServerResponseStats(s) + 1
     
     case s: RadiusClientRequestKey => radiusClientRequestStats(s) = radiusClientRequestStats(s) + 1
@@ -342,7 +342,7 @@ class StatsServer extends Actor with ActorLogging {
       try{
         statName match {
           case "radiusServerRequest" => sender ! getRadiusStats(radiusServerRequestStats, paramList)
-          case "radiusServerDrop" => sender ! getRadiusStats(radiusServerDropStats, paramList)
+          case "radiusServerDropped" => sender ! getRadiusStats(radiusServerDroppedStats, paramList)
           case "radiusServerResponse" => sender ! getRadiusStats(radiusServerResponseStats, paramList)
           
           case "radiusClientRequest" => sender ! getRadiusStats(radiusClientRequestStats, paramList)

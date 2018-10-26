@@ -17,7 +17,13 @@ import yaas.config.DiameterPeerConfig
  */
 object StatOps {
   
-  val toLog2 = 0.6931478
+  val toLog2 = 1.44269504089
+  
+  def crt(timestamp: Long) = {
+    val now = System.currentTimeMillis
+    if(timestamp <= now) "0"
+    else Math.ceil(Math.log(System.currentTimeMillis - timestamp) * toLog2).toString
+  }
   
   /////////////////////////////////////////
   // Diameter
@@ -31,10 +37,9 @@ object StatOps {
         diameterMessage.applicationId.toString, diameterMessage.commandCode.toString)
   }
   
-  def pushDiameterAnswerReceived(statsActor: ActorRef, peerName: String, diameterMessage: DiameterMessage, timestamp: Long) = {
-    val rt : String = Math.ceil(Math.log(System.currentTimeMillis - timestamp) * toLog2).toString
+  def pushDiameterAnswerReceived(statsActor: ActorRef, peerName: String, diameterMessage: DiameterMessage, requestTimestamp: Long) = {
     statsActor !  DiameterAnswerReceivedKey(peerName, diameterMessage >> "Origin-Host", diameterMessage >> "Origin-Realm", diameterMessage >> "Destination-Host", diameterMessage >> "Destination-Realm", 
-        diameterMessage.applicationId.toString, diameterMessage.commandCode.toString, (diameterMessage >> "Result-Code"), rt)
+        diameterMessage.applicationId.toString, diameterMessage.commandCode.toString, (diameterMessage >> "Result-Code"), crt(requestTimestamp))
   }
   
   def pushDiameterRequestTimeout(statsActor: ActorRef, peerName: String, key: DiameterMessageKey) = {
@@ -58,15 +63,13 @@ object StatOps {
   }
   
   // Handler
-  def pushDiameterHandlerServer(statsActor: ActorRef, requestMessage: DiameterMessage, responseMessage: DiameterMessage, responseTime: Long) = {
-    val rt : String = Math.ceil(Math.log(responseTime) * toLog2).toString
+  def pushDiameterHandlerServer(statsActor: ActorRef, requestMessage: DiameterMessage, responseMessage: DiameterMessage, requestTimestamp: Long) = {
     statsActor ! DiameterHandlerServerKey(requestMessage >> "Origin-Host", requestMessage >> "Origin-Realm", requestMessage >> "Destination-Host", requestMessage >> "Destination-Realm", 
-        requestMessage.applicationId.toString, requestMessage.commandCode.toString, responseMessage >> "Result-Code", rt)
+        requestMessage.applicationId.toString, requestMessage.commandCode.toString, responseMessage >> "Result-Code", crt(requestTimestamp))
   }
   
-  def pushDiameterHandlerClient(statsActor: ActorRef, requestKey: DiameterMessageKey, responseMessage: DiameterMessage, responseTime: Long) = {
-    val rt : String = Math.ceil(Math.log(responseTime) * toLog2).toString
-    statsActor ! DiameterHandlerClientKey(requestKey.originHost, requestKey.originRealm, requestKey.destinationHost, requestKey.destinationRealm, requestKey.applicationId, requestKey.commandCode, responseMessage >> "Result-Code", rt)
+  def pushDiameterHandlerClient(statsActor: ActorRef, requestKey: DiameterMessageKey, responseMessage: DiameterMessage, requestTimestamp: Long) = {
+    statsActor ! DiameterHandlerClientKey(requestKey.originHost, requestKey.originRealm, requestKey.destinationHost, requestKey.destinationRealm, requestKey.applicationId, requestKey.commandCode, responseMessage >> "Result-Code", crt(requestTimestamp))
   }
   
   def pushDiameterHandlerClientTimeout(statsActor: ActorRef, requestKey: DiameterMessageKey) = {
@@ -79,7 +82,7 @@ object StatOps {
   
   // Server
   def pushRadiusServerRequest(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int) = {
-    statsActor ! RadiusServerRequestKey(s"${org.ipAddress}:${org.port}", reqCode.toString)
+    statsActor ! RadiusServerRequestKey(s"${org.ipAddress}", reqCode.toString)
   }
   
   def pushRadiusServerDrop(statsActor: ActorRef, ipAddress: String, port: Int) = {
@@ -95,9 +98,8 @@ object StatOps {
     statsActor ! RadiusClientRequestKey(s"${dest.ipAddress}:${dest.port}", reqCode.toString)
   }
   
-  def pushRadiusClientResponse(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int, resCode: Int, responseTime: Long) = {
-    val rt : String = Math.ceil(Math.log(responseTime)).toString
-    statsActor ! RadiusClientResponseKey(s"${dest.ipAddress}:${dest.port}", reqCode.toString, resCode.toString, rt)
+  def pushRadiusClientResponse(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int, resCode: Int, requestTimestamp: Long) = {
+    statsActor ! RadiusClientResponseKey(s"${dest.ipAddress}:${dest.port}", reqCode.toString, resCode.toString, crt(requestTimestamp))
   }
   
   def pushRadiusClientTimeout(statsActor: ActorRef, dest: RadiusEndpoint, reqCode: Int) = {
@@ -109,9 +111,8 @@ object StatOps {
   }
   
   // Handler server
-  def pushRadiusHandlerResponse(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int, resCode: Int, responseTime: Long) = {
-    val rt : String = Math.ceil(Math.log(responseTime)).toString
-    statsActor ! RadiusHandlerResponseKey(s"${org.ipAddress}", reqCode.toString, resCode.toString, rt)
+  def pushRadiusHandlerResponse(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int, resCode: Int, requestTimestamp: Long) = {
+    statsActor ! RadiusHandlerResponseKey(s"${org.ipAddress}", reqCode.toString, resCode.toString, crt(requestTimestamp))
   }
     
   def pushRadiusHandlerDrop(statsActor: ActorRef, org: RadiusEndpoint, reqCode: Int) = {
@@ -119,9 +120,8 @@ object StatOps {
   }
   
   // Handler client
-  def pushRadiusHandlerRequest(statsActor: ActorRef, group: String, reqCode: Int, resCode: Int, responseTime: Long) = {
-    val rt : String = Math.ceil(Math.log(responseTime) * toLog2).toString
-    statsActor ! RadiusHandlerRequestKey(group, reqCode.toString, resCode.toString, rt)
+  def pushRadiusHandlerRequest(statsActor: ActorRef, group: String, reqCode: Int, resCode: Int, requestTimestamp: Long) = {
+    statsActor ! RadiusHandlerRequestKey(group, reqCode.toString, resCode.toString, crt(requestTimestamp))
   }
   
   def pushRadiusHandlerRetransmission(statsActor: ActorRef, group: String, reqCode: Int) = {

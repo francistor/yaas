@@ -593,6 +593,16 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     }
   }
   
+  /**
+   * Extract AVP from message and force conversion to string. If multivalue, returns comma separated list
+   */
+  def ->> (attributeName: String): String = {
+    RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps.filter(avp => avp.code == code).map(_.toString).mkString(",")
+      case None => ""
+    }
+  }
+  
   override def toString() = {
     val codeString = code match {
       case RadiusPacket.ACCESS_REQUEST => "Access-Request"

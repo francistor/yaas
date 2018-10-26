@@ -25,15 +25,15 @@
   	</root>
   	
   	<logger name="yaas" level="DEBUG" additivity="false">
+  		<!-- 
     	<appender-ref ref="default-console-appender" />
+    	-->
     	<appender-ref ref="default-file-appender" />
   	</logger>
-  	
-  	<!-- 
+
   	<logger name="yaas.server.DiameterPeer" level="WARN" additivity="false">
   		<appender-ref ref="peer-appender" />
   	</logger>
-  	-->
 
 </configuration>
 

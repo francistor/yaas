@@ -31,10 +31,11 @@
 	  {
         "name": "allServers",
         "servers": ["non-existing-server", "test-superserver"],
+        # policy may be "fixed", "random", "fixed-withclear", "random-withclear"
         "policy": "fixed"
       },
       {
-      	"name": "superserver",
+      	"name": "superServer",
       	"servers": ["test-superserver"],
       	"policy": "random"
       }

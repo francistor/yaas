@@ -23,7 +23,7 @@ class RadiusResponseException(msg:String) extends Exception(msg)
 class RadiusTimeoutException(msg: String) extends RadiusResponseException(msg)
 
 // Context classes. Just to avoid passing too many opaque parameters from request to response
-case class DiameterRequestContext(diameterRequest: DiameterMessage, originActor: ActorRef, receivedTimestamp: Long)
+case class DiameterRequestContext(diameterRequest: DiameterMessage, originActor: ActorRef, requestTimestamp: Long)
 case class RadiusRequestContext(requestPacket: RadiusPacket, origin: RadiusEndpoint, originActor: ActorRef, receivedTimestamp: Long)
 
 object MessageHandler {
@@ -51,12 +51,12 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   def sendDiameterAnswer(answerMessage: DiameterMessage) (implicit ctx: DiameterRequestContext) = {
     ctx.originActor ! answerMessage
     
-    StatOps.pushDiameterHandlerServer(statsServer, ctx.diameterRequest, answerMessage, System.currentTimeMillis - ctx.receivedTimestamp)
+    StatOps.pushDiameterHandlerServer(statsServer, ctx.diameterRequest, answerMessage, ctx.requestTimestamp)
     log.debug(">> Diameter answer sent\n {}\n", answerMessage.toString())
   }
   
   def sendDiameterRequest(requestMessage: DiameterMessage, timeoutMillis: Int) = {
-    val sentTimestamp = System.currentTimeMillis
+    val requestTimestamp = System.currentTimeMillis
     val promise = Promise[DiameterMessage]
     
     // Publish in request map
@@ -69,7 +69,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     // Side-effect action when future is resolved
     promise.future.andThen {
       case Success(ans) =>
-        StatOps.pushDiameterHandlerClient(statsServer, requestMessage.key, ans, System.currentTimeMillis - sentTimestamp)
+        StatOps.pushDiameterHandlerClient(statsServer, requestMessage.key, ans, requestTimestamp)
       case Failure(ex) =>
         StatOps.pushDiameterHandlerClientTimeout(statsServer, requestMessage.key)
     }
@@ -125,7 +125,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext) = {
     ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin)
     
-    StatOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, System.currentTimeMillis - ctx.receivedTimestamp)
+    StatOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, ctx.receivedTimestamp)
     log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
   }
   
@@ -159,7 +159,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
       case Failure(e) =>
         StatOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
       case Success(responsePacket) =>
-        StatOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, System.currentTimeMillis - sentTimestamp) 
+        StatOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, sentTimestamp) 
     }
   }
   

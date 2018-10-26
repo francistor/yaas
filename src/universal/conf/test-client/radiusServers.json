@@ -16,7 +16,7 @@
       },
       {
         "name": "non-existing-server",
-        "IPAddress": "192.168.250.1",
+        "IPAddress": "1.1.1.1",
         "secret": "secret",
         "ports": {
           "auth": 1812,
@@ -33,6 +33,11 @@
 	  {
         "name": "allServers",
         "servers": ["non-existing-server", "test-server"],
+        "policy": "fixed"
+      },
+      {
+        "name": "testServer",
+        "servers": ["test-server"],
         "policy": "fixed"
       }
 	]

@@ -439,17 +439,29 @@ class Router() extends Actor with ActorLogging {
 	            case _ => false
 	          }
 	        )
-	        val nServers = availableServers.length
-	        if(nServers > 0){
-	          val a = radiusPacket.authenticator
-	          val serverIndex = retryNum + (if(serverGroup.policy == "random") (radiusPacket.authenticator(0).toInt % nServers) else 0)
-	          val radiusServer = radiusServers(availableServers(serverIndex))
-	          radiusClientActor ! RadiusClientRequest(radiusPacket, 
-	                  RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port, radiusServer.secret),
-	                  sender, radiusId)
-	        }
-	        else log.warning("No available server found for group {}", serverGroupName)
+	        val allServers = serverGroup.servers
 	        
+	        // If no available servers, use all servers instead, disregarding
+	        val servers = 
+	          if(availableServers.length > 0) {
+	            availableServers 
+	          }
+	          else if (serverGroup.policy.contains("clear")) {
+	            log.warning("No available server found for group {}. Quaratine status will be ignored", serverGroupName)
+	            allServers
+	          }
+	          else IndexedSeq()
+
+	        val nServers = servers.length
+	        if(nServers > 0) {
+            val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (radiusPacket.authenticator(0).toInt % nServers) else 0)) % nServers
+            val radiusServer = radiusServers(servers(serverIndex))
+            radiusClientActor ! RadiusClientRequest(radiusPacket, 
+                    RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port, radiusServer.secret),
+                    sender, radiusId)
+	        }
+          else log.warning("No available server found for group {}. Discarding packet", serverGroupName)
+
 	      case None =>
 	        log.warning("Radius server group {} not found", serverGroupName)
 	    }
