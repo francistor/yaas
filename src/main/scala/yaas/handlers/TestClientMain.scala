@@ -345,7 +345,9 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       checkStat(jResponsesReceived, 1, Map("rs" -> "5"), "Accouning-Response received from server")
       
       // Timeouts
-      val jTimeouts = getJson(s"http://localhost:${port}/radius/stats/radiusClientResponse?agg=rh,rq")
+      // Wait 5 more seconds
+      Thread.sleep(6000)
+      val jTimeouts = getJson(s"http://localhost:${port}/radius/stats/radiusClientTimeout?agg=rh,rq")
       // One per each to non-existing-server
       checkStat(jTimeouts, 3, Map("rq" -> "1", "rh" -> "1.1.1.1:1812"), "Access-Request timeouts from non existing server")
       // The one explicitly dropped

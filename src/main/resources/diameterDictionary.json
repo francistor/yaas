@@ -21,20 +21,97 @@
 				"name": "User-Name",
 				"type": "UTF8String"
 			},
+			{
+				"code": 2,
+				"name": "User-Password",
+				"type": "OctetString"
+			},
+			{
+				"code": 4,
+				"name": "NAS-IP-Address",
+				"type": "OctetString"
+			},
+			{
+				"code": 5,
+				"name": "NAS-Port",
+				"type": "Unsigned32"
+			},
+			{
+				"code": 6,
+				"name": "Service-Type",
+				"type": "Enumerated",
+				"enumValues":
+				{
+					"Login": 1,
+					"Framed": 2,
+					"Callback-Login": 3,
+					"Callback-Framed": 4
+				}
+			},
             {
                 "code": 8,
                 "name": "Framed-IP-Address",
                 "type": "IPv4Address"
             },
+            {
+                "code": 9,
+                "name": "Framed-IP-Netmask",
+                "type": "OctetString"
+            },
+            {
+                "code": 11,
+                "name": "Filter-Id",
+                "type": "UTF8String"
+            },
+ 			{
+                "code": 18,
+                "name": "Reply-Message",
+                "type": "UTF8String"
+            },
+            {
+                "code": 22,
+                "name": "Framed-Route",
+                "type": "UTF8String"
+            },
+            {
+                "code": 25,
+                "name": "Class",
+                "type": "UTF8String"
+            },
+            {
+                "code": 27,
+                "name": "Session-Timeout",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 28,
+                "name": "Idle-Timeout",
+                "type": "Unsigned32"
+            },
 			{
-				"code": 11,
-				"name": "Filter-Id",
+				"code": 30,
+				"name": "Called-Station-Id",
+				"type": "UTF8String"
+			},
+			{
+				"code": 31,
+				"name": "Calling-Station-Id",
+				"type": "UTF8String"
+			},
+			{
+				"code": 32,
+				"name": "NAS-Identifier",
 				"type": "UTF8String"
 			},
             {
                 "code": 33,
                 "name": "Proxy-State",
                 "type": "OctetString"
+            },
+            {
+                "code": 41,
+                "name": "Acct-Delay-Time",
+                "type": "Unsigned32"
             },
             {
                 "code": 44,
@@ -47,9 +124,36 @@
                 "type": "UTF8String"
             },
             {
+                "code": 46,
+                "name": "Acct-Session-Time",
+                "type": "Unsigned32"
+            },
+            {
                 "code": 55,
                 "name": "Event-Timestamp",
                 "type": "Time"
+            },
+            {
+                "code": 60,
+                "name": "CHAP-Challenge",
+                "type": "OctetString"
+            },
+            {
+                "code": 61,
+                "name": "NAS-Port-Type",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"Sync": 0,
+                	"Async": 1,
+                	"Virtual": 5,
+                	"Ethernet": 15
+                }
+            },
+            {
+                "code": 77,
+                "name": "Connect-Info",
+                "type": "UTF8String"
             },
             {
                 "code": 85,
@@ -57,9 +161,39 @@
                 "type": "Unsigned32"
             },
             {
+                "code": 87,
+                "name": "NAS-Port-Id",
+                "type": "UTF8String"
+            },
+            {
+                "code": 88,
+                "name": "Framed-Pool",
+                "type": "OctetString"
+            },
+            {
+                "code": 95,
+                "name": "NAS-IPv6-Address",
+                "type": "OctetString"
+            },
+            {
+                "code": 96,
+                "name": "Framed-Interface-Id",
+                "type": "OctetString"
+            },
+            {
                 "code": 97,
                 "name": "Framed-IPv6-Prefix",
                 "type": "IPv6Prefix"
+            },
+            {
+                "code": 99,
+                "name": "Framed-IPv6-Route",
+                "type": "UTF8String"
+            },
+            {
+                "code": 100,
+                "name": "Framed-IPv6-Pool",
+                "type": "OctetString"
             },
             {
                 "code": 168,
@@ -177,6 +311,17 @@
 				}
 			},
 			{
+				"code": 274,
+				"name": "Auth-Request-Type",
+				"type": "Enumerated",
+				"enumValues":
+				{
+					"AUTHENTICATE_ONLY": 1,
+					"AUTHORIZE_ONLY": 2,
+					"AUTHORIZE_AUTHENTICATE": 3
+				}
+			},
+			{
 				"code": 279,
 				"name": "Failed-AVP",
 				"type": "Grouped",
@@ -184,6 +329,11 @@
 				{
 					"AVP": {"minOccurs": 1}
 				}
+			},
+			{
+				"code": 281,
+				"name": "Error-Message",
+				"type": "UTF8String"
 			},
 			{
 				"code": 282,
@@ -270,6 +420,66 @@
 					"NoInbandSecurity": 0,
 					"TLS": 1
 				}				
+			},
+			{
+				"code": 363,
+				"name": "Accounting-Input-Octets",
+				"type": "Unsigned64"
+			},
+		    {
+				"code": 364,
+				"name": "Accounting-Output-Octets",
+				"type": "Unsigned64"
+			},
+			{
+				"code": 365,
+				"name": "Accounting-Input-Packets",
+				"type": "Unsigned64"
+			},
+			{
+				"code": 366,
+				"name": "Accounting-Output-Packets",
+				"type": "Unsigned64"
+			},
+			{
+				"code": 400,
+				"name": "NAS-Filter-Rule",
+				"type": "IPFilterRule"
+			},
+			{
+				"code": 402,
+                "name": "CHAP-Auth",
+                "type": "Grouped",
+                "group":
+                {
+                	"CHAP-Algorithm": {"minOccurs": 1, "maxOccurs": 1},
+                  	"CHAP-Ident": {"minOccurs": 1, "maxOccurs": 1},
+                  	"CHAP-Response": {"minOccurs": 1, "maxOccurs": 1}
+                }
+			},
+			{ 
+				"code": 403,
+                "name": "CHAP-Algorithm",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "CHAP-With-MD5": 5
+                }
+			},
+			{
+			 	"code": 404,
+                "name": "CHAP-Ident",
+                "type": "OctetString"
+			},
+			{
+			 	"code": 405,
+                "name": "CHAP-Response",
+                "type": "OctetString"
+			},
+			{
+			 	"code": 407,
+                "name": "QoS-Filter-Rule",
+                "type": "OctetString"
 			},
 			{
                 "code": 411,
@@ -1252,6 +1462,154 @@
 						"Origin-Realm":{"minOccurs": 1, "maxOccurs": 1},	
 						"Error-Message":{"maxOccurs": 1},		
 						"Failed-AVP":{}
+					}
+				}
+			]
+		},
+		{
+			"name": "NASREQ",
+			"code": 1,
+			"appType": "auth",
+			"commands": 
+			[
+				{
+					"code": 265,
+					"name": "AA",
+					"request":
+					{
+						"Session-Id":{"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Host": {"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Realm":{"minOccurs": 1, "maxOccurs": 1},
+						"Destination-Realm":{"minOccurs": 1, "maxOccurs": 1},
+                        "Auth-Request-Type": {"minOccurs": 1, "maxOccurs": 1},
+                        "Destination-Host": {"minOccurs": 1, "maxOccurs": 1},
+                        "NAS-Identifier": {"minOccurs": 1, "maxOccurs": 1},
+	                    "NAS-IP-Address": {"minOccurs": 1, "maxOccurs": 1},
+	                    "NAS-IPv6-Address": {"minOccurs": 1, "maxOccurs": 1},
+	                    "NAS-Port": {"minOccurs": 1, "maxOccurs": 1},
+	                    "NAS-Port-Id": {"minOccurs": 1, "maxOccurs": 1},
+	                    "NAS-Port-Type": {"minOccurs": 1, "maxOccurs": 1},
+	                    "User-Name": {"minOccurs": 1, "maxOccurs": 1},
+	                    "User-Password": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Service-Type": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Called-Station-Id": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Calling-Station-Id": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Connect-Info": {"minOccurs": 1, "maxOccurs": 1},
+	                    "CHAP-Auth": {"minOccurs": 1, "maxOccurs": 1},
+	                    "CHAP-Challenge": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Framed-Interface-Id": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Framed-IP-Address": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Framed-IPv6-Prefix": {"minOccurs": 1, "maxOccurs": 1},
+	                    "Framed-IP-Netmask": {"minOccurs": 1, "maxOccurs": 1}
+					},
+					"response": 
+					{
+						"Session-Id":{"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Host": {"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Realm": {"minOccurs": 1, "maxOccurs": 1},
+						"Auth-Application-Id": {"minOccurs": 1, "maxOccurs": 1},
+                        "Auth-Request-Type": {"minOccurs": 1, "maxOccurs": 1},
+                        "Result-Code": {"minOccurs": 1, "maxOccurs": 1},
+						"User-Name": {"minOccurs": 1, "maxOccurs": 1},
+                        "Service-Type": {"minOccurs": 1, "maxOccurs": 1},
+                       	"Class": {"minOccurs": 1},
+                        "Acct-Interim-Interval": {},
+                        "Error-Message": {},
+                        "Failed-AVP": {},
+                        "Idle-Timeout": {},
+						"Session-Timeout": {},
+                        "Reply-Message": {},
+                        "Filter-Id": {},
+		                "Framed-Interface-Id": {},
+                        "Framed-IP-Address": {},
+                        "Framed-IPv6-Prefix": {},
+                        "Framed-IPv6-Pool": {},
+                        "Framed-IPv6-Route": {},
+                        "Framed-IP-Netmask": {},
+                        "Framed-Route": {},
+                        "Framed-Pool": {}
+					}
+				},
+				{
+					"code": 271,
+					"name": "AC",
+					"request":
+					{
+						"Session-Id":{"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Host": {"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Realm":{"minOccurs": 1, "maxOccurs": 1},
+						"Destination-Realm":{"minOccurs": 1, "maxOccurs": 1},
+						"Destination-Host": {},
+						"Accounting-Record-Type": {},
+                        "Accounting-Record-Number": {},
+                        "Acct-Application-Id": {}, 
+                        "User-Name": {},
+                        "Accounting-Sub-Session-Id": {},
+                        "Acct-Session-Id": {}, 
+                        "Acct-Multi-Session-Id": {},
+                        "Origin-State-Id": {},
+                        "Event-Timestamp": {}, 
+                        "Acct-Delay-Time": {},
+                        "NAS-Identifier": {},
+                        "NAS-IP-Address": {},
+                        "NAS-IPv6-Address": {},
+                        "NAS-Port": {},
+                        "NAS-Port-Id": {},
+                        "NAS-Port-Type": {},
+                        "Class": {},
+                        "Service-Type": {},
+                        "Termination-Cause": {},
+                        "Accounting-Input-Octets": {},
+                        "Accounting-Input-Packets": {},
+                        "Accounting-Output-Octets": {},
+                        "Accounting-Output-Packets": {},
+                        "Acct-Session-Time": {},
+                        "Called-Station-Id": {},
+                        "Calling-Station-Id": {},
+                        "Connect-Info": {},
+                        "Session-Timeout": {},
+                        "Idle-Timeout": {}, 
+                        "Acct-Interim-Interval": {},
+                        "Filter-Id": {},
+                        "NAS-Filter-Rule": {},
+                        "QoS-Filter-Rule": {},
+                        "Framed-Interface-Id": {},
+                        "Framed-IP-Address": {},
+                        "Framed-IP-Netmask": {},
+                        "Framed-IPv6-Prefix": {},
+                        "Framed-IPv6-Pool": {},
+                        "Framed-IPv6-Route": {},
+						"Framed-Pool": {},
+                        "Framed-Route": {}
+					},
+					"response": 
+					{
+						"Session-Id":{"minOccurs": 1, "maxOccurs": 1},
+						"Result-Code": {"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Host": {"minOccurs": 1, "maxOccurs": 1},
+						"Origin-Realm": {"minOccurs": 1, "maxOccurs": 1},
+                        "Accounting-Record-Type": {},
+                        "Accounting-Record-Number": {},
+                        "Acct-Application-Id": {},
+                        "User-Name": {},
+                        "Accounting-Sub-Session-Id": {},
+                        "Acct-Session-Id": {},
+                        "Acct-Multi-Session-Id": {},
+                        "Event-Timestamp": {},
+                        "Error-Message": {},
+                        "Failed-AVP": {},
+                        "Origin-State-Id": {},
+                        "NAS-Identifier": {},
+                        "NAS-IP-Address": {},
+                        "NAS-IPv6-Address": {},
+                        "NAS-Port": {},
+                        "NAS-Port-Id": {},
+                        "NAS-Port-Type": {},
+                        "Service-Type": {},
+                        "Termination-Cause": {},
+                        "Acct-Interim-Interval": {},
+                        "Class": {},
+                        "Proxy-Info": {}
 					}
 				}
 			]

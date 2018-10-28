@@ -161,7 +161,8 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
   }
   
   // To be overriden in concrete classes
-  def stringValue = value.toString()
+  def stringValue : String
+  def copy : DiameterAVP[Any]
   
   // Want the stringified AVP be the value, so toString reports only the value
   // and there is an implicit conversion that does the same
@@ -213,6 +214,8 @@ class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue = {
     OctetOps.octetsToString(value)
   }
+  
+  override def copy = new UnknownAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP[List[Byte]](code, isVendorSpecific, isMandatory, vendorId, value){
@@ -231,6 +234,8 @@ class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   override def stringValue = {
     OctetOps.octetsToString(value)
   }
+  
+  override def copy = new OctetStringAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class Integer32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -246,6 +251,8 @@ class Integer32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, 
   override def stringValue = {
     value.toString
   }
+  
+  override def copy = new Integer32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class Integer64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -261,6 +268,8 @@ class Integer64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, 
   override def stringValue = {
     value.toString
   }
+  
+  override def copy = new Integer64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class Unsigned32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -276,6 +285,8 @@ class Unsigned32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def stringValue = {
     value.toString
   }
+  
+  override def copy = new Unsigned32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 // This class does not correctly represents integers bigger than 2exp63
@@ -292,6 +303,8 @@ class Unsigned64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def stringValue = {
     value.toString
   }
+  
+  override def copy = new Unsigned64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class Float32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Float) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -307,6 +320,8 @@ class Float32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue = {
     value.toString
   }
+  
+  override def copy = new Float32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Double) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -322,6 +337,8 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue = {
     value.toString
   }
+  
+  override def copy = new Float64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: scala.collection.mutable.Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -368,6 +385,14 @@ class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
       case _ => "Error"
     }
   }
+  
+  override def copy = {
+    val v = for{
+      avp <- value
+    } yield avp.copy
+
+    new GroupedAVP(code, isVendorSpecific, isMandatory, vendorId, v)
+  }
 }
 
 class AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -386,6 +411,8 @@ class AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue = {
     value.getHostAddress()
   }
+  
+  override def copy = new AddressAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class TimeAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.util.Date) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -402,6 +429,8 @@ class TimeAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendo
     val sdf = new java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
     sdf.format(value)
   }
+  
+  override def copy = new TimeAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class UTF8StringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -417,6 +446,8 @@ class UTF8StringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def stringValue = {
     value
   }
+  
+  override def copy = new UTF8StringAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class DiameterIdentityAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -432,6 +463,8 @@ class DiameterIdentityAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Bo
   override def stringValue = {
     value
   }
+  
+  override def copy = new DiameterIdentityAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class DiameterURIAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -448,6 +481,8 @@ class DiameterURIAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   override def stringValue = {
     value
   }
+  
+  override def copy = new DiameterURIAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class EnumeratedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -466,6 +501,8 @@ class EnumeratedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
       case _ => "Unknown"
     }
   }
+  
+  override def copy = new EnumeratedAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class IPFilterRuleAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -481,6 +518,8 @@ class IPFilterRuleAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolea
   override def stringValue = {
     value
   }
+  
+  override def copy = new IPFilterRuleAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class IPv4AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -496,6 +535,8 @@ class IPv4AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   override def stringValue = {
     value.getHostAddress()
   }
+  
+  override def copy = new IPv4AddressAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class IPv6AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: java.net.InetAddress) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -511,6 +552,8 @@ class IPv6AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   override def stringValue = {
     value.getHostAddress()
   }
+  
+  override def copy = new IPv6AddressAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 class IPv6PrefixAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: String) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
@@ -538,6 +581,8 @@ class IPv6PrefixAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def stringValue = {
     value
   }
+  
+  override def copy = new IPv6PrefixAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
 /**
@@ -638,6 +683,19 @@ object DiameterMessage {
     answerMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
   }
   
+  def copy(diameterMessage: DiameterMessage)(implicit idGen: IDGenerator) = {
+    new DiameterMessage(
+        diameterMessage.applicationId, 
+        diameterMessage.commandCode,
+        idGen.nextHopByHopId,
+        diameterMessage.endToEndId,
+        for(avp <- diameterMessage.avps) yield avp.copy, 
+        diameterMessage.isRequest,
+        diameterMessage.isProxyable, 
+        diameterMessage.isError,
+        diameterMessage.isRetransmission)
+  }
+  
   val EMPTY_FIELD = "<void>"
 }
 
@@ -701,27 +759,66 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   
   /**
    * Insert AVP in message
-   */  
+   */ 
+  // Synonims
+  def put(avp: DiameterAVP[Any]) : DiameterMessage = << (avp: DiameterAVP[Any])
   def << (avp: DiameterAVP[Any]) : DiameterMessage = {
     avps = avps :+ avp
     this
   }
-  
+
+  // Synonims
+  def putGrouped(avp: GroupedAVP): DiameterMessage = <<< (avp: GroupedAVP)
   def <<< (avp: GroupedAVP) : DiameterMessage = {
     avps = avps :+ avp
     this
   }
+
   
+  // Versions with option. Does nothing if avpOption is None
+  // Synonims
+  def put(avp: Option[DiameterAVP[Any]]) : DiameterMessage = << (avp: Option[DiameterAVP[Any]])
+  def << (avpOption: Option[DiameterAVP[Any]]) : DiameterMessage = {
+    avpOption match {
+      case Some(avp) => 
+        avps = avps :+ avp
+      case None => 
+    }
+    this
+  }
+
+  // Synonims
+  def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <<< (avp: Option[GroupedAVP])
+  def <<< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
+    avpOption match {
+      case Some(avp) => 
+        avps = avps :+ avp
+      case None => 
+    }
+    this
+  }
+  
+  // Insert multiple values
+  // Synonims
+  def putAll(mavp : Queue[DiameterAVP[Any]]) : DiameterMessage = << (mavp : Queue[DiameterAVP[Any]]) 
+  def << (mavp : Queue[DiameterAVP[Any]]) : DiameterMessage = {
+    avps = avps ++ mavp
+    this
+  }
+
   /**
    * Extract AVP from message
    */
+  // Synonims
+  def get(attributeName: String) : Option[DiameterAVP[Any]] = >> (attributeName: String)
   def >> (attributeName: String) : Option[DiameterAVP[Any]] = {
     DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps.find(avp => avp.code == code)
       case None => None
     }
   }
-    
+  
+  def getGroup(attributeName: String) : Option[GroupedAVP] = >>> (attributeName: String)
   def >>> (attributeName: String) : Option[GroupedAVP] = {
     DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => 
@@ -735,6 +832,24 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
         else None
       case None => None
     }
+  }
+  
+  def getAll(attributeName: String) = >>+ (attributeName: String)
+  def >>+ (attributeName: String): Queue[DiameterAVP[Any]] = {
+    DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps.filter(avp => avp.code == code)
+      case None => Queue()
+    }
+  }
+    
+  
+  // Delete all AVP with the specified name  
+  def removeAll(attributeName: String) : DiameterMessage = {
+    DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps = avps.filter(avp => avp.code != code)
+      case None => None
+    }
+    this
   }
     
   // Generate case class DiameterMessageKey(originHost: String, originRealm: String, destinationHost: String, destinationRealm: String, applicationId: String, commandCode: String)

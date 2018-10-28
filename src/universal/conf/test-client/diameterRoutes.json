@@ -1,3 +1,4 @@
 [
-
+	{"realm": "yaasserver", "applicationId": "NASREQ", "peers": ["non-existing-server.yaasserver", server.yaasserver"], "policy": "fixed"},
+	{"realm": "yaasserver", "applicationId": "Gx", "peers": ["superserver.yaassuperserver"], "policy": "fixed"},
 ]
