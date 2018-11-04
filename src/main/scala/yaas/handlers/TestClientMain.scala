@@ -27,6 +27,11 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
+
+// TODO
+// Test conversion from/json of Radius/Diameter
+
+
 trait JsonSupport extends Json4sSupport {
   implicit val serialization = org.json4s.jackson.Serialization
   implicit val json4sFormats = org.json4s.DefaultFormats
@@ -95,7 +100,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   // _ is needed to promote the method (no arguments) to a function
-  val tests = IndexedSeq[() => Unit](
+  val tests2 = IndexedSeq[() => Unit](
       clientPeerConnections _, 
       serverPeerConnections _, 
       superserverPeerConnections _, 
@@ -108,6 +113,15 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       checkServerRadiusStats _,
       checkClientRadiusStats _
   )
+  
+  val tests = IndexedSeq[() => Unit](
+      testAA _,
+      testAC _,
+      checkSuperserverDiameterStats _,
+      checkServerDiameterStats _
+  )
+  
+  
   var lastTestIdx = -1
   def nextTest(): Unit = {
     lastTestIdx = lastTestIdx + 1
@@ -231,15 +245,57 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   def testAccountingRequestWithDrop(): Unit = {
-    
+    println("[TEST] Accounting request with drop")
     // Generate another one to be discarded by the superserver
     sendRadiusGroupRequest("testServer", RadiusPacket.request(ACCOUNTING_REQUEST) << ("User-Name" -> "test@drop"), 500, 0).onComplete {
       case _ => nextTest
     }
   }
+  
+  // Diameter NASREQ application, AA request
+  def testAA(): Unit = {
+    println("[TEST] AA Requests")
+    // Send AA Request with
+    // Framed-Interface-Id to be echoed as one "Class" attribute
+    // CHAP-Ident to be echoed as another "Class" attribute
+    val sentFramedInterfaceId = "abcdef"
+    val sentCHAPIdent = "abc"
+    val chapAuthAVP: GroupedAVP =  ("CHAP-Auth", Seq()) << ("CHAP-Algorithm", "CHAP-With-MD5") << ("CHAP-Ident", sentCHAPIdent)
+    
+    val request = DiameterMessage.request("NASREQ", "AA")
+    request << "Destination-Realm" -> "yaasserver"
+    request << ("Framed-Interface-Id" -> sentFramedInterfaceId) << chapAuthAVP
+    
+    sendDiameterRequest(request, 1000).onComplete{
+      case Success(answer) =>
+        // Check answer
+        val classAttrs = answer >>+ "Class" map {avp => OctetOps.fromHexToUTF8(avp.toString)}
+        if (classAttrs sameElements Seq(sentFramedInterfaceId, sentCHAPIdent)) ok("Received correct Class attributes") else fail(s"Incorrect Class Attributes: $classAttrs")
+        nextTest
+        
+      case Failure(e) =>
+        fail(e.getMessage)
+    }
+  }
+  
+    // Diameter NASREQ application, AC request
+  def testAC(): Unit = {
+    println("[TEST] AC Requests")
+    val request = DiameterMessage.request("NASREQ", "AC")
+    request << "Destination-Realm" -> "yaasserver"
+    
+    sendDiameterRequest(request, 1000).onComplete{
+      case Success(answer) =>
+        // Check answer
+        if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
+        nextTest
+      case Failure(e) =>
+        fail(e.getMessage)
+    }
+  }
    
   def checkSuperserverRadiusStats(): Unit = {
-      // Superserver
+
       println("[TEST] Superserver stats")
       val port = 19003
       
@@ -281,7 +337,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   def checkServerRadiusStats(): Unit = {
-      // Superserver
+
       println("[TEST] Server stats")
       val port = 19002
       
@@ -325,7 +381,6 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   def checkClientRadiusStats(): Unit = {
-      // Superserver
       println("[TEST] Client stats")
       val port = 19001
       
@@ -359,4 +414,56 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       
       nextTest
   }
+  
+  def checkSuperserverDiameterStats(): Unit = {
+      println("[TEST] Superserver stats")
+      val port = 19003
+      
+      // Requests received
+      val jRequestsReceived = getJson(s"http://localhost:${port}/diameter/stats/diameterRequestReceived?agg=peer,ap,cm")
+      // 1 AA, 1AC
+      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265"), "AAR received")
+      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271"), "ACR received")
+
+      val jAnswerSent = getJson(s"http://localhost:${port}/diameter/stats/diameterAnswerSent?agg=peer,ap,cm,rc")
+      // 1 AA, 1AC
+      checkStat(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265", "rc" -> "2001"), "AAA sent")
+      checkStat(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271", "rc" -> "2001"), "ACA sent")
+      
+      val jHandlerServer = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerServer?agg=oh,dr,rc")
+      // 1 AA, 1AC
+      checkStat(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "dr" -> "yaasserver", "rc" -> "2001"), "AA Handled")
+      
+      val jHandlerClient = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerClient?agg=oh")
+      // 1 AA, 1AC
+      checkStat(jHandlerClient, 2, Map("oh" -> "server.yaasserver"), "AA Handled")
+      
+      nextTest
+  }
+  
+  def checkServerDiameterStats(): Unit = {
+      println("[TEST] Server stats")
+      val port = 19002
+      
+      // Requests received
+      val jRequestsReceived = getJson(s"http://localhost:${port}/diameter/stats/diameterRequestReceived?agg=peer,ap")
+      // 1 AA, 1AC
+      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1"), "AAR received")
+
+      val jAnswerSent = getJson(s"http://localhost:${port}/diameter/stats/diameterAnswerSent?agg=ap,rc")
+      // 1 AA, 1AC
+      checkStat(jAnswerSent, 2, Map("ap" -> "1", "rc" -> "2001"), "AAA sent")
+      
+      val jHandlerServer = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerServer?agg=oh,ap")
+      // 1 AA, 1AC
+      checkStat(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "ap" -> "1"), "AA Handled")
+      
+      val jHandlerClient = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerClient?agg=oh,ap,rc")
+      // 1 AA, 1AC
+      checkStat(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
+
+      nextTest
+  }
+  
+  
 }

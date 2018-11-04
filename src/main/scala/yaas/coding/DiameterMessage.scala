@@ -43,8 +43,8 @@ object DiameterAVP {
     val avpLength = UByteString.getUnsigned24(it)
     val dataOffset = if (isVendorSpecific) 12 else 8 
     val vendorId = isVendorSpecific match {
-          case true => UByteString.getUnsigned32(it)
-          case false => 0
+        case true => UByteString.getUnsigned32(it)
+        case false => 0
     }
     
     val data = bytes.slice(dataOffset, avpLength)
@@ -356,11 +356,15 @@ class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
     })
   }
   
+  // Synonims
+  def put(avp: DiameterAVP[Any]) : GroupedAVP = << (avp: DiameterAVP[Any])
   def << (avp: DiameterAVP[Any]) : GroupedAVP = {
     value += avp
     this
   }
   
+  // Synonims
+  def get(attrName: String) : Option[DiameterAVP[Any]] = >> (attrName: String)
   def >> (attrName: String) : Option[DiameterAVP[Any]] = {
     DiameterDictionary.avpMapByName.get(attrName).map(_.code) match {
       case Some(code) => value.find(avp => avp.code == code)
@@ -683,6 +687,9 @@ object DiameterMessage {
     answerMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
   }
   
+  /**
+   * Builds a copy of the message
+   */
   def copy(diameterMessage: DiameterMessage)(implicit idGen: IDGenerator) = {
     new DiameterMessage(
         diameterMessage.applicationId, 
@@ -787,7 +794,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     this
   }
 
-  // Synonims
+  // Synonyms
   def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <<< (avp: Option[GroupedAVP])
   def <<< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
     avpOption match {
@@ -799,7 +806,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   }
   
   // Insert multiple values
-  // Synonims
+  // Synonyms
   def putAll(mavp : Queue[DiameterAVP[Any]]) : DiameterMessage = << (mavp : Queue[DiameterAVP[Any]]) 
   def << (mavp : Queue[DiameterAVP[Any]]) : DiameterMessage = {
     avps = avps ++ mavp
@@ -809,7 +816,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Extract AVP from message
    */
-  // Synonims
+  // Synonyms
   def get(attributeName: String) : Option[DiameterAVP[Any]] = >> (attributeName: String)
   def >> (attributeName: String) : Option[DiameterAVP[Any]] = {
     DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
@@ -841,7 +848,6 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
       case None => Queue()
     }
   }
-    
   
   // Delete all AVP with the specified name  
   def removeAll(attributeName: String) : DiameterMessage = {
@@ -895,7 +901,9 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
             !x.avps.sameElements(avps)) false else true
       case _ => false
     }
-  } 
+  }
+  
+  def copy(implicit idGen: IDGenerator) = DiameterMessage.copy(this)(idGen) 
 }
 
 
@@ -903,12 +911,36 @@ object DiameterConversions {
   
   implicit var jsonFormats = DefaultFormats + new DiameterMessageSerializer
   
+  def avpCompare(o: Option[DiameterAVP[Any]], other: String): Boolean = {
+    o match {
+      case Some(avp) => avp.toString == other
+      case None => if(other == "") true else false
+    }
+  }
+  
+  def avpCompare(o: Option[DiameterAVP[Any]], other: Long): Boolean = {
+    o match {
+      case Some(avp) => avp.toString == other.toString
+      case None => false
+    }
+  }
+  
+  /**
+   * This is to allow composing >> after >>>, which returns an Option
+   */
+  implicit def FromOptionGrouped(o: Option[GroupedAVP]): GroupedAVP = {
+    o match {
+      case Some(avp) => avp
+      case None => ("EMPTY-GROUPED", Seq())
+    }
+  }
+  
   /**
    * Simple Diameter AVP to String (value)
    */
-  implicit def DiameterAVP2String(avp: Option[DiameterAVP[Any]]) : String = {
-    avp match {
-      case Some(v) => v.stringValue
+  implicit def DiameterAVP2String(o: Option[DiameterAVP[Any]]) : String = {
+    o match {
+      case Some(avp) => avp.stringValue
       case None => ""
     }
   }
@@ -1059,7 +1091,7 @@ object DiameterConversions {
   }
   
   /**
-   * Grouped AVP to Seq of (String, (String, String))
+   * Grouped AVP to Seq of (String, String)
    */
   implicit def GroupedDiameterAVP2Seq(avp: GroupedAVP) : Seq[(String, String)] = {
     (for {
@@ -1084,6 +1116,7 @@ object DiameterConversions {
     }
     gavp
   }
+  
   
   /**
    * Helpers for custom DiameterMessage Serializer

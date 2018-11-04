@@ -211,7 +211,7 @@ class Router() extends Actor with ActorLogging {
 	    cleanPeersHostMap.get(hostName) match {
 	      case None | Some(DiameterPeerPointer(_, 0, _)) =>
 	        // Not found or disconnected
-	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")) (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName))))
+	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")) (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName + "-peer"))))
 	        else (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
 	      case Some(dpp) =>
 	        (hostName, dpp)
@@ -246,8 +246,12 @@ class Router() extends Actor with ActorLogging {
 	}
 	
 	// Utility function to get a route
-  def findRoute(realm: String, application: String) : Option[DiameterRoute] = {
-    diameterRoutes.find{ route => (route.realm == "*" || route.realm == realm) && (route.application == "*" || route.application == application) }
+  def findRoute(realm: String, application: String, nonLocal: Boolean /* If true, force that the route is not local (i.e. no handler) */) : Option[DiameterRoute] = {
+    diameterRoutes.find{ route => 
+      (route.realm == "*" || route.realm == realm) && 
+      (route.application == "*" || route.application == application) &&
+      (if(nonLocal) route.handler.isEmpty else true)
+      }
   }
   
   ////////////////////////////////////////////////////////////////////////
@@ -344,8 +348,10 @@ class Router() extends Actor with ActorLogging {
 	  
 	  // Request received
 	  case message : DiameterMessage =>
-	    findRoute(message >> "Destination-Realm", message.application) match {
-	      // Local handler
+	    val notLocal = sender.path.name.endsWith("-handler")
+	    
+	    findRoute(message >> "Destination-Realm", message.application, notLocal) match {
+	      // Local handler. Avoid loops by making sure the sender is not a hanlder actor
 	      case Some(DiameterRoute(_, _, _, _, Some(handler))) =>
 	        // Handle locally
 	        handlerMap.get(handler) match {

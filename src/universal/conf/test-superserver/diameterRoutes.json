@@ -1,4 +1,5 @@
 [
-	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"},
-	{"realm": "yaasserver", "applicationId": "Gx", "handler": "GxHandler"}
+	// Handle NASREQ and Gx
+	{"realm": "*", "applicationId": "NASREQ", "handler": "NASReqHandler"},
+	{"realm": "*", "applicationId": "Gx", "handler": "GxHandler"}
 ]

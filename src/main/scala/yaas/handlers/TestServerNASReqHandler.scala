@@ -15,7 +15,7 @@ import yaas.server.MessageHandler
 /**
  * This application is proxied. A new request is generated for the upstream server
  */
-class TestServerNASREQHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated NASREQHandler")
   
@@ -25,29 +25,63 @@ class TestServerNASREQHandler(statsServer: ActorRef) extends MessageHandler(stat
     
     ctx.diameterRequest.command match {
       case "AA" => handleAAR(ctx)
+      case "AC" => handleACR(ctx)
     }
   }
 
   /*
-   * Sends a message to the super-server with NAS-IP-Adddress and passwords as received
-   * The answer will contain a result code and all the Class attributes send from the super-server
+   * Proxies a message to the super-server with NAS-IP-Address as received
+   * The answer will contain a result code, the echoed NAS-IP-Address and all the Class attributes sent from the super-server
+   * 
+   * In this case a new request is created for the upstream server (instead of the message being routed)
    */
   def handleAAR(implicit ctx: DiameterRequestContext) = {
     
     val request = ctx.diameterRequest
-    val password = (request >> "User-Password").get.toString
-    val proxyRequest = DiameterMessage.request("NASREQ", "AA") 
-    proxyRequest << ("Destination-Realm" -> "yaassuperserver") << (request >> "NAS-IP-Address") << ("User-Password" -> password)
+    
+    val proxyRequest = request.copy
+    proxyRequest.removeAll("Destination-Host")
+    proxyRequest.removeAll("Destination-Realm")
+    proxyRequest << ("Destination-Realm" -> "yaassuperserver") <<
+      ("Origin-Host" -> DiameterConfigManager.getDiameterConfig.diameterHost) <<
+      ("Origin-Realm" -> DiameterConfigManager.getDiameterConfig.diameterRealm)
     
     sendDiameterRequest(proxyRequest, 1000).onComplete{
       case Success(proxyAnswer) =>
         log.info("Received proxy answer {}", proxyAnswer)
+        
+        // Build the answer
         val answer = DiameterMessage.answer(ctx.diameterRequest)
-        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << (answer >>+ "Class")
+        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << (proxyAnswer >>+ "Class") << (proxyAnswer >> "Framed-Interface-Id")
         sendDiameterAnswer(answer)
         
       case Failure(e) =>
         log.error("Proxy timeout")
     }
+  }
+  
+  /*
+   * Generates a new message to superserver
+   */
+  def handleACR(implicit ctx: DiameterRequestContext) = {
+    
+    val request = DiameterMessage.request("NASREQ", "AC") << 
+    ("Destination-Realm" -> "yaassuperserver")
+    
+    sendDiameterRequest(request, 1000).onComplete {
+      case Success(proxyAnswer) =>
+        log.info("Received proxy answer {}", proxyAnswer)
+        
+        // Build the answer
+        val answer = DiameterMessage.answer(ctx.diameterRequest)
+        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+        sendDiameterAnswer(answer)
+        
+      case Failure(e) =>
+        log.error("Timeout")
+    }
+
+    
+    
   }
 }

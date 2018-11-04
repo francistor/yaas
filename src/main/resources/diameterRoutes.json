@@ -1,4 +1,10 @@
 [
+	// Forward to upstream server
 	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"},
-	{"realm": "yaasserver", "applicationId": "Gx", "handler": "GxHandler"}
+	
+	// Handle Gx locally
+	{"realm": "yaasserver", "applicationId": "Gx", "handler": "TestServerGxHandler"},
+	
+	// Handle NASREQ locally
+	{"realm": "yaasserver", "applicationId": "NASREQ", "handler": "TestServerNASReqHandler"}
 ]

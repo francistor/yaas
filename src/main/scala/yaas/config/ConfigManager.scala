@@ -88,13 +88,13 @@ object ConfigManager {
             val url = base.get +  nameRegex.findFirstMatchIn(objectName).get.group(1)
             log.info(s"Reading $objectName from URL $url")
             // Remove comments
-            parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#")) Seq() else Seq(l)).mkString(separator))
+            parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
           }
           else {
             val resName = nameRegex.findFirstMatchIn(objectName).get.group(1)
             log.info(s"Reading $objectName from resource $resName")
             // Remove comments
-            parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#")) Seq() else Seq(l)).mkString(separator))
+            parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
           }
       }
     )

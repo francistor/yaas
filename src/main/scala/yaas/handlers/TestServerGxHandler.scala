@@ -35,7 +35,7 @@ class TestServerGxHandler(statsServer: ActorRef) extends MessageHandler(statsSer
     proxyRequest << ("CC-Request-Type" -> "Initial")
     proxyRequest << ("CC-Request-Number" -> System.currentTimeMillis / 1000)
     
-    sendDiameterRequest(proxyRequest, 5000).onComplete{
+    sendDiameterRequest(proxyRequest, 2000).onComplete{
       case Success(proxyAnswer) =>
         log.info("Received proxy answer {}", proxyAnswer)
         val answer = DiameterMessage.answer(ctx.diameterRequest) 
