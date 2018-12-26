@@ -148,19 +148,19 @@ class Router() extends Actor with ActorLogging {
 	var radiusClients = Map[String, RadiusClientConfig]()
 	
 	// First update of diameter configuration
-  val diameterConfig = DiameterConfigManager.getDiameterConfig
+  val diameterConfig = DiameterConfigManager.diameterConfig
   diameterServerIPAddress = diameterConfig.bindAddress
   diameterServerPort = diameterConfig.bindPort
 
   // First update of radius configuration
-  val radiusConfig = RadiusConfigManager.getRadiusConfig
+  val radiusConfig = RadiusConfigManager.radiusConfig
   radiusServerIPAddress = radiusConfig.bindAddress
   radiusServerAuthPort = radiusConfig.authBindPort
   radiusServerAcctPort = radiusConfig.acctBindPort
   radiusServerCoAPort = radiusConfig.coABindPort
-  radiusServerGroups = RadiusConfigManager.getRadiusServerGroups
-  radiusClients = RadiusConfigManager.getRadiusClients
-  radiusServers = getRadiusServers(RadiusConfigManager.getRadiusServers)
+  radiusServerGroups = RadiusConfigManager.radiusServerGroups
+  radiusClients = RadiusConfigManager.radiusClients
+  radiusServers = getRadiusServers(RadiusConfigManager.radiusServers)
   
   // Diameter Server socket
   implicit val actorSytem = context.system
@@ -180,9 +180,9 @@ class Router() extends Actor with ActorLogging {
   val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient")
   
   // Initialize
-  peerHostMap = updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
-  diameterRoutes = updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
-  handlerMap = updateHandlerMap(HandlerConfigManager.getHandlerConfig)
+  peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
+  diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
+  handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig)
   
   // Start timer for re-evalutation of peer status
   context.system.scheduler.scheduleOnce(diameterConfig.peerCheckTimeSeconds seconds, self, PeerMapTimer)
@@ -519,9 +519,9 @@ class Router() extends Actor with ActorLogging {
 	    }
 	    
 	  case PeerMapTimer =>
-      peerHostMap = updateDiameterPeerMap(DiameterConfigManager.getDiameterPeerConfig)
-      diameterRoutes = updateDiameterRoutes(DiameterConfigManager.getDiameterRouteConfig)
-      handlerMap = updateHandlerMap(HandlerConfigManager.getHandlerConfig)
+      peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
+      diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
+      handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig)
       
 	    // Start timer for re-evalutation of peer status
       context.system.scheduler.scheduleOnce(diameterConfig.peerCheckTimeSeconds seconds, self, PeerMapTimer)

@@ -6,7 +6,6 @@ organization := "com.gmail.franciscocardosogil"
 
 enablePlugins(JavaAppPackaging)
 
-
 resolvers += Resolver.bintrayRepo("hseeberger", "maven")
 libraryDependencies ++= 
   Seq(

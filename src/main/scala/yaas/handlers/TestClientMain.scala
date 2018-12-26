@@ -52,6 +52,11 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   
   def wait[T](r: Awaitable[T]) = Await.result(r, 10 second)
   
+  def sleep = {
+    Thread.sleep(6000)
+    nextTest
+  }
+  
   def getJson(url: String) = {
     wait(for {
       r <- http.singleRequest(HttpRequest(uri = url))
@@ -100,7 +105,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   // _ is needed to promote the method (no arguments) to a function
-  val tests2 = IndexedSeq[() => Unit](
+  val tests = IndexedSeq[() => Unit](
       clientPeerConnections _, 
       serverPeerConnections _, 
       superserverPeerConnections _, 
@@ -109,16 +114,19 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       testAccessRequestWithDrop _,
       testAccountingRequest _,
       testAccountingRequestWithDrop _,
+      sleep _,
       checkSuperserverRadiusStats _,
       checkServerRadiusStats _,
-      checkClientRadiusStats _
-  )
-  
-  val tests = IndexedSeq[() => Unit](
+      checkClientRadiusStats _,
       testAA _,
       testAC _,
+      sleep _,
       checkSuperserverDiameterStats _,
       checkServerDiameterStats _
+  )
+  
+  val tests2 = IndexedSeq[() => Unit](
+      testAA _
   )
   
   
@@ -278,7 +286,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     }
   }
   
-    // Diameter NASREQ application, AC request
+  // Diameter NASREQ application, AC request
   def testAC(): Unit = {
     println("[TEST] AC Requests")
     val request = DiameterMessage.request("NASREQ", "AC")
@@ -329,7 +337,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
 
       // Packets dropped by handler
       val jHandlerDrops = getJson(s"http://localhost:${port}/radius/stats/radiusHandlerDropped?agg=rq")
-      // 2 packet dropped each, since the server will rety to superserver
+      // 2 packet dropped each, since the server will retry to superserver
       checkStat(jHandlerDrops, 2, Map("rq" -> "1"), "Access-Request dropped")
       checkStat(jHandlerDrops, 2, Map("rq" -> "4"), "Accounting-Request dropped")
       
@@ -373,9 +381,9 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
 
       // Packets dropped by handler
       val jHandlerDrops = getJson(s"http://localhost:${port}/radius/stats/radiusHandlerDropped?agg=rq")
-      // Server does not drop packets
-      checkStat(jHandlerDrops, -1, Map("rq" -> "1"), "Access-Request dropped")
-      checkStat(jHandlerDrops, -1, Map("rq" -> "4"), "Accounting-Request dropped")
+      // Server drops the packets for which it receives no response from non-existing-server
+      checkStat(jHandlerDrops, 1, Map("rq" -> "1"), "Access-Request dropped")
+      checkStat(jHandlerDrops, 1, Map("rq" -> "4"), "Accounting-Request dropped")
       
       nextTest
   }
@@ -400,8 +408,6 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       checkStat(jResponsesReceived, 1, Map("rs" -> "5"), "Accouning-Response received from server")
       
       // Timeouts
-      // Wait 5 more seconds
-      Thread.sleep(6000)
       val jTimeouts = getJson(s"http://localhost:${port}/radius/stats/radiusClientTimeout?agg=rh,rq")
       // One per each to non-existing-server
       checkStat(jTimeouts, 3, Map("rq" -> "1", "rh" -> "1.1.1.1:1812"), "Access-Request timeouts from non existing server")
@@ -432,11 +438,11 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       
       val jHandlerServer = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerServer?agg=oh,dr,rc")
       // 1 AA, 1AC
-      checkStat(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "dr" -> "yaasserver", "rc" -> "2001"), "AA Handled")
+      checkStat(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "dr" -> "yaassuperserver", "rc" -> "2001"), "AA Handled")
       
       val jHandlerClient = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerClient?agg=oh")
       // 1 AA, 1AC
-      checkStat(jHandlerClient, 2, Map("oh" -> "server.yaasserver"), "AA Handled")
+      checkStat(jHandlerClient, -1, Map("oh" -> "server.yaasserver"), "AA Handled")
       
       nextTest
   }
@@ -445,10 +451,17 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       println("[TEST] Server stats")
       val port = 19002
       
-      // Requests received
       val jRequestsReceived = getJson(s"http://localhost:${port}/diameter/stats/diameterRequestReceived?agg=peer,ap")
       // 1 AA, 1AC
-      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1"), "AAR received")
+      checkStat(jRequestsReceived, 2, Map("peer" -> "client.yaasclient", "ap" -> "1"), "AAR received")
+      
+      val jRequestsSent = getJson(s"http://localhost:${port}/diameter/stats/diameterRequestSent?agg=peer,ap")
+      // 1 AA, 1AC
+      checkStat(jRequestsSent, 2, Map("peer" -> "superserver.yaassuperserver", "ap" -> "1"), "AAR sent")
+      
+      val jAnswersReceived = getJson(s"http://localhost:${port}/diameter/stats/diameterAnswerReceived?agg=ap")
+      // 1 AA, 1AC
+      checkStat(jAnswersReceived, 2, Map("ap" -> "1"), "AAA received")
 
       val jAnswerSent = getJson(s"http://localhost:${port}/diameter/stats/diameterAnswerSent?agg=ap,rc")
       // 1 AA, 1AC
@@ -460,8 +473,8 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       
       val jHandlerClient = getJson(s"http://localhost:${port}/diameter/stats/diameterHandlerClient?agg=oh,ap,rc")
       // 1 AA, 1AC
-      checkStat(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
-
+      checkStat(jHandlerClient, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
+      
       nextTest
   }
   

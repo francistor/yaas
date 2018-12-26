@@ -40,11 +40,14 @@ class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(stat
     val request = ctx.diameterRequest
     
     val proxyRequest = request.copy
+    // Remove routing info
     proxyRequest.removeAll("Destination-Host")
     proxyRequest.removeAll("Destination-Realm")
+    proxyRequest.removeAll("Origin-Host")
+    proxyRequest.removeAll("Origin-Realm")
     proxyRequest << ("Destination-Realm" -> "yaassuperserver") <<
-      ("Origin-Host" -> DiameterConfigManager.getDiameterConfig.diameterHost) <<
-      ("Origin-Realm" -> DiameterConfigManager.getDiameterConfig.diameterRealm)
+      ("Origin-Host" -> DiameterConfigManager.diameterConfig.diameterHost) <<
+      ("Origin-Realm" -> DiameterConfigManager.diameterConfig.diameterRealm)
     
     sendDiameterRequest(proxyRequest, 1000).onComplete{
       case Success(proxyAnswer) =>

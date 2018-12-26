@@ -211,7 +211,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
         log.info(s"Peer has active policy. Trying to connect to $config")
         Tcp().outgoingConnection(
             new InetSocketAddress(conf.IPAddress, conf.port), 
-            Some(new InetSocketAddress(DiameterConfigManager.getDiameterConfig.bindAddress, 0)), 
+            Some(new InetSocketAddress(DiameterConfigManager.diameterConfig.bindAddress, 0)), 
             connectTimeout = 5 seconds)
             .joinMat(handler)(Keep.both).run match {
           case (cf, (ks, q)) => 
@@ -351,7 +351,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     val answer = DiameterMessage.answer(message)
     
     // Check host name
-    DiameterConfigManager.getDiameterPeerConfig.get(message >> "Origin-Host") match {
+    DiameterConfigManager.diameterPeerConfig.get(message >> "Origin-Host") match {
       case diameterConfig @ Some(DiameterPeerConfig(diameterHost, ipAddr, _, _, _)) => 
         if(ipAddr == remoteAddr.getOrElse("<none>")) sendSuccess (diameterConfig.get)
         else {
@@ -378,7 +378,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
       peerHostName = diameterPeerConfig.diameterHost
       
       // Add basic parameters
-      val diameterConfig = DiameterConfigManager.getDiameterConfig
+      val diameterConfig = DiameterConfigManager.diameterConfig
       val bindAddress = diameterConfig.bindAddress
           
       if(diameterConfig.bindAddress != "0.0.0.0") answer << ("Host-IP-Address" -> diameterConfig.bindAddress)
@@ -386,7 +386,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
       answer << ("Firmware-Revision" -> diameterConfig.firmwareRevision)
       
       // Add supported applications
-      for (route <- DiameterConfigManager.getDiameterRouteConfig){
+      for (route <- DiameterConfigManager.diameterRouteConfig){
          if(route.applicationId != "*"){
            DiameterDictionary.appMapByName.get(route.applicationId).map(dictItem => {
              if(dictItem.appType == Some("auth")) answer << ("Auth-Application-Id", dictItem.code)

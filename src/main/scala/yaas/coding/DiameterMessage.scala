@@ -15,10 +15,13 @@ import org.json4s.jackson.JsonMethods._
 
 import scala.collection.immutable.Queue
 
+/**
+ * Diameter coding error.
+ */
 class DiameterCodingException(val msg: String) extends java.lang.Exception(msg: String)
 
 /**
- * DiameterAVP Builder
+ * DiameterAVP Builder via apply.
  */
 object DiameterAVP {
   
@@ -26,8 +29,11 @@ object DiameterAVP {
   
   val ipv6PrefixRegex = """(.+)/([0-9]+)""".r
   
-  // Builds a Diameter AVP from the received bytes
+  /**
+   * Builds a Diameter AVP from the received bytes.
+   */
   def apply(bytes: ByteString) : DiameterAVP[Any] = {
+    
     // AVP Header is
     //    code: 4 byte
     //    flags: 1 byte (vendor, mandatory, proxy)
@@ -113,10 +119,16 @@ object DiameterAVP {
   }
 }
 
+/**
+ * Superclass for all DiameterAVP types.
+ */
 abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, var isMandatory: Boolean, val vendorId: Long, val value: A){
   
   implicit val byteOrder = DiameterAVP.byteOrder 
   
+  /**
+   * Serializes the AVP.
+   */
   def getBytes: ByteString = {
     
     val builder = new ByteStringBuilder()
@@ -149,7 +161,11 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
     builder.result()
   }
   
-  // Serializes the payload only
+  /**
+   * Serializes the payload only.
+   * 
+   * To be overriden in concrete classes.
+   */
   def getPayloadBytes: ByteString
   
   override def equals(other: Any): Boolean = {
@@ -160,17 +176,28 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
     }
   }
   
-  // To be overriden in concrete classes
+  /**
+   * To be overriden in concrete classes.
+   */
   def stringValue : String
+  
+  /**
+   * Returns a copy of this AVP.
+   * 
+   * To be overriden in concrete classes.
+   */
   def copy : DiameterAVP[Any]
   
-  // Want the stringified AVP be the value, so toString reports only the value
-  // and there is an implicit conversion that does the same
+  /**
+   * Returns the value of the AVP as a string.
+   * 
+   * To get names and values use <code>pretty</code>
+   */
   override def toString = stringValue
   
-  /*
-   * Print the AVP in [name -> value] format
-   * With special treatment for Grouped and Enumerated attributes
+  /**
+   * Stringifies the AVP in [name -> value] format.
+   * 
    */
   def pretty(indent: Int = 0) : String = {
     val dictItem = DiameterDictionary.avpMapByCode.get((vendorId, code)).getOrElse(BasicAVPDictItem(0, 0, "Unknown", DiameterTypes.NONE))
@@ -181,7 +208,7 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
       case thisAVP : EnumeratedAVP =>
         dictItem match {
           case di : EnumeratedAVPDictItem =>
-            di.values.map(_.swap).getOrElse(thisAVP.value, thisAVP.value.toString)
+            di.codes.getOrElse(thisAVP.value, thisAVP.value.toString)
           case _ => "ERROR"
         }
       case _ => stringValue
@@ -192,17 +219,28 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
     s"$tab[$attributeName = $attributeValue]"
   } 
   
+  /**
+   * Name of the AVP as appears in the dictionary.
+   */
   def getName = {
     DiameterDictionary.avpMapByCode.get((vendorId, code)).map(_.name).getOrElse("UNKNOWN")
   }
   
+  /**
+   * Type of the AVP (Integer).
+   */
   def getType = {
     DiameterDictionary.avpMapByCode.get((vendorId, code)).map(_.diameterType).getOrElse(DiameterTypes.NONE)
   }
 }
 
+/**
+ * Unknown AVP is treated as a list of bytes.
+ */
 class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-    // Secondary constructor from bytes
+  /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.toList)
   }
@@ -211,6 +249,9 @@ class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
     ByteString.fromArray(value.toArray)
   }
   
+  /**
+   * As 0x[2-char-Hex-encoded-bytes]
+   */
   override def stringValue = {
     OctetOps.octetsToString(value)
   }
@@ -218,8 +259,13 @@ class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def copy = new UnknownAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
-class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP[List[Byte]](code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+/**
+ * Value is a <code>List[Byte]</code>
+ */
+class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[Byte]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+  /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.toList)
   }
@@ -231,6 +277,9 @@ class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
     ByteString.fromArray(value.toArray)
   }
   
+   /**
+   * As 0x[2-char-Hex-encoded-bytes]
+   */
   override def stringValue = {
     OctetOps.octetsToString(value)
   }
@@ -238,8 +287,13 @@ class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   override def copy = new OctetStringAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
+/**
+ * Value is a short Integer
+ */
 class Integer32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Int) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+  /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getInt(byteOrder))
   }
@@ -255,8 +309,13 @@ class Integer32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, 
   override def copy = new Integer32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
+/**
+ * Value is a long Integer
+ */
 class Integer64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+   /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getLong(byteOrder))
   }
@@ -272,8 +331,15 @@ class Integer64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, 
   override def copy = new Integer64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
+/**
+ * Value is an unsigned integer.
+ * 
+ * Since Scala does not have an unsigned integer type, the value is represented as a Long
+ */
 class Unsigned32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+   /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder) {
     this(code, isVendorSpecific, isMandatory, vendorId, UByteString.getUnsigned32(bytes))
   }
@@ -289,9 +355,16 @@ class Unsigned32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def copy = new Unsigned32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
-// This class does not correctly represents integers bigger than 2exp63
+/**
+ * Value is an unsigned long.
+ * 
+ * Since Scala does not have an unsigned integer type, the value is represented as a Long. 
+ * This class does not correctly represents integers bigger than 2exp63
+ */
 class Unsigned64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Long) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+   /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder) {
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getLong)
   }
@@ -307,8 +380,13 @@ class Unsigned64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def copy = new Unsigned64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
+/**
+ * Value is a float.
+ */
 class Float32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Float) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+   /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getFloat)
   }
@@ -324,8 +402,13 @@ class Float32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def copy = new Float32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
+/**
+ * Value is a double
+ */
 class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: Double) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
-  // Secondary constructor from bytes
+   /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString)(implicit byteOrder: ByteOrder){
     this(code, isVendorSpecific, isMandatory, vendorId, bytes.iterator.getDouble)
   }
@@ -341,7 +424,15 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def copy = new Float64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
-class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: scala.collection.mutable.Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+/**
+ * Value is a Queue of DiameterAVP.
+ * 
+ * A queue is used to be able to append
+ */
+class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, var value: scala.collection.mutable.Queue[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+   /**
+   * Secondary constructor from bytes
+   */
   def this(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, bytes: ByteString){
     this(code, isVendorSpecific, isMandatory, vendorId, {
         var avps = scala.collection.mutable.Queue[DiameterAVP[Any]]()
@@ -665,7 +756,7 @@ object DiameterMessage {
    * identifiers and flags to default values and empty attribute list
    */
   def request(applicationName : String, commandName: String)(implicit idGen: IDGenerator) = {
-    val diameterConfig = DiameterConfigManager.getDiameterConfig
+    val diameterConfig = DiameterConfigManager.diameterConfig
     val applicationDictItem = DiameterDictionary.appMapByName(applicationName)
     
     val requestMessage = new DiameterMessage(applicationDictItem.code, applicationDictItem.commandMapByName(commandName).code, 
@@ -681,7 +772,7 @@ object DiameterMessage {
    * Builds a Diameter Answer to the specified request with empty attribute list
    */
   def answer(request: DiameterMessage) = {
-    val diameterConfig = DiameterConfigManager.getDiameterConfig
+    val diameterConfig = DiameterConfigManager.diameterConfig
     val answerMessage = new DiameterMessage(request.applicationId, request.commandCode, request.hopByHopId, request.endToEndId, Queue(), false, true, false, false)
     answerMessage << ("Origin-Host" -> diameterConfig.diameterHost)
     answerMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
