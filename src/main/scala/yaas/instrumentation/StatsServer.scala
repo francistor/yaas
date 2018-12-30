@@ -65,6 +65,15 @@ object StatsServer {
   }
   
   case class DiameterRequestSentKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerStatsKey(peer, oh, or, dh, dr, ap, cm)
+  
+  case class DiameterAnswerDiscardedKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String) extends DiameterPeerStatsKey(peer, oh, or, dh, dr, ap, cm){
+    override def getValue(key : String) = {
+      key match {
+        case "rc" => rc
+        case k: String => super.getValue(k)
+      }
+    }
+  }
 
   // Router stats
   case class DiameterRequestDroppedKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterStatsKey(oh, or, dh, dr, ap, cm)
@@ -233,9 +242,12 @@ class StatsServer extends Actor with ActorLogging {
   private val diameterRequestTimeoutStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   private val diameterAnswerSentStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   private val diameterRequestSentStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
+  private val diameterAnswerDiscardedStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   
+  // Router stats
   private val diameterRequestDroppedStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   
+  // Handler stats
   private val diameterHandlerServerStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   private val diameterHandlerClientStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
   private val diameterHandlerClientTimeoutStats = scala.collection.mutable.Map[DiameterStatsKey, Long]().withDefaultValue(0)
@@ -294,6 +306,7 @@ class StatsServer extends Actor with ActorLogging {
     case s: DiameterRequestTimeoutKey => diameterRequestTimeoutStats(s) = diameterRequestTimeoutStats(s) + 1
     case s: DiameterAnswerSentKey => diameterAnswerSentStats(s) = diameterAnswerSentStats(s) + 1
     case s: DiameterRequestSentKey => diameterRequestSentStats(s) = diameterRequestSentStats(s) + 1
+    case s: DiameterAnswerDiscardedKey => diameterAnswerDiscardedStats(s) = diameterAnswerDiscardedStats(s) + 1
     
     case s: DiameterRequestDroppedKey => diameterRequestDroppedStats(s) = diameterRequestDroppedStats(s) + 1
 
@@ -326,6 +339,7 @@ class StatsServer extends Actor with ActorLogging {
           case "diameterRequestTimeout" => sender ! getDiameterStats(diameterRequestTimeoutStats, paramList)
           case "diameterAnswerSent" => sender ! getDiameterStats(diameterAnswerSentStats, paramList)
           case "diameterRequestSent" => sender ! getDiameterStats(diameterRequestSentStats, paramList)
+          case "diameterAnswerDiscarded" => sender ! getDiameterStats(diameterAnswerDiscardedStats, paramList)
           
           case "diameterRequestDropped" => sender ! getDiameterStats(diameterRequestDroppedStats, paramList)
           

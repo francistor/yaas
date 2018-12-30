@@ -41,10 +41,6 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   
   implicit val executionContext = context.system.dispatcher
   
-  val e2EIdGenerator = new yaas.util.IDGenerator
-  
-  
-  
   ////////////////////////////////
   // Diameter 
   ////////////////////////////////
@@ -143,7 +139,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     val sentTimestamp = System.currentTimeMillis
     
     // Publish in request Map
-    val radiusId = e2EIdGenerator.nextRadiusId
+    val radiusId = yaas.util.IDGenerator.nextRadiusId
     radiusRequestMapIn(radiusId, timeoutMillis, promise)
     
     // Send request using router

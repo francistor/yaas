@@ -56,6 +56,11 @@ object StatOps {
         diameterMessage.applicationId.toString, diameterMessage.commandCode.toString)
   }
   
+  def pushDiameterDiscardedAnswer(statsActor: ActorRef, peerName: String, diameterMessage: DiameterMessage) = {
+    statsActor !  DiameterAnswerDiscardedKey(peerName, diameterMessage >> "Origin-Host", diameterMessage >> "Origin-Realm", diameterMessage >> "Destination-Host", diameterMessage >> "Destination-Realm", 
+        diameterMessage.applicationId.toString, diameterMessage.commandCode.toString, diameterMessage >> "Result-Code")
+  }
+  
   // Router
   def pushDiameterReceivedDropped(statsActor: ActorRef, diameterMessage: DiameterMessage) = {
     statsActor ! DiameterRequestDroppedKey(diameterMessage >> "Origin-Host", diameterMessage >> "Origin-Realm", diameterMessage >> "Destination-Host", diameterMessage >> "Destination-Realm", 

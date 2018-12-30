@@ -6,7 +6,6 @@
 			"9": "Cisco",
             "10415": "3GPP"
 	},
-
 	"avp":
 	{
 		"0":
@@ -904,13 +903,44 @@
                 "type": "Unsigned32"
             }
 		],
-
         "10415":
         [
-        	 {
+        	{
+        		"code": 505,
+        		"name": "AF-Charging-Identifier",
+        		"type": "OctetString"
+        	},
+        	{
                 "code": 507,
                 "name": "Flow-Description",
                 "type": "IPFilterRule"
+            },
+            {
+                "code": 509,
+                "name": "Flow-Number",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 510,
+                "name": "Flows",
+                "type": "Grouped",
+                "group":{
+                	"3GPP-Media-Component-Number": {"minOccurs": 1, "maxOccurs": 1},
+                	"3GPP-Flow-Number": {},
+                	"Final-Unit-Action": {"maxOccurs": 1}
+                }
+            },
+            {
+            	"code": 511,
+                "name": "Flow-Status",
+                "type": "Enumerated",
+                "enumValues": {
+					"ENABLED-UPLINK": 0,
+					"ENABLED-DOWNLINK": 1,
+					"ENABLED": 2,
+					"DISABLED": 3,
+					"REMOVED": 4
+                }
             },
             {
                 "code": 515,
@@ -923,12 +953,71 @@
                 "type": "Unsigned32"
             },
             {
+                "code": 518,
+                "name": "Media-Component-Number",
+                "type": "Unsigned32"
+            },
+            {
+                "code": 529,
+                "name": "AF-Signalling-Protocol",
+                "type": "Enumerated",
+                "enumValues":{
+                	"NO_INFORMATION": 0,
+        			"SIP": 1
+        		}
+            },
+            {
+                "code": 531,
+                "name": "Sponsor-Identity",
+                "type": "UTF8String"
+            },
+            {
+                "code": 532,
+                "name": "Application-Service-Provider-Identity",
+                "type": "UTF8String"
+            },
+            {
+                "code": 536,
+                "name": "Required-Access-Info",
+                "type": "Enumerated",
+                "enumValues":{
+                	"USER_LOCATION": 0,
+                	"MS_TIME_ZONE": 1
+                }
+            },
+            {
                 "code": 1002,
                 "name": "Charging-Rule-Remove",
                 "type": "Grouped",
                 "group": {
                     "Charging-Rule-Name": {"minOccurs": 1, "maxOccurs": 1},
             		"Charging-Rule-Base-Name": {"minOccurs": 1, "maxOccurs": 1}
+                }
+            },
+            {
+                "code": 1003,
+                "name": "Charging-Rule-Definition",
+                "type": "Grouped",
+                "group": {
+	                "3GPP-Charging-Rule-Name":{"minOccurs": 1, "maxOccurs": 1},
+					"Service-Identifier":{"maxOccurs": 1},
+	                "Rating-Group":{"maxOccurs": 1},
+	                "3GPP-Flow-Information":{},
+	                "3GPP-Flow-Status":{"maxOccurs": 1},
+	                "3GPP-QoS-Information":{"maxOccurs": 1},
+	                "3GPP-PS-to-CS-Session-Continuity":{"maxOccurs": 1},
+	                "3GPP-Reporting-Level":{"maxOccurs": 1},
+	                "3GPP-Online":{"maxOccurs": 1},
+	                "3GPP-Offline":{"maxOccurs": 1},
+	                "3GPP-Metering-Method":{"maxOccurs": 1},
+	                "3GPP-Precedence":{"maxOccurs": 1},
+	                "3GPP-AF-Charging-Identifier":{"maxOccurs": 1},
+	                "3GPP-Flows":{},
+	                "3GPP-Monitoring-Key":{"maxOccurs": 1},
+	                "3GPP-AF-Signalling-Protocol":{"maxOccurs": 1},
+	                "3GPP-Sponsor-Identity":{"maxOccurs": 1},
+	                "3GPP-Application-Service-Provider-Identity":{"maxOccurs": 1},
+	                "3GPP-Required-Access-Info":{}
                 }
             },
             {
@@ -1080,6 +1169,17 @@
                 }
             },
             {
+            	"code": 1019,
+                "name": "PCC-Rule-Status",
+                "type": "Enumerated",
+                "enumValues":
+                {
+                    "ACTIVE": 0,
+                    "INACTIVE": 1,
+                    "PCC-Rule-Status": 2
+                }
+            },
+            {
                 "code": 1020,
                 "name": "Bearer-Identifier",
                 "type": "OctetString"
@@ -1128,26 +1228,31 @@
                 }
             },
             {
-                "code": 1027,
-                "name": "3G-RAT-Type",
+                "code": 1030,
+                "name": "Rule-Failure-Code",
                 "type": "Enumerated",
                 "enumValues": {
-                    "WLAN": 0,
-                    "VIRTUAL": 1,
-                    "UTRAN": 1000,
-                    "GERAN": 1001,
-                    "GAN": 1002,
-                    "HSPA_EVOLUTION": 1003,
-                    "EUTRAN": 1004,
-                    "CDMA2000_1X": 2000,
-                    "HRPD": 2001,
-                    "UMB": 2002,
-                    "EHRPD": 2003
+					"UNKNOWN_RULE_NAME": 1,
+					"RATING_GROUP_ERROR": 2,
+					"SERVICE_IDENTIFIER_ERROR": 3,
+			        "GW/PCEF_MALFUNCTION": 4,
+			        "RESOURCES_LIMITATION": 5,
+			        "MAX_NR_BEARERS_REACHED": 6,
+			        "UNKNOWN_BEARER_ID": 7,
+			        "MISSING_BEARER_ID": 8,
+			        "MISSING_FLOW_DESCRIPTION": 9,
+			        "RESOURCE_ALLOCATION_FAILURE": 10,
+			        "UNSUCCESSFUL_QOS_VALIDATION": 11,
+			        "INCORRECT_FLOW_INFORMATION": 12,
+			        "PS_TO_CS_HANDOVER": 13,
+			        "TDF_APPLICATION_IDENTIFIER_ERROR": 14,
+			        "NO_BEARER_BOUND": 15,
+			        "FILTER_RESTRICTIONS": 16
                 }
             },
             {
                 "code": 1032,
-                "name": "RAT-Type",
+                "name": "3G-RAT-Type",
                 "type": "Enumerated",
                 "enumValues": {
                     "UTRAN": 1,
@@ -1186,6 +1291,21 @@
                 "type": "Unsigned32"
             },
             {
+                "code": 1042,
+                "name": "Revalidation-Time",
+                "type": "Time"
+            },
+            {
+                "code": 1043,
+                "name": "Rule-Activation-Time",
+                "type": "Time"
+            },
+            {
+                "code": 1044,
+                "name": "Rule-Deactivation-Time",
+                "type": "Time"
+            },
+            {
                 "code": 1046,
                 "name": "Priority-Level",
                 "type": "Unsigned32"
@@ -1209,6 +1329,64 @@
                     "enabled": 0,
                     "disabled": 1
                 }
+            },
+            {
+            	"code": 1049,
+                "name": "Default-EPS-Bearer-QoS",
+                "type": "Grouped",
+                "group":
+                {
+                    "3GPP-QoS-Class-Identifier":{"maxOccurs": 1},
+                    "3GPP-Allocation-Retention-Priority":{"maxOccurs": 1}
+                }
+            },
+            {
+            	"code": 1050,
+            	"name": "AN-GW-Address",
+            	"type": "Address"
+            },
+            {
+            	"code": 1051,
+            	"name": "Charging-Rule-Install",
+            	"type": "Grouped",
+            	"group":
+            	{
+                	"3GPP-Charging-Rule-Definition":{},
+                	"3GPP-Charging-Rule-Name":{},
+                	"3GPP-Charging-Rule-Base-Name":{},
+                	"3GPP-Bearer-Identifier":{"maxOccurs": 1},
+                	"3GPP-Rule-Activation-Time":{"maxOccurs": 1},
+                	"3GPP-Rule-Deactivation-Time":{"maxOccurs": 1},
+                	"3GPP-Resource-Allocation-Notification":{"maxOccurs": 1},
+                	"3GPP-Charging-Correlation-Indicator":{"maxOccurs": 1}
+            	}
+            },
+ 			{
+            	"code": 1053,
+            	"name": "QoS-Rule-Definition",
+            	"type": "Grouped",
+            	"group": {
+	            	"3GPP-QoS-Rule-Name": {"minOccurs": 1, "maxOccurs": 1},
+	            	"3GPP-Flow-Information": {"maxOccurs": 1},
+	                "3GPP-Precedence": {"maxOccurs": 1}
+            	}
+            },
+            {
+            	"code": 1054,
+            	"name": "QoS-Rule-Name",
+            	"type": "OctetString"
+            },
+            {
+            	"code": 1055,
+            	"name": "QoS-Rule-Report",
+            	"type": "Grouped",
+            	"group":
+            	{
+            		"3GPP-QoS-Rule-Name":{},
+                    "3GPP-QoS-Rule-Base-Name":{},
+                    "3GPP-PCC-Rule-Status":{"maxOccurs": 1},
+                    "3GPP-Rule-Failure-Code":{"maxOccurs": 1}
+            	}
             },
             {
             	"code": 1056,
@@ -1244,6 +1422,41 @@
             	"type": "OctetString"
             },
             {
+            	"code": 1063,
+            	"name": "Resource-Allocation-Notification",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"ENABLE_NOTIFICATION": 0
+            	}
+            },
+            {
+            	"code": 1066,
+            	"name": "Monitoring-Key",
+            	"type": "OctetString"
+            },
+            {
+            	"code": 1073,
+            	"name": "Charging-Correlation-Indicator",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"CHARGING_IDENTIFIER_REQUIRED": 1
+            	}
+            },
+            {
+            	"code": 1074,
+            	"name": "QoS-Rule-Base-Name",
+            	"type": "UTF8String"
+            },
+            {
+                "code": 1075,
+            	"name": "Routing-Rule-Remove",
+            	"type": "Grouped",
+            	"group": {
+            	    "3GPP-Routing-Rule-Identifier":{},
+                    "AVP":{}
+            	}
+            },
+            {
             	"code": 1080,
             	"name": "Flow-Direction",
             	"type": "Enumerated",
@@ -1252,6 +1465,14 @@
         			"DOWNLINK": 1,
         			"UPLINK": 2,
         			"BIDIRECTIONAL": 3
+            	}
+            },
+            {
+            	"code": 1099,
+            	"name": "PS-to-CS-Session-Continuity",
+            	"type": "Enumerated",
+            	"enumValues": {
+            		"VIDEO_PS2CS_CONT_CANDIDATE": 0
             	}
             }
         ],
@@ -1766,7 +1987,14 @@
                         "CC-Request-Number":{"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
                         "Origin-State-Id":{},
                         "Subscription-Id":{},
-                        "3GPP-Bearer-Identifier":{},
+                        "3GPP-Bearer-Identifier":{"maxOccurs": 1},
+                        "3GPP-IP-CAN-Type":{"maxOccurs": 1},
+                        "3GPP-3G-RAT-Type":{"maxOccurs": 1},
+                        "3GPP-QoS-Information":{"maxOccurs": 1},
+                        "3GPP-Default-EPS-Bearer-QoS":{"maxOccurs": 1},
+                        "3GPP-AN-GW-Address":{"maxOccurs": 2},
+                        "3GPP-QoS-Rule-Report":{},
+                        "3GPP-Event-Trigger":{},
                         "Framed-IP-Address":{},
                         "Framed-IPv6-Prefix":{},
                         "AVP":{}
@@ -1780,6 +2008,14 @@
                         "Auth-Application-Id":{"minOccurs": 1, "maxOccurs": 1},
                         "CC-Request-Type":{"minOccurs": 1, "maxOccurs": 1},
                         "CC-Request-Number":{"minOccurs": 1, "maxOccurs": 1},
+                        "3GPP-Charging-Rule-Remove":{},
+                        "3GPP-Charging-Rule-Install":{},
+                        "3GPP-QoS-Information":{},
+                        "3GPP-Online":{"maxOccurs": 1},
+                        "3GPP-Offline":{"maxOccurs": 1},
+                        "3GPP-Revalidation-Time":{"maxOccurs": 1},
+                        "Proxy-Info":{},
+                    	"Route-Record":{},
                         "AVP":{}
                     }
                 }

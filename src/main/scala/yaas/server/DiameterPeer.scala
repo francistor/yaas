@@ -17,20 +17,31 @@ import akka.util.ByteString
 import scala.concurrent.duration._
 import scala.util.{Success, Failure}
 
+import com.typesafe.config.ConfigFactory
+
 import java.net.InetSocketAddress
 
 // Best practise
+/**
+ * Constructor and helpers for DiameterPeer.
+ */
 object DiameterPeer {
   def props(config: Option[DiameterPeerConfig], statsServer: ActorRef) = Props(new DiameterPeer(config, statsServer))
   
   case object Clean
   case object CERTimeout
   case object DWRTimeout
-  case object DWR
-  case object CER
+  case object SendDWR
+  case object SendCER
   
-  case class BaseDiameterMessageReceived(message: DiameterMessage)
-  case class BaseDiameterMessageToSend(message: DiameterMessage)
+  case class BaseDiameterMessageReceive(message: DiameterMessage)
+  case class BaseDiameterMessageSend(message: DiameterMessage)
+  
+  val config = ConfigFactory.load().getConfig("aaa.diameter")
+  val messageQueueSize = config.getInt("peerMessageQueueSize")
+  val cleanIntervalMillis = config.getInt("cleanIntervalMillis")
+  val cerTimeoutMillis = config.getInt("cerTimeoutMillis")
+  val responseTimeoutMillis = config.getInt("responseTimeoutMillis")
 }
 
 /* 
@@ -48,20 +59,19 @@ object DiameterPeer {
  *  In case of any error, the Actor sends itself a PoisonPill and terminates.
  */
 
+/**
+ * Actor executing a DiameterPeer.
+ * 
+ * If created by the server ("active" policy), <code>config</config> has a value. Otherwise is set to None.
+ */
 class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: ActorRef) extends Actor with ActorLogging {
-  
-  val messageQueueSize = 1000
-  val cleanIntervalMillis = 250
-  val cerTimeoutMillis = 10000
   
   import DiameterPeer._
   import context.dispatcher
-  
-  implicit val idGen = new yaas.util.IDGenerator
+
   implicit val materializer = ActorMaterializer()
   implicit val actorSytem = context.system
   
-  // var peerConfig: Option[DiameterPeerConfig] = config
   var remoteAddr: Option[String] = None
   var peerHostName = config.map(_.diameterHost).getOrElse("<HostName-Not-Estabished>")
   var killSwitch: Option[KillSwitch] = None
@@ -71,7 +81,10 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   var dwrTimer: Option[Cancellable] = None
   var watchdogIntervalMillis = config.map(_.watchdogIntervalMillis).getOrElse(30000)
   
+  // The TCP handler is made of a Source and a Sink
+  // The Source is a queue of packets to be sent
   val handlerSource = Source.queue[ByteString](messageQueueSize, akka.stream.OverflowStrategy.dropTail)
+  // The Sink treats the received packets
   val handlerSink = Flow[ByteString]
     // Framing.lengthField does not seem to work as expected if the computeFrameSize is not used
     // may be that is because the frame length excludes the offset
@@ -84,7 +97,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
         // If Base, handle in this PeerActor
         if(decodedMessage.applicationId == 0){
           // Stats are recorded in the receive function
-          self ! BaseDiameterMessageReceived(decodedMessage)
+          self ! BaseDiameterMessageReceive(decodedMessage)
         }
         else {
           // If request, route message
@@ -101,6 +114,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
                 StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, decodedMessage, requestTimestamp)
                 log.debug(s">> Received diameter answer $decodedMessage")
               case None =>
+                StatOps.pushDiameterDiscardedAnswer(statsServer, peerHostName, decodedMessage)
                 log.warning(s"Unsolicited or staled response $decodedMessage")
             }
           }
@@ -118,7 +132,8 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
         context.stop(self)
       })
     )
-    
+  
+  // Handler to be associated to the TCP connection
   val handler = Flow.fromSinkAndSourceMat(handlerSink, handlerSource)(Keep.both)
   
   /**
@@ -142,7 +157,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
    */
   def receiveConnected(ks: KillSwitch, q: SourceQueueWithComplete[ByteString], remote: String) : Receive = {
     
-    case BaseDiameterMessageReceived(message) =>
+    case BaseDiameterMessageReceive(message) =>
       if(!message.isRequest) {
         requestMapOut(message.hopByHopId) match {
           case Some(RequestEntry(hopByHopId, requestTimestamp, sendingActor, key)) =>
@@ -150,6 +165,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
             log.debug(s">> Received diameter answer $message")
           case None =>
             // Unsolicited or stalled response. 
+            StatOps.pushDiameterDiscardedAnswer(statsServer, peerHostName, message)
         }
       } else{
         StatOps.pushDiameterRequestReceived(statsServer, peerHostName, message)
@@ -158,7 +174,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
           
       handleDiameterBase(message)
       
-    case BaseDiameterMessageToSend(message) =>
+    case BaseDiameterMessageSend(message) =>
       q.offer(message.getBytes)
       if(message.isRequest){
         requestMapIn(message, self)
@@ -196,11 +212,11 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
       context.parent ! Router.PeerDown
       context.stop(self)
       
-    case DWR =>
+    case SendDWR =>
       sendDWR
-      dwrTimer = Some(context.system.scheduler.scheduleOnce(watchdogIntervalMillis milliseconds, self, DWR))
+      dwrTimer = Some(context.system.scheduler.scheduleOnce(watchdogIntervalMillis milliseconds, self, SendDWR))
       
-    case CER =>
+    case SendCER =>
       sendCER
   }
   
@@ -224,7 +240,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
                 // TODO: Warning, this is executed out of the actor thread
                 killSwitch = Some(ks)
                 remoteAddr = Some(connection.remoteAddress.getHostString)
-                self ! CER
+                self ! SendCER
                 // peerHostMap update will take place when Capabilities-Exchange process is finished
                 
               case Failure(e) =>
@@ -237,7 +253,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     }
   
     // Send first cleaning
-    cleanTimer = Some(context.system.scheduler.scheduleOnce(250 milliseconds, self, Clean))
+    cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanIntervalMillis milliseconds, self, Clean))
   }
   
   override def postStop = {
@@ -260,17 +276,17 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   val requestMap = scala.collection.mutable.Map[Int, RequestEntry]()
   
   def requestMapIn(diameterMessage: DiameterMessage, sendingActor: ActorRef) = {
-    log.debug("Request Map in {}", diameterMessage.hopByHopId)
+    log.debug("Request Map -> in {}", diameterMessage.hopByHopId)
     requestMap(diameterMessage.hopByHopId) = RequestEntry(diameterMessage.hopByHopId, System.currentTimeMillis(), sendingActor, diameterMessage.key)
   }
   
   def requestMapOut(hopByHopId : Int) : Option[RequestEntry] = {
-    log.debug("Request Map out {}", hopByHopId)
+    log.debug("Request Map <- out {}", hopByHopId)
     requestMap.remove(hopByHopId)
   }
   
   def requestMapClean = {
-    val targetTimestamp = System.currentTimeMillis() - 10000 // Fixed 10 seconds timeout to delete old messages. TODO: This should be a configuration parameter
+    val targetTimestamp = System.currentTimeMillis() - responseTimeoutMillis
     requestMap.retain((k, v) => v.requestTimestamp > targetTimestamp)
   }
   
@@ -287,6 +303,8 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
       case "Device-Watchdog" if(!diameterMessage.isRequest) => handleDWA(diameterMessage)
       case "Disconnect-Peer" if(diameterMessage.isRequest) => handleDPR(diameterMessage)
       case "Disconnect-Peer" if(!diameterMessage.isRequest) => handleDPA(diameterMessage)
+      case _ =>
+        log.error("Unknown message ${diameterMessage.command}")
     }
   }
   
@@ -305,21 +323,22 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     message << ("Firmware-Revision" -> 1)
     message << ("Origin-State-Id" -> 1)
     
-    // Add supported applications
-    for (route <- DiameterConfigManager.getDiameterRouteConfig){
-      if(route.applicationId != "*"){
-        DiameterDictionary.appMapByName.get(route.applicationId).map(dictItem => {
+    // Supported applications into a set to remove duplicates
+    val supportedAppDictItems = for {
+      route <- DiameterConfigManager.getDiameterRouteConfig.toSet if(route.applicationId != "*")
+    } yield DiameterDictionary.appMapByName.get(route.applicationId)
+    
+    // Add to message
+    for (Some(dictItem) <- supportedAppDictItems) {
         if(dictItem.appType == Some("auth")) message << ("Auth-Application-Id", dictItem.code)
         if(dictItem.appType == Some("acct")) message << ("Acct-Application-Id", dictItem.code)
-        })
-      }
     }
     
     // Add supported vendors
     DiameterDictionary.vendorNames.foreach{ case (code, vendorName) => message << ("Supported-Vendor-Id" -> code)}
     
     // Send the message
-    self ! BaseDiameterMessageToSend(message)
+    self ! BaseDiameterMessageSend(message)
     
     // Setup timer (10 seconds)
     cerTimeoutTimer = Some(context.system.scheduler.scheduleOnce(cerTimeoutMillis milliseconds, self, CERTimeout))
@@ -338,7 +357,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     context.parent ! config.get
     
     // Start DWR process
-    self ! DWR
+    self ! SendDWR
   }
   
   
@@ -366,7 +385,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     def sendFailure = {
       answer << ("Result-Code" -> DiameterMessage.DIAMETER_UNKNOWN_PEER)
       
-      self ! BaseDiameterMessageToSend(answer)
+      self ! BaseDiameterMessageSend(answer)
       log.warning(s"Sending CEA with failure because Peer is unknonw. Received message $message")
       
       self ! PoisonPill
@@ -398,14 +417,14 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
       answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
       
       // Answer with CEA
-      self ! BaseDiameterMessageToSend(answer)
+      self ! BaseDiameterMessageSend(answer)
       
       // Register actor in router
       context.parent ! diameterPeerConfig
       
       // Start DWR process
       watchdogIntervalMillis = diameterPeerConfig.watchdogIntervalMillis
-      self ! DWR
+      self ! SendDWR
       
       log.info(s"CEA --> $peerHostName")
       log.info("Sent CEA. New Peer Actor is up for {}", peerHostName)
@@ -424,7 +443,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
     
-    self ! BaseDiameterMessageToSend(answer)
+    self ! BaseDiameterMessageSend(answer)
     
     context.parent ! Router.PeerDown
     
@@ -445,7 +464,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   def sendDWR = {
     val request = DiameterMessage.request("Base", "Device-Watchdog")
     
-    self ! BaseDiameterMessageToSend(request)
+    self ! BaseDiameterMessageSend(request)
     
     // Setup timer
     dwrTimeoutTimer = Some(context.system.scheduler.scheduleOnce(watchdogIntervalMillis / 2 milliseconds, self, DWRTimeout))
@@ -466,7 +485,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
     
-    self ! BaseDiameterMessageToSend(answer)
+    self ! BaseDiameterMessageSend(answer)
     
     log.info(s"DWA --> $peerHostName")
   }

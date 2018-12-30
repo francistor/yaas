@@ -118,26 +118,28 @@ object DiameterDictionary {
   
   def AVPDictItemFromJAVP(jAVP: JAVP, vendorId: String) : DiameterAVPDictItem = {
     val vendor = vendorId.toLong
+    val code = jAVP.code
+    val name = (if(vendorId == "0") "" else vendorNames(vendorId.toLong) + "-") + jAVP.name
     jAVP.`type` match {
-      case "None" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.OCTETSTRING)
-      case "OctetString" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.OCTETSTRING)
-      case "Integer32" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.INTEGER_32)
-      case "Integer64" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.INTEGER_64)
-      case "Unsigned32" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.UNSIGNED_32) 
-      case "Unsigned64" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.UNSIGNED_64) 
-      case "Float32" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.FLOAT_32)
-      case "Float64" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.FLOAT_64)
-      case "Address" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.ADDRESS)
-      case "Time" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.TIME)
-      case "UTF8String" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.UTF8STRING)
-      case "DiamIdent" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.DIAMETERIDENTITY)
-      case "DiameterURI" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.DIAMETERURI)
-      case "IPFilterRule" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.IPFILTERRULE)
-      case "Enumerated" => EnumeratedAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.ENUMERATED, jAVP.enumValues.get, jAVP.enumValues.get.map(_.swap))
-      case "Grouped" => GroupedAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.GROUPED, jAVP.group.get)
-      case "IPv4Address" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.RADIUS_IPV4ADDRESS)
-      case "IPv6Address" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.RADIUS_IPV6ADDRESS)
-      case "IPv6Prefix" => BasicAVPDictItem(jAVP.code, vendor, jAVP.name, DiameterTypes.RADIUS_IPV6PREFIX)
+      case "None" => BasicAVPDictItem(code, vendor, name, DiameterTypes.OCTETSTRING)
+      case "OctetString" => BasicAVPDictItem(code, vendor, name, DiameterTypes.OCTETSTRING)
+      case "Integer32" => BasicAVPDictItem(code, vendor, name, DiameterTypes.INTEGER_32)
+      case "Integer64" => BasicAVPDictItem(code, vendor, name, DiameterTypes.INTEGER_64)
+      case "Unsigned32" => BasicAVPDictItem(code, vendor, name, DiameterTypes.UNSIGNED_32) 
+      case "Unsigned64" => BasicAVPDictItem(code, vendor, name, DiameterTypes.UNSIGNED_64) 
+      case "Float32" => BasicAVPDictItem(code, vendor, name, DiameterTypes.FLOAT_32)
+      case "Float64" => BasicAVPDictItem(code, vendor, name, DiameterTypes.FLOAT_64)
+      case "Address" => BasicAVPDictItem(code, vendor, name, DiameterTypes.ADDRESS)
+      case "Time" => BasicAVPDictItem(code, vendor, name, DiameterTypes.TIME)
+      case "UTF8String" => BasicAVPDictItem(code, vendor, name, DiameterTypes.UTF8STRING)
+      case "DiamIdent" => BasicAVPDictItem(code, vendor, name, DiameterTypes.DIAMETERIDENTITY)
+      case "DiameterURI" => BasicAVPDictItem(code, vendor, name, DiameterTypes.DIAMETERURI)
+      case "IPFilterRule" => BasicAVPDictItem(code, vendor, name, DiameterTypes.IPFILTERRULE)
+      case "Enumerated" => EnumeratedAVPDictItem(code, vendor, name, DiameterTypes.ENUMERATED, jAVP.enumValues.get, jAVP.enumValues.get.map(_.swap))
+      case "Grouped" => GroupedAVPDictItem(code, vendor, name, DiameterTypes.GROUPED, jAVP.group.get)
+      case "IPv4Address" => BasicAVPDictItem(code, vendor, name, DiameterTypes.RADIUS_IPV4ADDRESS)
+      case "IPv6Address" => BasicAVPDictItem(code, vendor, name, DiameterTypes.RADIUS_IPV6ADDRESS)
+      case "IPv6Prefix" => BasicAVPDictItem(code, vendor, name, DiameterTypes.RADIUS_IPV6PREFIX)
       case _ => throw new java.text.ParseException(s"Invalid diameter type in $jAVP " + jAVP.`type`, 0)
     }
   }
@@ -146,14 +148,14 @@ object DiameterDictionary {
 
   implicit val jsonFormats = DefaultFormats
   
-  // Read JSON
-	val jAVPMap = (dictionaryJson \ "avp").extract[Map[String, List[JAVP]]]
-	val jApplicationMap = (dictionaryJson \ "applications").extract[List[JApplication]]
-  
-	// Holds a map vendorId -> vendorName
+  // Holds a map vendorId -> vendorName
 	val vendorNames = for {
 		(vendorId, vendorName) <- (dictionaryJson \ "vendor").extract[Map[String, String]]
 	} yield (vendorId.toLong -> vendorName)
+  
+  // Read JSON
+	val jAVPMap = (dictionaryJson \ "avp").extract[Map[String, List[JAVP]]]
+	val jApplicationMap = (dictionaryJson \ "applications").extract[List[JApplication]]
 	
 	// Holds a map ((vendorId, code) -> AVPDictItem)
 	val avpMapByCode = (for {
@@ -164,8 +166,7 @@ object DiameterDictionary {
 	// Holds a map (avpName -> DictionaryItem)
 	val avpMapByName = (for {
 	  ((vendorId, _), dictItem) <- avpMapByCode
-	  vendorName = if(vendorId == 0) "" else vendorNames(vendorId) + "-"
-	} yield (vendorName + dictItem.name -> dictItem)).toMap
+	} yield (dictItem.name -> dictItem)).toMap
 	
 	// Helper function
 	def RoRDictItemFromMap(avpMap: Map[String, GroupedProperties]) = {

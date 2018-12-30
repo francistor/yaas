@@ -4,7 +4,6 @@ import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
 import yaas.server._
 import yaas.coding._
-import yaas.util.IDGenerator
 import yaas.coding.DiameterConversions._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
@@ -18,8 +17,6 @@ import yaas.server.MessageHandler
 class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated NASREQHandler")
-  
-  implicit val idGen = new IDGenerator
   
   override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     
@@ -45,17 +42,19 @@ class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(stat
     proxyRequest.removeAll("Destination-Realm")
     proxyRequest.removeAll("Origin-Host")
     proxyRequest.removeAll("Origin-Realm")
-    proxyRequest << ("Destination-Realm" -> "yaassuperserver") <<
+    // Add routing info
+    proxyRequest << 
+      ("Destination-Realm" -> "yaassuperserver") <<
       ("Origin-Host" -> DiameterConfigManager.diameterConfig.diameterHost) <<
       ("Origin-Realm" -> DiameterConfigManager.diameterConfig.diameterRealm)
     
-    sendDiameterRequest(proxyRequest, 1000).onComplete{
+    sendDiameterRequest(proxyRequest, 1000).onComplete {
       case Success(proxyAnswer) =>
         log.info("Received proxy answer {}", proxyAnswer)
         
         // Build the answer
         val answer = DiameterMessage.answer(ctx.diameterRequest)
-        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << (proxyAnswer >>+ "Class") << (proxyAnswer >> "Framed-Interface-Id")
+        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << (proxyAnswer >>+ "Class")
         sendDiameterAnswer(answer)
         
       case Failure(e) =>

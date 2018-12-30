@@ -19,7 +19,6 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
   
   implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
-  implicit val idGen = new yaas.util.IDGenerator
   
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -78,7 +77,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   }
   
   "Time serialization and deserialization" in {
-    val timeAVP = new TimeAVP(9, true, false, 1001, new java.util.Date())
+    val timeAVP = new TimeAVP(9, true, false, 1001, TimeAVP.dateToDiameterSeconds(new java.util.Date))
     DiameterAVP(timeAVP.getBytes) mustEqual timeAVP
   }
   
@@ -113,13 +112,13 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   }
   
   "Grouped serialization and deserialization" in {
-    val groupedAVP = new GroupedAVP(18, true, false, 1001, scala.collection.mutable.Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
+    val groupedAVP = new GroupedAVP(18, true, false, 1001, List(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
     DiameterAVP(groupedAVP.getBytes) mustEqual groupedAVP
   }
   
   "Diameter Message serialization and deserialization" in {
-    val groupedAVP = new GroupedAVP(18, true, false, 1001, scala.collection.mutable.Queue(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
-    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, scala.collection.immutable.Queue(groupedAVP) /* value */, isRequest = true /* isRequest */)
+    val groupedAVP = new GroupedAVP(18, true, false, 1001, List(new Integer32AVP(2, true, false, 1001, 99), new UTF8StringAVP(10, true, false, 1001, "hello world! desde España")))
+    val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, List(groupedAVP) /* value */, isRequest = true /* isRequest */)
     val serializedMessage = diameterMessage.getBytes
     val unserializedDiameterMessage = DiameterMessage(serializedMessage)
     //unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)
@@ -149,7 +148,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     val userIMSI = "99999"
     
     // Add AVP to Diameter message
-    val gavp = ("Subscription-Id", Seq(("Subscription-Id-Type" -> "EndUserIMSI"), ("Subscription-Id-Data", userIMSI)))
+    val gavp: GroupedAVP = ("Subscription-Id", Seq(("Subscription-Id-Type" -> "EndUserIMSI"), ("Subscription-Id-Data", userIMSI)))
     diameterMessage << gavp
     
     // Retrieve value
@@ -166,7 +165,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     
     val jsonDiameterMessage: JValue = diameterMessage
     
-    val deserializedDiameterMessage: DiameterMessage = diameterMessage
+    val deserializedDiameterMessage: DiameterMessage = jsonDiameterMessage
     
     deserializedDiameterMessage mustEqual diameterMessage
   }

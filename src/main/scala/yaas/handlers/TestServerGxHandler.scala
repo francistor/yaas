@@ -4,7 +4,6 @@ import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
 import yaas.server._
 import yaas.coding._
-import yaas.util.IDGenerator
 import yaas.coding.DiameterConversions._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
@@ -16,8 +15,6 @@ class TestServerGxHandler(statsServer: ActorRef) extends MessageHandler(statsSer
   
   log.info("Instantiated GxHandler")
   
-  implicit val idGen = new IDGenerator
-  
   override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     
     ctx.diameterRequest.command match {
@@ -27,23 +24,11 @@ class TestServerGxHandler(statsServer: ActorRef) extends MessageHandler(statsSer
   
   def handleCCR(implicit ctx: DiameterRequestContext) = {
     
-    // Send request to proxy
-    val proxyRequest = DiameterMessage.request("Gx", "Credit-Control")
-    proxyRequest << ("Destination-Realm" -> "yaassuperserver")
-    proxyRequest << ("Session-Id" -> "1")
-    proxyRequest << ("Auth-Application-Id" -> "Gx")
-    proxyRequest << ("CC-Request-Type" -> "Initial")
-    proxyRequest << ("CC-Request-Number" -> System.currentTimeMillis / 1000)
-    
-    sendDiameterRequest(proxyRequest, 2000).onComplete{
-      case Success(proxyAnswer) =>
-        log.info("Received proxy answer {}", proxyAnswer)
-        val answer = DiameterMessage.answer(ctx.diameterRequest) 
-        answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-        sendDiameterAnswer(answer)
+    // Generate a failure, in order to make sure that the test in "TestClientMain"
+    // validates correctly that the request is sent directly to the superserver
+    val answer = DiameterMessage.answer(ctx.diameterRequest) << 
+      ("Result-Code" -> DiameterMessage.DIAMETER_UNABLE_TO_COMPLY)
         
-      case Failure(e) =>
-        log.error("Proxy timeout")
-    }
+    sendDiameterAnswer(answer)
   }
 }

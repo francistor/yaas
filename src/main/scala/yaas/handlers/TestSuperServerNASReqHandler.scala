@@ -4,7 +4,6 @@ import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
 import yaas.server._
 import yaas.coding._
-import yaas.util.IDGenerator
 import yaas.coding.DiameterConversions._
 import yaas.config.DiameterConfigManager
 import yaas.dictionary.DiameterDictionary
@@ -15,8 +14,6 @@ import yaas.server.MessageHandler
 class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated NASREQ Handler")
-  
-  implicit val idGen = new IDGenerator
   
   override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     

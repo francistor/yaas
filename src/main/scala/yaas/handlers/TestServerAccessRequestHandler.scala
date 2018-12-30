@@ -26,10 +26,9 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
   
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
-    // Proxy to upstream server
-    // Uses random policy. "superserver" points to a single server and should respond correctly
-    // if domain is not @drop
-    // Use group "allServers" to force a previous failed request to "not-existing-server"
+    // Proxy to upstream server group "superserver" with single server and random policy
+    // if domain is not @drop, will respond correctly
+    // Note: Use group "allServers" if needed to force a previous failed request to "not-existing-server"
     sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete{
       case Success(response) => sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
       case Failure(e) =>
