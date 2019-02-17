@@ -17,9 +17,6 @@ import yaas.stats.StatOps
 import yaas.stats.{DiameterStatsItem, RadiusStatsItem}
 
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
-//import org.json4s._
-//import org.json4s.JsonDSL._
-//import org.json4s.jackson.JsonMethods._
 
 object RESTProvider {
   def props(statsServer: ActorRef) = Props(new RESTProvider(statsServer))

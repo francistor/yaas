@@ -497,7 +497,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     // length: 2: 2 byte
     // authtenticator: 16 octets
     
-    //val avpMap = RadiusDictionary.avpMapByCode
     val builder = new ByteStringBuilder()
     
     UByteString.putUnsignedByte(builder, code)

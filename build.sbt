@@ -17,7 +17,12 @@ libraryDependencies ++=
     "org.scalatest"     %% "scalatest"       % "3.0.5",
     "ch.qos.logback" 	%  "logback-classic" % "1.2.3",
     "org.json4s" 		%% "json4s-jackson"  % "3.6.0",
-    "de.heikoseeberger" %% "akka-http-json4s" % "1.21.0"
+    "de.heikoseeberger" %% "akka-http-json4s" % "1.21.0",
+    "org.apache.ignite" % "ignite-core" % "2.7.0",
+    "org.apache.ignite" % "ignite-spring" % "2.7.0",
+    "org.apache.ignite" % "ignite-indexing" % "2.7.0",
+    "org.apache.ignite" % "ignite-scalar" % "2.7.0",
+    "org.apache.ignite" % "ignite-slf4j" % "2.7.0"
   )
   
 scriptClasspath += "../conf"

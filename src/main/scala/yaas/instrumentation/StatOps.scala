@@ -7,8 +7,8 @@ import yaas.coding.DiameterMessageKey
 import yaas.coding.RadiusPacket
 import yaas.server.RadiusActorMessages._
 import yaas.coding.DiameterConversions._
-import yaas.stats.StatsServer._
 import yaas.config.DiameterPeerConfig
+import StatsServer._
 
 /**
  * Helper functions

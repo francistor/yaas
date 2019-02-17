@@ -148,7 +148,9 @@ object DiameterDictionary {
 
   implicit val jsonFormats = DefaultFormats
   
-  // Holds a map vendorId -> vendorName
+  /**
+   * Holds a map vendorId -> vendorName
+   */
 	val vendorNames = for {
 		(vendorId, vendorName) <- (dictionaryJson \ "vendor").extract[Map[String, String]]
 	} yield (vendorId.toLong -> vendorName)
@@ -157,13 +159,17 @@ object DiameterDictionary {
 	val jAVPMap = (dictionaryJson \ "avp").extract[Map[String, List[JAVP]]]
 	val jApplicationMap = (dictionaryJson \ "applications").extract[List[JApplication]]
 	
-	// Holds a map ((vendorId, code) -> AVPDictItem)
+	/**
+	 * Holds a map ((vendorId, code) -> DiameterAVPDictItem)
+	 */
 	val avpMapByCode = (for {
 	  (vendorId, avps) <- jAVPMap
 	  avp <- avps
 	} yield ((vendorId.toLong, avp.code) -> AVPDictItemFromJAVP(avp, vendorId))).toMap
 	
-	// Holds a map (avpName -> DictionaryItem)
+	/**
+	 * Holds a map (avpName -> DiameterAVPDictItem)
+	 */
 	val avpMapByName = (for {
 	  ((vendorId, _), dictItem) <- avpMapByCode
 	} yield (dictItem.name -> dictItem)).toMap
@@ -190,16 +196,21 @@ object DiameterDictionary {
     ApplicationDictItem(jApp.code, jApp.name, jApp.appType, commandsByName.toMap, commandsByCode.toMap)
   }
 	
-	// Holds a map (appCode -> ApplicationDictItem)
+	/**
+	 * Holds a map (appCode -> ApplicationDictItem)
+	 */
 	val appMapByCode = (for {
 	  application <- jApplicationMap
 	} yield (application.code -> ApplicationDictItemFromJApplication(application))).toMap
 	
+	/**
+	 * Holds a map (appName -> ApplicationDictItem)
+	 */
 	val appMapByName = (for {
 	  (appName, applicationDictItem) <- appMapByCode
 	} yield (applicationDictItem.name-> applicationDictItem)).toMap
   
-	
+	// For debugging
 	def show() = println(appMapByCode) 
 }
 

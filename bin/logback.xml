@@ -18,6 +18,13 @@
       		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     	</encoder>
 	</appender>
+	
+	<appender name="ignite-appender" class="ch.qos.logback.core.FileAppender">
+	    <file>log/ignite_${instance:-default}.log</file>
+	    <encoder>
+      		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    	</encoder>
+	</appender>
 
 	<root level="DEBUG">          
     	<appender-ref ref="default-console-appender" />
@@ -31,6 +38,11 @@
   	
   	<logger name="yaas.server.DiameterPeer" level="DEBUG" additivity="false">
   		<appender-ref ref="peer-appender" />
+  	</logger>
+  	
+  	<logger name="org.apache.ignite" level="INFO" additivity="false">
+  		<appender-ref ref="default-console-appender" />
+  		<appender-ref ref="ignite-appender" />
   	</logger>
 
 </configuration>

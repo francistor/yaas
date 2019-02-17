@@ -364,13 +364,21 @@ class Router() extends Actor with ActorLogging {
 	      
 	      // Send to Peer
 	      case Some(DiameterRoute(_, _, Some(peers), policy, _)) =>
-	        peerHostMap.get(peers.filter(peer => peerHostMap(peer).status == PeerStatus.STATUS_READY)(0)) match { 
-	          // TODO: Implement load balancing
-	          case Some(DiameterPeerPointer(_, _, Some(actorRef))) => actorRef ! RoutedDiameterMessage(message, context.sender)
-	          case _ => 
-	            log.warning("Attempt to route message to a non exising peer {}", peers(0))
+	        // Get the diameterPointers whose name is in the peers list for this message and are active
+	        val candidatePeers = peerHostMap.filter{case (host, peerPtr) => peers.contains(host) && peerPtr.status == PeerStatus.STATUS_READY}
+	        if(candidatePeers.size == 0){
+	          	log.warning("Peer not available among {}", peers)
 	            StatOps.pushDiameterReceivedDropped(statsServer, message) 
+	        } else {
+	          if(policy == Some("fixed")) candidatePeers.values.head else  scala.util.Random.shuffle(candidatePeers.values).head match {
+	            case DiameterPeerPointer(_, _, Some(actorRef)) => 
+	              actorRef ! RoutedDiameterMessage(message, context.sender)
+	            case _ => 
+	              log.warning("This should never happen {}", peers(0))
+	              StatOps.pushDiameterReceivedDropped(statsServer, message) 
+	          }
 	        }
+	        
 	      // No route
 	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)

@@ -17,8 +17,10 @@ object AAAServer extends App {
 	val diameterDictionary = DiameterDictionary
 	val radiusDictionary = RadiusDictionary
 	
-  val actorSystem = ActorSystem("AAA")
+	// Start ignite database if configured
+	yaas.database.SessionDatabase.init
 	
 	// The router will create the peers and handlers
+  val actorSystem = ActorSystem("AAA")
 	val routerActor = actorSystem.actorOf(Router.props())
 }

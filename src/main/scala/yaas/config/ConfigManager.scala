@@ -45,7 +45,7 @@ object ConfigManager {
   // Case classes for JSON deserialization of the configSearchRules file
   case class SearchRule(nameRegex: Regex, locationType: String, base: Option[String])
 		
-  class SearchRuleSerializer extends CustomSerializer[SearchRule](implicit formats => (
+  class SearchRuleSerializer extends CustomSerializer[SearchRule](implicit jsonFormats /* If I name this "formats" get an error in Scala 2.11 */ => (
 		{ case jv: JValue => SearchRule((jv \ "nameRegex").extract[String].r, (jv \ "locationType").extract[String], (jv \ "base").extract[Option[String]]) },
 		// Not used
 		{ case v : SearchRule => JObject()}
@@ -61,7 +61,8 @@ object ConfigManager {
       parse(Source.fromURL(url).mkString)
     case Failure(_) => 
       log.info(s"Bootstraping config from resource $configSearchRulesLocation")
-      parse(Source.fromResource(configSearchRulesLocation).mkString)
+      parse(Source.fromInputStream(getClass.getResourceAsStream("/" + configSearchRulesLocation)).mkString)
+      //Scala 1.12 parse(Source.fromResource(configSearchRulesLocation).mkString)
   }
   
   // Parse the Json that specifies where to get config objects from
@@ -104,7 +105,8 @@ object ConfigManager {
             val resName = nameRegex.findFirstMatchIn(objectName).get.group(1)
             log.info(s"Reading $objectName from resource $resName")
             // Remove comments
-            parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+            parse(Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+            // Scala 2.12 parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
           }
       }
     )

@@ -27,10 +27,6 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 
-// TODO
-// Test conversion from/json of Radius/Diameter
-
-
 trait JsonSupport extends Json4sSupport {
   implicit val serialization = org.json4s.jackson.Serialization
   implicit val json4sFormats = org.json4s.DefaultFormats

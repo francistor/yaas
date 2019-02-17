@@ -82,19 +82,25 @@ object RadiusDictionary {
 	   )
 	}
 
-	// Holds a map vendorId -> vendorName
+	/**
+	 * Holds a map vendorId -> vendorName
+	 */
 	val vendorNames = for {
 		(vendorId, vendorName) <- (dictionaryJson \ "vendor").extract[Map[String, String]]
 	} yield (vendorId -> vendorName)
 
-	// Holds a map ((vendorId, code) -> AVPDictItem)
+	/**
+	 * Holds a map ((vendorId, code) -> RadiusAVPDictItem)
+	 */
 	val avpMapByCode = for {
 		(vendor, avps) <- (dictionaryJson \ "avp").extract[Map[String, JArray]]
 		jAttrs <- avps.arr
 		attrs = jAttrs.extract[RadiusAVPAttributes]
 	} yield ((vendor.toInt, attrs.code) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames))
 
-	// Holds a map (name -> AVPDitcitem)
+	/** 
+	 *  Holds a map (name -> RadiusAVPDitcitem)
+	 */
 	val avpMapByName = for {
 		(vendor, avps) <- (dictionaryJson \ "avp").extract[Map[String, JArray]]
     jAttrs <- avps.arr
