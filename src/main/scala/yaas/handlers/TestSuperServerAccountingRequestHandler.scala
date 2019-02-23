@@ -13,6 +13,10 @@ import yaas.coding.RadiusConversions._
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
+import yaas.database._
+
+import org.json4s.JsonDSL._
+
 class TestSuperServerAccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccessRequestHandler")
@@ -34,6 +38,18 @@ class TestSuperServerAccountingRequestHandler(statsServer: ActorRef) extends Mes
       dropRadiusPacket
     } 
     else {
+      if((requestPacket >> "Acct-Status-Type").contentEquals("Start")){
+        
+        // Store in sessionDatabase
+         SessionDatabase.putSession(new JSession(
+            requestPacket >> "Acct-Session-Id",
+            requestPacket >> "Framed-IP-Address",
+            "Client-Id",
+            "MAC-O",
+            System.currentTimeMillis,
+            ("a" -> "aval") ~ ("b" -> 2)))
+      }
+      
       sendRadiusResponse(requestPacket.response() << ("User-Name" -> userName))
     }
   }

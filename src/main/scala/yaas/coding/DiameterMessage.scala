@@ -166,6 +166,9 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
    */
   def getPayloadBytes: ByteString
   
+  /**
+   * To AVP are equal if have the same code, vendor specifitity, madatoryness and the values are the same.
+   */
   override def equals(other: Any): Boolean = {
     other match {
       case x: DiameterAVP[Any] =>
@@ -425,7 +428,10 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
 /**
  * Value is a List of DiameterAVP.
  * 
- * A queue is used to be able to append
+ * Embedded AVP manipulation functions
+ * 	<code>withAttr()</code>, or <code><--</code>: appends the attribute and returns a copy
+ *  <code>get()</code>, or <code>>></code>: returns the first attribute with the specified name
+ *  <code>get()</code>, or <code>>>+</code>: returns all attributes (List) with the specified name
  */
 class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
    /**
@@ -923,9 +929,18 @@ case class DiameterMessageKey(originHost: String, originRealm: String, destinati
 
 /**
  * Represents a Diameter Message.
+ * 
+ * Methods to manipulate AVP
+ * 	<code>put()</code> or <code><<</code>: Appends an attribute. Polimorphic, with one version accepting an Option. Accepts also a List of attributes
+ * 	<code>putGrouped()</code> or <code><<<</code>: Appends a grouped attribute. Polimorphic, with one version accepting an Option.
+ *  <code>get()</code> or <code>>></code>: Retrieves the first attribute with that name
+ *  <code>getGroup()</code> or <code>>>></code>: Retrieves the first grouped attribute with that name
+ *  <code>getAll()</code> or <code>>>+</code>: Retrieves the list of attributes with that name
+ *  <code>removeAll()</code>: Removes all the attributes with that name
  */
 class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, var avps: List[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
   
+  import DiameterConversions._
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
   def getBytes: ByteString = {
@@ -1166,6 +1181,26 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   }
   
   /**
+   * Generates a new request with all attributes copied except for the header ones (Origin-Host/Realm and Destination-Host/Realm).
+   * Origin-Host/Realm are automatically refilled with the node configuration
+   */
+  def proxyRequest = {
+    val diameterConfig = DiameterConfigManager.diameterConfig
+    
+    val requestMessage = new DiameterMessage(applicationId, commandCode,  
+      IDGenerator.nextHopByHopId, IDGenerator.nextEndToEndId, avps, true, isProxyable, false, false).
+      removeAll("Origin-Host").
+      removeAll("Origin-Realm").
+      removeAll("Destination-Host").
+      removeAll("Destination-Realm")
+    
+    requestMessage << ("Origin-Host" -> diameterConfig.diameterHost)
+    requestMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
+    
+    requestMessage
+  }
+  
+  /**
    * Pretty prints the DiameterMessage.
    */
   override def toString = {
@@ -1205,7 +1240,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
  */
 object DiameterConversions {
   
-  implicit var jsonFormats = DefaultFormats + new DiameterMessageSerializer
+  implicit val jsonFormats = DefaultFormats + new DiameterMessageSerializer
   
   def avpCompare(o: Option[DiameterAVP[Any]], other: String): Boolean = {
     o match {

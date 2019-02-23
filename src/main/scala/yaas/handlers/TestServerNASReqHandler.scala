@@ -67,7 +67,7 @@ class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(stat
    */
   def handleACR(implicit ctx: DiameterRequestContext) = {
     
-    val request = DiameterMessage.request("NASREQ", "AC") << 
+    val request = ctx.diameterRequest.proxyRequest << 
     ("Destination-Realm" -> "yaassuperserver")
     
     sendDiameterRequest(request, 1000).onComplete {

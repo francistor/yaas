@@ -9,7 +9,7 @@ import java.net.InetSocketAddress
 import yaas.coding._
 import yaas.config.RadiusConfigManager
 import yaas.server.RadiusActorMessages._
-import yaas.stats.StatOps
+import yaas.instrumentation.StatOps
 
 // This class implements radius server basic functions
 

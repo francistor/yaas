@@ -18,25 +18,88 @@ import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
 import org.apache.ignite.configuration.IgniteConfiguration
 
-case class RadiusSession(
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
+
+/**
+ * Builder for JSession instances from Session instances.
+ */
+object JSession {
+  def apply(session: Session) = new JSession(
+      session.acctSessionId, 
+      session.ipAddress, 
+      session.clientId, 
+      session.macAddress, 
+      session.startTimestampUTC, 
+      parse(session.jData))
+}
+
+/**
+ * Represents a Radius/Diameter Session as used by the handlers.
+ * jData is a JSON object that has an arbitrary structure
+ */
+class JSession(
+    val acctSessionId: String, 
+    val ipAddress: String, 
+    val clientId: String,
+    val macAddress: String,
+    val startTimestampUTC: Long,
+    val jData: JValue = JObject()
+) {
+  def toSession = {
+    Session(acctSessionId, ipAddress, clientId, macAddress, startTimestampUTC, compact(render(jData)))
+  }
+}
+
+// Serializers for List of attributes. We sometimes want them not as JSON arrays, but as property sets
+class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats => (
+  {
+    case jv: JValue =>
+      new JSession(
+          (jv \ "acctSessionId").extract[String],
+          (jv \ "ipAddress").extract[String],
+          (jv \ "clientId").extract[String],
+          (jv \ "macAddress").extract[String],
+          (jv \ "startTimestampUTC").extract[Long],
+          (jv \ "data")
+      )
+  },
+  {
+    case jSession: JSession =>
+      ("acctSessionId" -> jSession.acctSessionId) ~
+      ("ipAddress" -> jSession.ipAddress) ~
+      ("clientId" -> jSession.clientId) ~
+      ("macAddress" -> jSession.macAddress) ~
+      ("startTimestampUTC" -> jSession.startTimestampUTC) ~
+      ("data" -> jSession.jData)
+  }
+))
+
+/**
+ * Represents a Radius/Diameter Session as stored in the in-memory sessions database.
+ * jData is stringified JSON
+ */
+case class Session(
     @ScalarCacheQuerySqlField(index = true) acctSessionId: String, 
     @ScalarCacheQuerySqlField(index = true) ipAddress: String, 
     @ScalarCacheQuerySqlField(index = true) clientId: String,
     @ScalarCacheQuerySqlField(index = true) macAddress: String,
-    @ScalarCacheQuerySqlField(index = true) startTimestampUTC: Long,
-    @ScalarCacheQuerySqlField avps: List[RadiusAVP[Any]]
+    @ScalarCacheQuerySqlField startTimestampUTC: Long,
+    jData: String
 )
     
-case class DiameterSession(
-    @ScalarCacheQuerySqlField(index = true) acctSessionId: String, 
-    @ScalarCacheQuerySqlField(index = true) ipAddress: String, 
-    @ScalarCacheQuerySqlField(index = true) clientId: String,
-    @ScalarCacheQuerySqlField(index = true) macAddress: String,
-    @ScalarCacheQuerySqlField(index = true) startTimestampUTC: Long,
-    @ScalarCacheQuerySqlField avps: List[DiameterAVP[Any]]
-)
 
+/**
+ * This object starts an iginte instance in client or server mode depending on configuration (aaa.sessionsDatabase), and
+ * provides helper functions to interact with the caches
+ */
 object SessionDatabase {
+  
+  val log = LoggerFactory.getLogger(SessionDatabase.getClass)
   
   // Configure Ignite client
   val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
@@ -49,85 +112,71 @@ object SessionDatabase {
   if(!role.equalsIgnoreCase("none")) {
     
     val igniteAddresses = config.getString("igniteAddresses")
+    val localIgniteAddress = config.getString("localIgniteAddress").split(":")
+    val memoryMegabytes = config.getLong("memoryMegabytes")
     
+    val dsConfiguration = new org.apache.ignite.configuration.DataStorageConfiguration
+    val dsRegionConfiguration = new org.apache.ignite.configuration.DataRegionConfiguration
+    dsRegionConfiguration.setName("custom")
+    dsRegionConfiguration.setInitialSize(memoryMegabytes * 1024L * 1024L)
+    dsRegionConfiguration.setMaxSize(memoryMegabytes * 1024L * 1024L)
+    dsConfiguration.setDefaultDataRegionConfiguration(dsRegionConfiguration)
+
     val finder = new TcpDiscoveryVmIpFinder
     finder.setAddresses(igniteAddresses.split(",").toList)
     
     val discSpi = new TcpDiscoverySpi
     discSpi.setIpFinder(finder)
-    discSpi.setLocalAddress("127.0.0.1")
-    discSpi.setLocalPort(47701)
+    discSpi.setLocalAddress(localIgniteAddress(0))
+    discSpi.setLocalPort(localIgniteAddress(1).toInt)
     
     val commSpi = new TcpCommunicationSpi();
-    val localIgniteAddress = config.getString("localIgniteAddress").split(":")
-    commSpi.setLocalAddress(localIgniteAddress(0))
-    commSpi.setLocalPort(localIgniteAddress(1).toInt)
     
     val igniteConfiguration = new IgniteConfiguration
     igniteConfiguration.setCommunicationSpi(commSpi)
     igniteConfiguration.setDiscoverySpi(discSpi)
     igniteConfiguration.setGridLogger(new org.apache.ignite.logger.slf4j.Slf4jLogger)
+    igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
     
     // Start ignite
-    if(role.equalsIgnoreCase("client")) org.apache.ignite.Ignition.setClientMode(true)
+    if(role.equalsIgnoreCase("client")){
+      org.apache.ignite.Ignition.setClientMode(true)
+      log.info("Node is a database client")
+    } else log.info("Node is a database server")
+    
     scalar.start(igniteConfiguration)
     
-    // Make sure caches exist
-    if(cache$("RadiusSessions") == None) createCache$("RadiusSessions", org.apache.ignite.cache.CacheMode.REPLICATED, Seq(classOf[String], classOf[RadiusSession]))
-    if(cache$("DiameterSessions") == None) createCache$("DiameterSessions", org.apache.ignite.cache.CacheMode.REPLICATED, Seq(classOf[String], classOf[RadiusSession]))
-    
+    // Make sure cache exist
+    if(cache$("Sessions") == None) createCache$("Sessions", org.apache.ignite.cache.CacheMode.REPLICATED, Seq(classOf[String], classOf[Session]))
   }
   
   def init() = {
     // Starts ignite if configured so
   }
   
-  /**
-   * Radius functions
-   */
-  
-  def startRadiusSession(session: RadiusSession) = {
-    val radiusSessionsCache = ignite$.getOrCreateCache[String, RadiusSession]("RadiusSessions")
-    radiusSessionsCache.put(session.acctSessionId, session)
+  def putSession(jSession: JSession) = {
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
+    sessionsCache.put(jSession.acctSessionId, jSession.toSession)
   }
   
-  def stopRadiusSession(session: RadiusSession) = {
-    val radiusSessionsCache = ignite$.getOrCreateCache[String, RadiusSession]("RadiusSessions")
-    radiusSessionsCache.remove(session.acctSessionId, session)
+  def removeSession(jSession: Session) = {
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
+    sessionsCache.remove(jSession.acctSessionId)
   }
   
-  def findRadiusSessionsByIPAddress(ipAddress: String) = {
-    val radiusSessionsCache = ignite$.getOrCreateCache[String, RadiusSession]("RadiusSessions")
-    radiusSessionsCache.sql("select * from \"RadiusSessions\".RadiusSession where ipAddress = ?", ipAddress).getAll.map(entry => entry.getValue).toList
+  def findSessionsByIPAddress(ipAddress: String) = {
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
+    sessionsCache.sql("select * from \"Sessions\".Session where ipAddress = ?", ipAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
-  def findRadiusSessionsByClientId(clientId: String) = {
-    val radiusSessionsCache = ignite$.getOrCreateCache[String, RadiusSession]("RadiusSessions")
-    radiusSessionsCache.sql("select * from \"RadiusSessions\".RadiusSession where clientId = ?", clientId).getAll.map(entry => entry.getValue).toList
+  def findSessionsByClientId(clientId: String) = {
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("RadiusSessions")
+    sessionsCache.sql("select * from \"Sessions\".Session where clientId = ?", clientId).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
-  /**
-   * Diameter functions
-   */
-  
-  def startDiameterSession(session: DiameterSession) = {
-    val diameterSessionsCache = ignite$.getOrCreateCache[String, DiameterSession]("DiameterSessions")
-    diameterSessionsCache.put(session.acctSessionId, session)
-  }
-  
-  def stopDiameterSession(session: DiameterSession) = {
-    val diameterSessionsCache = ignite$.getOrCreateCache[String, DiameterSession]("DiameterSessions")
-    diameterSessionsCache.remove(session.acctSessionId, session)
-  }
-  
-  def findDiameterSessionsByIPAddress(ipAddress: String) = {
-    val diameterSessionsCache = ignite$.getOrCreateCache[String, DiameterSession]("RadiusSessions")
-    diameterSessionsCache.sql("select * from \"DiameterSessions\".DiameterSession where ipAddress = ?", ipAddress).getAll.map(entry => entry.getValue).toList
-  }
-  
-  def findDiameterSessionsByClientId(clientId: String) = {
-    val diameterSessionsCache = ignite$.getOrCreateCache[String, DiameterSession]("RadiusSessions")
-    diameterSessionsCache.sql("select * from \"DiameterSessions\".DiameterSession where clientId = ?", clientId).getAll.map(entry => entry.getValue).toList
+  def findSessionsByMACAddress(macAddress: String) = {
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("RadiusSessions")
+    sessionsCache.sql("select * from \"Sessions\".Session where MACAddress = ?", macAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
 }

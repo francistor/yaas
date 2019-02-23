@@ -11,7 +11,7 @@ import scala.{Left, Right}
 import yaas.coding.{DiameterMessage, DiameterMessageKey, RadiusPacket}
 import yaas.server.Router._
 import yaas.server.RadiusActorMessages._
-import yaas.stats.StatOps
+import yaas.instrumentation.StatOps
 
 // Diameter Exceptions
 class DiameterResponseException(msg: String) extends Exception(msg)

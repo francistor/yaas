@@ -23,4 +23,8 @@ object AAAServer extends App {
 	// The router will create the peers and handlers
   val actorSystem = ActorSystem("AAA")
 	val routerActor = actorSystem.actorOf(Router.props())
+	
+	// Start database query server
+	val databaseRole = config.getString("aaa.sessionsDatabase.role")
+	if(databaseRole == "server") actorSystem.actorOf(yaas.database.SessionRESTProvider.props())
 }

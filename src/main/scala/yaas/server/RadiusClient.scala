@@ -9,7 +9,7 @@ import yaas.config.RadiusServerConfig
 import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusPacket
 import yaas.util._
-import yaas.stats.StatOps
+import yaas.instrumentation.StatOps
 import com.typesafe.config.ConfigFactory
 
 // This Actor handles the communication with upstream radius servers

@@ -10,6 +10,9 @@ import yaas.dictionary.DiameterDictionary
 
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
+import yaas.database._
+
+import org.json4s.JsonDSL._
 
 class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
@@ -37,9 +40,23 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
   
   def handleACR(implicit ctx: DiameterRequestContext) = {
     
+    val request = ctx.diameterRequest
+    
+    if((request >> "Accounting-Record-Type").contentEquals("START_RECORD")){
+      
+          // Store in sessions database
+          SessionDatabase.putSession(new JSession(
+            request >> "Session-Id",
+            request >> "Framed-IP-Address",
+            "Client-Id",
+            "0",
+            System.currentTimeMillis(),
+            ("uno" -> "uno") ~ ("dos" -> "dos")))
+
+      } else println("FALSE")
+    
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
-    
     sendDiameterAnswer(answer)
   }
 }

@@ -49,7 +49,6 @@ import akka.stream.scaladsl._
 import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
 
-import yaas.stats.StatsServer
 import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
 import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
 import yaas.config.{HandlerConfigManager, HandlerConfig}
@@ -57,7 +56,8 @@ import yaas.coding.DiameterMessage
 import yaas.coding.DiameterConversions._
 import yaas.coding.RadiusPacket
 import yaas.server.RadiusActorMessages._
-import yaas.stats.StatOps
+import yaas.instrumentation.StatsServer
+import yaas.instrumentation.StatOps
 
 
 /********************************
@@ -128,7 +128,7 @@ class Router() extends Actor with ActorLogging {
   val statsServer = context.actorOf(StatsServer.props)
   
   // Create instrumentation server
-  val instrumentationActor = context.actorOf(yaas.instrumentation.RESTProvider.props(statsServer))
+  val instrumentationActor = context.actorOf(yaas.instrumentation.StatsRESTProvider.props(statsServer))
   
   // Empty initial maps to working objects
   // Diameter
@@ -348,10 +348,10 @@ class Router() extends Actor with ActorLogging {
 	  
 	  // Request received
 	  case message : DiameterMessage =>
-	    val notLocal = sender.path.name.endsWith("-handler")
+	    // If origin is local, force that the route must not be also local, in order to avoid loops
+	    val forceNotLocal = sender.path.name.endsWith("-handler")
 	    
-	    findRoute(message >> "Destination-Realm", message.application, notLocal) match {
-	      // Local handler. Avoid loops by making sure the sender is not a hanlder actor
+	    findRoute(message >> "Destination-Realm", message.application, forceNotLocal) match {
 	      case Some(DiameterRoute(_, _, _, _, Some(handler))) =>
 	        // Handle locally
 	        handlerMap.get(handler) match {
@@ -370,7 +370,7 @@ class Router() extends Actor with ActorLogging {
 	          	log.warning("Peer not available among {}", peers)
 	            StatOps.pushDiameterReceivedDropped(statsServer, message) 
 	        } else {
-	          if(policy == Some("fixed")) candidatePeers.values.head else  scala.util.Random.shuffle(candidatePeers.values).head match {
+	          (if(policy == Some("fixed")) candidatePeers.values.head else scala.util.Random.shuffle(candidatePeers.values).head) match {
 	            case DiameterPeerPointer(_, _, Some(actorRef)) => 
 	              actorRef ! RoutedDiameterMessage(message, context.sender)
 	            case _ => 

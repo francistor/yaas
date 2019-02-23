@@ -9,7 +9,7 @@ import yaas.server.Router.RoutedDiameterMessage
 import yaas.coding.{DiameterMessage, DiameterMessageKey}
 import yaas.coding.DiameterConversions._
 import yaas.config.{DiameterPeerConfig}
-import yaas.stats.StatOps
+import yaas.instrumentation.StatOps
 
 import akka.stream._
 import akka.stream.scaladsl._

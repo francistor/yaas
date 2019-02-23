@@ -488,7 +488,7 @@ object RadiusPacket {
  * 	In a response packet, initially is set as the request authenticator, and modified just before sending the packet
  */
 class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[Byte], var avps: Queue[RadiusAVP[Any]]){
-  
+
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
   private def getBytes(secret: String) : ByteString = {
@@ -632,7 +632,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
 }
 
-
 object RadiusConversions {
   
   implicit var jsonFormats = DefaultFormats + new RadiusPacketSerializer
@@ -642,7 +641,13 @@ object RadiusConversions {
    */
   implicit def RadiusAVP2String(avp: Option[RadiusAVP[Any]]) : String = {
     avp match {
-      case Some(v) => v.stringValue
+      case Some(v) => 
+        v match {
+          case iAVP: IntegerRadiusAVP => 
+            // If enumNames has content, get the string corresponding to the code with default the code
+            RadiusDictionary.avpMapByCode((v.vendorId, v.code)).enumNames.map(_.getOrElse(iAVP.value.toInt, v.value.toString)).getOrElse(v.value.toString)
+          case avp: RadiusAVP[Any] => avp.stringValue
+        }
       case None => ""
     }
   }
@@ -727,7 +732,26 @@ object RadiusConversions {
       case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.extract[Long])
     }
   }
-
+  
+  /**
+   * Helper for custom RadiusAVPList Serializer
+   */
+  def RadiusAVPToJField(avp: RadiusAVP[Any]) = {
+    avp match {
+      case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
+      case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
+      case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
+      case avp: TimeRadiusAVP =>
+        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+        JField(avp.getName, JString(sdf.format(avp.value)))
+      case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
+      case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
+      case avp: IPv6PrefixRadiusAVP => JField(avp.getName, JString(avp.toString))
+      case avp: InterfaceIdRadiusAVP => JField(avp.getName, JString(avp.toString))
+      case avp: Integer64RadiusAVP => JField(avp.getName, JInt(avp.value))
+     }
+  }
+  
   
    /*
    * Radius packet JSON
@@ -767,7 +791,7 @@ object RadiusConversions {
       val javps = for {
         avp <- rp.avps.toList
       } yield
-        avp match {
+        avp match { // TODO: Replace with RadiusAVPToJField
           case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
           case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
           case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))

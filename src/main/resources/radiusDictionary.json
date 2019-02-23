@@ -143,13 +143,70 @@
 				{
 					"Start": 1,
 					"Stop": 2,
-					"Interim-Update": 3
+					"Interim-Update": 3,
+					"Accounting-on": 7,
+					"Accounting-off": 8
 				}
+			},
+			{
+				"code": 41,
+				"name": "Acct-Delay-Time",
+				"type": "Integer"
+			},
+			{
+				"code": 42,
+				"name": "Acct-Input-Octets",
+				"type": "Integer"
+			},
+			{
+				"code": 43,
+				"name": "Acct-Output-Octets",
+				"type": "Integer"
+			},
+			{
+				"code": 44,
+				"name": "Acct-Session-Id",
+				"type": "String"
+			},
+			{
+				"code": 46,
+				"name": "Acct-Session-Time",
+				"type": "Integer"
+			},
+			{
+				"code": 47,
+				"name": "Acct-Input-Packets",
+				"type": "Integer"
+			},
+			{
+				"code": 48,
+				"name": "Acct-Output-Packets",
+				"type": "Integer"
 			},
 			{
 				"code": 49,
 				"name": "Acct-Terminate-Cause",
-				"type": "Integer"
+				"type": "Integer",
+				"enumValues": {
+				  	"User-Request": 1,
+					"Lost Carrier": 2,
+					"Lost Service": 3,
+					"Idle Timeout": 4,
+					"Session Timeout": 5,
+					"Admin Reset": 6,
+					"Admin Reboot": 7,
+					"Port Error": 8,
+					"NAS Error": 9,
+					"NAS Request": 10,
+					"NAS Reboot": 11,
+					"Port Unneeded": 12,
+					"Port Preempted": 13,
+					"Port Suspended": 14,
+					"Service Unavailable": 15,
+					"Callback": 16,
+					"User Error": 17,
+					"Host Request": 18
+				}
 			},
 			{
 				"code": 60,

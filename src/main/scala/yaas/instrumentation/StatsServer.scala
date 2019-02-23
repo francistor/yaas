@@ -1,4 +1,4 @@
-package yaas.stats
+package yaas.instrumentation
 
 import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props}
 

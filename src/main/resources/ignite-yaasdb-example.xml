@@ -53,9 +53,6 @@
 	  
 	<property name="communicationSpi">
 		<bean class="org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi">
-		<!-- Override local port. -->
-		<property name="localAddress" value="127.0.0.1"/>
-		<property name="localPort" value="40000"/>
     </bean>
 	</property>
 	  
@@ -63,8 +60,9 @@
 	<!-- Use TCP discovery -->
 	<property name="discoverySpi">
 		<bean class="org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi">
+		<!--  One of the address and port below for DiscoveryFinder -->
 		 <property name="localAddress" value="127.0.0.1"/>
-		 <property name="localPort" value="47701"/>
+		 <property name="localPort" value="41000"/>
 		  <property name="ipFinder">
 			<bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder">
 			  <property name="addresses">

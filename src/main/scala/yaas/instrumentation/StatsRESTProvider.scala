@@ -12,14 +12,12 @@ import scala.util.{Success, Failure}
 import scala.concurrent.duration._
 import yaas.server.Router._
 import yaas.server.DiameterPeerPointer
-import yaas.stats.StatsServer._
-import yaas.stats.StatOps
-import yaas.stats.{DiameterStatsItem, RadiusStatsItem}
+import yaas.instrumentation.StatsServer._
 
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 
-object RESTProvider {
-  def props(statsServer: ActorRef) = Props(new RESTProvider(statsServer))
+object StatsRESTProvider {
+  def props(statsServer: ActorRef) = Props(new StatsRESTProvider(statsServer))
 }
 
 trait JsonSupport extends Json4sSupport {
@@ -27,9 +25,9 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging with JsonSupport {
+class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging with JsonSupport {
   
-  import RESTProvider._
+  import StatsRESTProvider._
   
   implicit val actorSystem = context.system
   implicit val materializer = ActorMaterializer()
