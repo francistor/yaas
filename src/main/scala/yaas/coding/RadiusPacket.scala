@@ -2,7 +2,6 @@ package yaas.coding
 
 import java.nio.ByteOrder
 import akka.util.{ByteString, ByteStringBuilder, ByteIterator}
-import scala.collection.immutable.Queue
 
 import org.json4s._
 import org.json4s.JsonDSL._
@@ -14,6 +13,9 @@ import yaas.dictionary._
 
 class RadiusCodingException(val msg: String) extends java.lang.Exception(msg: String)
 
+/**
+ * Builder of Radius AVP from Bytes.
+ */
 object RadiusAVP {
   implicit val byteOrder = ByteOrder.BIG_ENDIAN 
     
@@ -61,10 +63,21 @@ object RadiusAVP {
    }
 }
 
+/**
+ * Base class for all Radius AVP
+ */
 abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
   
   implicit val byteOrder = RadiusAVP.byteOrder 
   
+  /**
+   * Gets the bytes of the serialized attribute.
+   * 
+   * If the dictionary specifies that the attribute is encripted, the RFC algorithm is applied, which requires the passing 
+   * of <code>authenticator</code> and <code>secret</code>.
+   * 
+   * Relies on the <code>getPayloadBytes</code> method in the concrete classes.
+   */
   def getBytes(authenticator: Array[Byte], secret: String): ByteString = {
     // AVP Header is
     //    code: 1 byte
@@ -111,15 +124,26 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     builder.result
   }
   
-  // Serializes the payload only
+  /**
+   * Serializes the payload only.
+   * 
+   * To be implemented in concrete classes
+   */
   def getPayloadBytes: ByteString
 
-	// To be overriden in concrete classes
+	/**
+	 * To be implemented in concrete classes
+	 */
 	def stringValue = value.toString
 	
-	// Want the stringified AVP be the value, so toString reports only the value
+	/**
+	 * Want the stringified AVP be the value, so toString reports only the value
+	 */
   override def toString = stringValue
 	
+  /**
+   * To RadiusAVP are equal if the code, vendorId and value are the same.
+   */
 	override def equals(other: Any): Boolean = {
     other match {
       case x: RadiusAVP[Any] =>
@@ -128,6 +152,9 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     }
   }
   
+  /**
+   * Pretty toString to be used for printing the full RadiusPacket
+   */
   def pretty: String = {
     val dictItem = RadiusDictionary.avpMapByCode.getOrElse((vendorId, code), RadiusAVPDictItem(0, 0, "UNKNOWN", RadiusTypes.NONE, 0, false, None, None))
     val attrName = dictItem.name
@@ -136,14 +163,23 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
     s"[$attrName = $attrValue]"
   }
   
+  /**
+   * Returns the name of the attribute as defined in the Radius dictionary
+   */
   def getName = {
     RadiusDictionary.avpMapByCode.get((vendorId, code)).map(_.name).getOrElse("UNKNOWN")
   }
   
+  /**
+   * Returns the type of the attribute as defined in the Radius dictionary.
+   */
   def getType = {
     RadiusDictionary.avpMapByCode.get((vendorId, code)).map(_.radiusType).getOrElse(RadiusTypes.NONE)
   }
   
+  /**
+   * Copies this AVP to a new one.
+   */
   def copy = {
     this match {
       case r: UnknownRadiusAVP => new UnknownRadiusAVP(r.code, r.vendorId, r.value)
@@ -160,6 +196,9 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
   }
 }
 
+/**
+ * For AVP not found in the dictionary.
+ */
 class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends RadiusAVP[List[Byte]](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString){
@@ -175,6 +214,9 @@ class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radi
 	}
 }
 
+/**
+ * Radius type String UTF-8 encoded
+ */
 class StringRadiusAVP(code: Int, vendorId: Int, value: String) extends RadiusAVP[String](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString){
@@ -190,6 +232,11 @@ class StringRadiusAVP(code: Int, vendorId: Int, value: String) extends RadiusAVP
 	}
 }
 
+/**
+ * Radius type OctetString.
+ * 
+ * The string representation is 0x[Hex encoding]. If a UTF-8 encoded representation is required, use <code>OctetOps.fromHexToUTF8</code>
+ */
 class OctetsRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends RadiusAVP[List[Byte]](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString){
@@ -209,6 +256,9 @@ class OctetsRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radiu
 	}
 }
 
+/**
+ * Radius type Integer32
+ */
 class IntegerRadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAVP[Long](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
@@ -224,6 +274,9 @@ class IntegerRadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAVP[
 	}
 }
 
+/**
+ * Radius Type IP Address.
+ */
 class AddressRadiusAVP(code: Int, vendorId: Int, value: java.net.InetAddress) extends RadiusAVP[java.net.InetAddress](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
@@ -239,6 +292,9 @@ class AddressRadiusAVP(code: Int, vendorId: Int, value: java.net.InetAddress) ex
 	}
 }
 
+/**
+ * Radius Type Time (encoded as seconds since the Epoch UTC)
+ */
 class TimeRadiusAVP(code: Int, vendorId: Int, value: java.util.Date) extends RadiusAVP[java.util.Date](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
@@ -255,6 +311,9 @@ class TimeRadiusAVP(code: Int, vendorId: Int, value: java.util.Date) extends Rad
 	}
 }
 
+/**
+ * Radius Type IPv6 address, encoded as 128 bits.
+ */
 class IPv6AddressRadiusAVP(code: Int, vendorId: Int, value: java.net.InetAddress) extends RadiusAVP[java.net.InetAddress](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
@@ -270,6 +329,12 @@ class IPv6AddressRadiusAVP(code: Int, vendorId: Int, value: java.net.InetAddress
 	}
 }
 
+/**
+ * Radius Type IPv6 prefix. Encoded as 1 byte prefix length, and 16 bytes with prefix.
+ * 
+ * The value must be provided as <ipv6 bytes>/<prefix-lenght>. <ipv6> in the format required by java <code>InetAddress.getByName</code>, such
+ * as 2001:cafe:0:0:0:0:0:0/128
+ */
 class IPv6PrefixRadiusAVP(code: Int, vendorId: Int, value: String) extends RadiusAVP[String](code, vendorId, value) {
   // Secondary constructor from bytes
   def this(code: Int, vendorId: Int, bytes: ByteString){
@@ -298,6 +363,9 @@ class IPv6PrefixRadiusAVP(code: Int, vendorId: Int, value: String) extends Radiu
 }
 
 // TODO: Check that the List has 8 bytes
+/**
+ * Radius Type InterfaceId
+ */
 class InterfaceIdRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends RadiusAVP[List[Byte]](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString){
@@ -313,7 +381,11 @@ class InterfaceIdRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends 
 	}
 }
 
-// Values bigger than 2^63 are coded / decoded incorrectly
+/**
+ * Radius Type Integer64. 
+ * 
+ * Values bigger than 2^63 are coded / decoded incorrectly
+ */
 class Integer64RadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAVP[Long](code, vendorId, value) {
 	// Secondary constructor from bytes
 	def this(code: Int, vendorId: Int, bytes: ByteString)(implicit byteOrder: ByteOrder){
@@ -330,11 +402,7 @@ class Integer64RadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAV
 }
 
 /**
- * RadiusPacket object
- * Methods
- * 	apply(bytes, secret) --> Builds a RadiusPacket from the network bytes and the shared secret
- * 	request(code) --> creates an empty RadiusPacket with a new Authenticator. The identifier is 0 (to be replaced later)
- * 	response(radiusPacket, isSuccess) --> creates an empty response RadiusPacket with the appropriate code and the Authenticator of the request (to be replaced later)
+ * Constructor and helper functions for RadiusPackets.
  *   
  */
 
@@ -353,9 +421,15 @@ object RadiusPacket {
   val COA_ACK = 44
   val COA_NAK = 45
   
-  // The request authenticator will be "None" for a request packet: the encryption depends on the packet
-  // authenticator. In the case of a response packet, the requestAuthenticator is needed in order to
-  // perform the decryption.
+  /**
+   * Creates a RadiusPacket from the bytes.
+   * 
+   * If this is a request packet, the authenticator is taken from the bytes and, along with the secret, 
+   * allows the decryption of the AVPs. <code>requestAuthenticator</code> is <code>None</code>.
+   * 
+   * If this is a response packet, the authenticator required for decryption is that of the request, and 
+   * <code>requestAuthenticator</code> has a value.
+   */
   def apply(bytes: ByteString, requestAuthenticator: Option[Array[Byte]], secret: String): RadiusPacket = {
     // code: 1 byte
     // identifier: 1 byte
@@ -369,7 +443,7 @@ object RadiusPacket {
     UByteString.getUnsignedShort(it) // length. No use
     val authenticator = it.getBytes(16)
     
-    def appendAVPsFromByteIterator(acc: Queue[RadiusAVP[Any]]) : Queue[RadiusAVP[Any]] = {
+    def appendAVPsFromByteIterator(acc: List[RadiusAVP[Any]]) : List[RadiusAVP[Any]] = {
   		if(it.isEmpty) acc
   		else {
   		  // Iterator to get the bytes of the AVP
@@ -384,34 +458,60 @@ object RadiusPacket {
   		}
     }
     
-    new RadiusPacket(code, identifier, authenticator, appendAVPsFromByteIterator(Queue()))
+    new RadiusPacket(code, identifier, authenticator, appendAVPsFromByteIterator(List()))
   }
   
   // Generates a new radius packet with the specified code. The identifier and authenticator will be replaced
   // before sending the packet (prepare Method)
+  /**
+   * Generates an empty request packet with the specified code.
+   * 
+   * The authenticator will be generated when serializing to bytes.
+   * The id is generated just before being sent to the destination
+   */
   def request(code: Int) = {
-    new RadiusPacket(code, 0 /* to be replaced */, RadiusPacket.newAuthenticator, Queue[RadiusAVP[Any]]())
+    new RadiusPacket(code, 0 /* to be replaced */, Array[Byte](16) /* To be generated later */, List[RadiusAVP[Any]]())
   }
-  
-  // Generates a new radius packet as response for the specified radius request
+    
+  /**
+   * Generates a new radius packet as response for the specified radius request.
+   * 
+   * The identifier and authenticator are that of the request at this stage (the value in the wired will be calculated according
+   * to the rules for the response authenticator).
+   * 
+   * If isSuccess is true, the code will be added one, and two otherwise
+   */
   def response(requestPacket: RadiusPacket, isSuccess : Boolean = true) = {
     val code = if(isSuccess) requestPacket.code + 1 else requestPacket.code + 2
-    new RadiusPacket(code, requestPacket.identifier, requestPacket.authenticator, Queue[RadiusAVP[Any]]())
+    new RadiusPacket(code, requestPacket.identifier, requestPacket.authenticator, List[RadiusAVP[Any]]())
   }
   
-  // Generates a new failure response radius packet for the specified radius request 
+  /**
+   * Generates a new failure response radius packet for the specified radius request.
+   */
   def responseFailure(requestPacket: RadiusPacket) = response(requestPacket, false)
   
-  // Creates a request packet which is a copy of the received packet
+  /**
+   * Creates a request packet which is a copy of the received packet.
+   * 
+   * Id and authenticator will be generated when sending to the wire.
+   */
   def proxyRequest(requestPacket: RadiusPacket) = {
-    new RadiusPacket(requestPacket.code, 0, RadiusPacket.newAuthenticator, requestPacket.avps.map(attr => attr.copy))
+    new RadiusPacket(requestPacket.code, 0, Array[Byte](16) /* To be generated later */, requestPacket.avps.map(attr => attr.copy))
   }
   
-  // Creates a request packet which is a copy of the received packet
+  /**
+   * Creates a response packet for the specified request packet (id and authenticator), but copying the attributes from the
+   * response packet in the argument.
+   * 
+   */
   def proxyResponse(responsePacket: RadiusPacket, requestPacket: RadiusPacket) = {
     new RadiusPacket(responsePacket.code, requestPacket.identifier, requestPacket.authenticator, responsePacket.avps.map(attr => attr.copy))
   }
   
+  /**
+   * Encrypts the specified value according to the rules in rfc2865, item 5.2.
+   */
   def encrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
 
     def appendChunk(encrypted: Array[Byte], ra: Array[Byte], s: Array[Byte], v: Array[Byte]) : Array[Byte] = {
@@ -443,6 +543,9 @@ object RadiusPacket {
      * */
   }
   
+  /**
+   * Decrypts the specified value according to the rules in rfc2865, item 5.2.
+   */
   def decrypt1(authenticator: Array[Byte], secret: String, value: Array[Byte]) : Array[Byte] = {
     def prependChunk(decrypted: Array[Byte], ra: Array[Byte], s: Array[Byte], v: Array[Byte]) : Array[Byte] = {
       val decryptedLen = decrypted.length
@@ -463,16 +566,26 @@ object RadiusPacket {
     prependChunk(Array(), authenticator, secret.getBytes("UTF-8").toArray, value.padTo[Byte, Array[Byte]](vLenPadded, 0)).slice(0, vLen)
   }
   
+  /**
+   * Wrapper for MD5 generation
+   */
   def md5(v: Array[Byte]) = {
     java.security.MessageDigest.getInstance("MD5").digest(v)
   }
   
+  /**
+   * Generates a new random value to be used as authenticator.
+   */
   def newAuthenticator = {
     val firstPart = System.currentTimeMillis()
     val secondPart = (Math.random() * 9223372036854775807L).toLong
     new ByteStringBuilder().putLong(firstPart).putLong(secondPart).result.toArray
   }
   
+  /**
+   * Check that the authenticator received in the response packet is correct (that is, contains the hash of the 
+   * sent values with the request authenticator and secret).
+   */
   def checkAuthenticator(packet: ByteString, reqAuthenticator: Array[Byte], secret: String) = {
     val respAuthenticator = packet.slice(4, 20)
     val patchedPacket = packet.patch(4, reqAuthenticator, 16) 
@@ -482,15 +595,19 @@ object RadiusPacket {
 
 
 /**
- * The identifier is modified just before sending the packet
- * The authenticator is treated as follows
- * 	In a request packet, it is created new
- * 	In a response packet, initially is set as the request authenticator, and modified just before sending the packet
+ * Represents a radius packet.
+ * 
+ * In a request packet, identifier and authenticator are calculated when sending to the wire, and thus the values
+ * are irrelevant. In a response packet, contain the values for the request.
+ * 
  */
-class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[Byte], var avps: Queue[RadiusAVP[Any]]){
+class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[Byte], var avps: List[RadiusAVP[Any]]){
 
   implicit val byteOrder = ByteOrder.BIG_ENDIAN  
   
+  /**
+   * Builds the radius packet from the bytes.
+   */
   private def getBytes(secret: String) : ByteString = {
     // code: 1 byte
     // identifier: 1 byte
@@ -514,8 +631,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     result.patch(2, new ByteStringBuilder().putShort(result.length).result, 2)
   }
   
-  /*
-   * Patches id and authenticator
+  /**
+   * Gets the bytes to be sent to the wire, patching id and authenticator.
+	 *
    * If access request, authenticator is created new and the AVP are encrypted using this value
    * If accounting request, no encryption can take place (!! used 0 as the authenticator), and the request authenticator is calculated as a md5 hash
    * 
@@ -525,7 +643,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     identifier = id
     code match {
       case RadiusPacket.ACCOUNTING_REQUEST =>
-        // Just is case it was filled
+        // Just in case it was filled
         authenticator = List.fill[Byte](16)(0).toArray
         val bytes = getBytes(secret)
         
@@ -539,22 +657,32 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     }
   }
 
-  // Generates a new radius packet as response for the specified radius request
+  /**
+   * Generates a new radius packet as response for this request packet.
+   */
   def response(isSuccess : Boolean = true) = RadiusPacket.response(this, isSuccess)
   
-  // Generates a new failure response radius packet for the specified radius request 
-  def responseFailure = RadiusPacket.response(this, false)
-  
-  // Creates a request packet which is a copy of the received packet
-  def proxyRequest = RadiusPacket.proxyRequest(this)
-  
-  def proxyResponse(responsePacket: RadiusPacket) = RadiusPacket.proxyResponse(responsePacket, this)
-  
-  /*
-   * The authenticator and id will be already set to the request packet
-   * The patched authenticator to be sent is always a md5 hash with the request authenticator
+  /**
+   * Generates a new failure response radius packet for this radius request .
    * 
    */
+  def responseFailure = RadiusPacket.response(this, false)
+  
+  /**
+   * Creates a new request packet with the same attributes as this packet
+   */
+  def proxyRequest = RadiusPacket.proxyRequest(this)
+  
+  /**
+   * Creates a response packet for this request with the same attributes as the packet passed as parameter.
+   */
+  def proxyResponse(responsePacket: RadiusPacket) = RadiusPacket.proxyResponse(responsePacket, this)
+  
+  /**
+   * Gets the bytes to be sent to the wire, patching the authenticator.
+	 *
+	 * The authenticator is calculated as the hash of the attributes sent, with the request authenticator, plus the secret 
+ 	 */
   def getResponseBytes(secret: String): ByteString = {
     val responseBytes = getBytes(secret)
     val responseAuthenticator = RadiusPacket.md5(responseBytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)
@@ -563,17 +691,65 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     responseBytes.patch(4, responseAuthenticator, 16)
   }
   
-  // TODO: In radius, avp are defined as immutable var. In diameter, as mutable var
   /**
    * Insert AVP in message
-   */  
+   */ 
+  def put(avp: RadiusAVP[Any]) : RadiusPacket = << (avp: RadiusAVP[Any])
+  
+  /**
+  * Insert AVP in message.
+  * 
+  * Same as <code>put</code>
+  */
   def << (avp: RadiusAVP[Any]) : RadiusPacket = {
     avps :+= avp
     this
   }
   
+  // Versions with Option. Do nothing if the Option is empty
   /**
-   * Extract AVP from message
+   * Insert AVP in message
+   */ 
+  def put(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = << (avpOption: Option[RadiusAVP[Any]])
+  
+  /**
+  * Insert AVP in message.
+  * 
+  * Same as <code>put</code>
+  */
+  def << (avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = {
+    avpOption match {
+      case Some(avp) =>     
+        avps :+= avp
+      case None =>
+    }
+    this
+  }
+  
+  /**
+   * Adds a list of Radius AVPs to the message.
+   */
+  def putAll(mavp : List[RadiusAVP[Any]]) : RadiusPacket = << (mavp : List[RadiusAVP[Any]]) 
+  
+  /**
+   * Adds a list of Diameter AVPs to the message.
+   * 
+   * Same as <code>putAll</code>
+   */
+  def << (mavp : List[RadiusAVP[Any]]) : RadiusPacket = {
+    avps = avps ++ mavp
+    this
+  }
+  
+  /**
+   * Extracts the first AVP with the specified name from message.
+   */
+  def get(attributeName: String): Option[RadiusAVP[Any]] = >> (attributeName: String)
+  
+  /**
+   * Extracts the first AVP with the specified name from message.
+   * 
+   * Same as <code>get</code>
    */
   def >> (attributeName: String) : Option[RadiusAVP[Any]] = {
     RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
@@ -581,25 +757,43 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
       case None => None
     }
   }
-    
+  
   /**
-   * Extract AVP List from message
+   * Extract all the AVPs with the specified name from message.
    */
-  def >>> (attributeName: String) : Queue[RadiusAVP[Any]] = {
+  def getAll(attributeName: String): List[RadiusAVP[Any]] = >>+ (attributeName: String)
+  
+  /**
+   * Extracts all the AVPs with the specified name from message.
+   * 
+   * Same as <code>getAll</code>
+   */
+  def >>+ (attributeName: String) : List[RadiusAVP[Any]] = {
     RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps.filter(avp => avp.code == code)
-      case None => Queue[RadiusAVP[Any]]()
+      case None => List[RadiusAVP[Any]]()
     }
   }
   
   /**
-   * Extract AVP from message and force conversion to string. If multivalue, returns comma separated list
+   * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list
    */
-  def ->> (attributeName: String): String = {
+  def >>++ (attributeName: String): String = {
     RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps.filter(avp => avp.code == code).map(_.toString).mkString(",")
       case None => ""
     }
+  }
+  
+  /**
+   * Deletes all the attributes with the specified name from the packet.
+   */
+  def removeAll(attributeName: String): RadiusPacket = {
+    val a = RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps = avps.filter(avp => avp.code != code)
+      case None =>
+    }
+    this
   }
   
   override def toString() = {
@@ -619,6 +813,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     s"\n$codeString\n$prettyAVPs"
   }
   
+  /**
+   * Two Radius packets are equal if have the same code, identifier, authenticator and avps
+   */
   override def equals(other: Any): Boolean = {
     other match {
       case x: RadiusPacket =>
@@ -632,6 +829,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
 }
 
+/**
+ * Implicit conversions for Radius
+ */
 object RadiusConversions {
   
   implicit var jsonFormats = DefaultFormats + new RadiusPacketSerializer
@@ -664,14 +864,10 @@ object RadiusConversions {
     val vendorId = dictItem.vendorId
     
     dictItem.radiusType match {
-      case RadiusTypes.OCTETS => 
-        new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue))
+      case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue)
-      case RadiusTypes.INTEGER =>
-        new IntegerRadiusAVP(code, vendorId, dictItem.enumValues.get(attrValue))
-      case RadiusTypes.TIME=>
-        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
-        new TimeRadiusAVP(code, vendorId, sdf.parse(attrValue))
+      case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, dictItem.enumValues.get(attrValue))
+      case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss").parse(attrValue))
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
       case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
       case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue)
@@ -680,11 +876,17 @@ object RadiusConversions {
     }
   }
   
+  /**
+   * Radius AVP from tuple (name, value), where the value is an Int
+   */
   implicit def TupleInt2RadiusAVP(tuple : (String, Int)) : RadiusAVP[Any] = {
     val (attrName, attrValue) = tuple
     TupleLong2RadiusAVP((attrName, attrValue.toLong))
   }
   
+  /**
+   * Radius AVP from tuple (name, value), where the value is a Long
+   */
   implicit def TupleLong2RadiusAVP(tuple : (String, Long)) : RadiusAVP[Any] = {
     val (attrName, attrValue) = tuple
     
@@ -707,7 +909,8 @@ object RadiusConversions {
   }
 
   /**
-   * Helper for custom RadiusPacket Serializer
+   * Helper for custom RadiusPacket Serializer.
+   * 
    * Useful for handling types correctly
    */
   def TupleJson2RadiusAVP(tuple: (String, JValue)): RadiusAVP[Any] = {
@@ -722,9 +925,7 @@ object RadiusConversions {
       case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue.extract[String]))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue.extract[String])
       case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.extract[Int])
-      case RadiusTypes.TIME=>
-        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
-        new TimeRadiusAVP(code, vendorId, sdf.parse(attrValue.extract[String]))
+      case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss").parse(attrValue.extract[String]))
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
       case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
       case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue.extract[String])
@@ -734,16 +935,14 @@ object RadiusConversions {
   }
   
   /**
-   * Helper for custom RadiusAVPList Serializer
+   * Helper for custom RadiusAVPList Serializer.
    */
   def RadiusAVPToJField(avp: RadiusAVP[Any]) = {
     avp match {
       case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
       case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
       case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
-      case avp: TimeRadiusAVP =>
-        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
-        JField(avp.getName, JString(sdf.format(avp.value)))
+      case avp: TimeRadiusAVP => JField(avp.getName, JString(new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss").format(avp.value)))
       case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: IPv6PrefixRadiusAVP => JField(avp.getName, JString(avp.toString))
@@ -768,7 +967,9 @@ object RadiusConversions {
    * }
    */
 
-  
+  /**
+   * Custom serializer for RadiusPacket
+   */
   class RadiusPacketSerializer extends CustomSerializer[RadiusPacket](implicit jsonFormats => (
   {
     case jv: JValue =>
@@ -783,7 +984,7 @@ object RadiusConversions {
          OctetOps.stringToOctets(
              (jv \ "authenticator").extract[Option[String]].getOrElse("0")
           ).toArray,
-         Queue[RadiusAVP[Any]](avps: _*) 
+         List[RadiusAVP[Any]](avps: _*) 
          )
   },
   {

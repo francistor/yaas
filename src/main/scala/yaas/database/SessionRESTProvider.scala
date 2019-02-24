@@ -46,12 +46,13 @@ class SessionRESTProvider extends Actor with ActorLogging with JsonSupport {
       pathPrefix("find") {
         parameterMap { params => {
             log.debug(s"find radius sessions for $params")
-            if(params.size == 0) complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress or clientId parameter")
+            if(params.size == 0) complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
             else params.keys.map(_ match {
+              case "acctSessionId" => complete(SessionDatabase.findSessionsByAcctSessionId(params("acctSessionId")))
               case "ipAddress" => complete(SessionDatabase.findSessionsByIPAddress(params("ipAddress")))
               case "MACAddress" => complete(SessionDatabase.findSessionsByMACAddress(params("macAddress")))
               case "clientId" => complete(SessionDatabase.findSessionsByClientId(params("clientId")))
-              case _ => complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress or clientId, parameter")
+              case _ => complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
             }).head
           }
         }

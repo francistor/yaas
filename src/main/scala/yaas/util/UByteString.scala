@@ -92,26 +92,3 @@ object UByteString {
 }
 
 
-/*
-object UByteStringTest extends App {
-  
-  for(i <- -2 to 2){
-    val value : Long = (scala.math.pow(2, 31) + i).toLong
-    val tmpBuilder = new ByteStringBuilder()
-    println(i + " " + UByteString.putUnsigned32(tmpBuilder, value).result)
-  }
-
-  for(i <- -2 to 2){
-    val value : Int = (scala.math.pow(2, 15) + i).toInt
-    val tmpBuilder = new ByteStringBuilder()
-    println(i + " " + UByteString.putUnsigned24(tmpBuilder, value).result)
-  }
-
-  val value = (scala.math.pow(2, 15) + 1).toInt
-  val builder = new ByteStringBuilder()
-  val tValue = UByteString.getUnsigned24(UByteString.putUnsigned24(builder, value).result)
-  if(value == tValue) println(s"[OK] $value $tValue") else println(s"[FAIL] $value $tValue")
-
-}
-* */
-

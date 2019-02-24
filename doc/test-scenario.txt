@@ -1,4 +1,6 @@
-= Test scenario with Nokia AAA
+= Test scenario with Nokia AAA.
+
+To be launched with bin/aaaserver and default parameters
 
 == Diameter
 

@@ -125,7 +125,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     //unserializedDiameterMessage.commandCode must be (diameterMessage.commandCode)
     //unserializedDiameterMessage.hopByHopId must be (diameterMessage.hopByHopId)
     //unserializedDiameterMessage.endToEndId must be (diameterMessage.endToEndId)
-    //unserializedDiameterMessage.avps mustEqual(Queue(groupedAVP))
+    //unserializedDiameterMessage.avps mustEqual(List(groupedAVP))
     unserializedDiameterMessage mustEqual diameterMessage
   }
   

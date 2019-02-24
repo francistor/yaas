@@ -1149,7 +1149,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   def removeAll(attributeName: String) : DiameterMessage = {
     DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps = avps.filter(avp => avp.code != code)
-      case None => None
+      case None => 
     }
     this
   }

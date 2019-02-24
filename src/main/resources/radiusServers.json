@@ -17,8 +17,8 @@
 	"serverGroups" :
 	[
 	  {
-        "name": "allServers",
-        "servers": ["superserver"],
+        "name": "superServer",
+        "servers": ["test-superserver"],
         "policy": "random"
       }
 	]

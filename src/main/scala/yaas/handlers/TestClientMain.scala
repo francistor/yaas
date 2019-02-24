@@ -82,6 +82,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   val clientStatsURL = "http://localhost:19001"
   val serverStatsURL = "http://localhost:19002"
   val superServerStatsURL = "http://localhost:19003"
+  val superServerSessionsURL = "http://localhost:19503"
   
   // Wait some time before starting the tests.
   // peerCheckTimeSeconds should be configured with about 10 seconds. Starting the tests after
@@ -232,11 +233,10 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
           ok("Reject received correctly")
         } else fail("Response is not a reject")
         
-        if((response ->> "Reply-Message") == "The reply message!"){
+        if((response >>++ "Reply-Message") == "The reply message!"){
           ok("Reply message is correct")
         }
         nextTest
-        
       case Failure(ex) => fail("Response not received")
     }
   }
@@ -261,18 +261,29 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     
     // Accounting request
     println("[TEST] Accounting request")
+    
+    val ipAddress = "199.0.0.1"
+    val acctSessionId = "radius-session-1"
+    
     val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
       ("User-Name" -> "test@test") <<
-      ("Acct-Session-Id" -> "session-1") <<
-      ("Framed-IP-Address" -> "199.0.0.1") <<
+      ("Acct-Session-Id" -> acctSessionId) <<
+      ("Framed-IP-Address" -> ipAddress) <<
       ("Acct-Status-Type" -> "Start")
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest("allServers", accountingRequest, 2000, 1).onComplete {
       case Success(response) => 
         ok("Received response")
-        nextTest
         
+        // Find session
+        val session = getJson(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
+        if(((session \ "acctSessionId")(0)).extract[String] == acctSessionId){
+          ok("Session found")
+          nextTest
+        }
+        else fail("Session not found")
+
       case Failure(ex) => 
         fail("Response not received")
     }
@@ -317,18 +328,30 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   // Diameter NASREQ application, AC request
   def testAC(): Unit = {
     println("[TEST] AC Requests")
+    
+    val ipAddress = "200.0.0.1"
+    val acctSessionId = "diameter-session-1"
+    
     val request = DiameterMessage.request("NASREQ", "AC")
     request << 
       "Destination-Realm" -> "yaasserver" << 
-      "Session-Id" -> "Session-1" << 
-      "Framed-IP-Address" -> "200.0.0.1" <<
+      "Session-Id" -> acctSessionId << 
+      "Framed-IP-Address" -> ipAddress <<
       "Accounting-Record-Type" -> "START_RECORD"
     
     sendDiameterRequest(request, 1000).onComplete{
       case Success(answer) =>
         // Check answer
         if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
-        nextTest
+        
+        // Find session
+        val session = getJson(superServerSessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
+        if(((session \ "ipAddress")(0)).extract[String] == ipAddress){
+          ok("Session found")
+          nextTest
+        }
+        else fail("Session not found")
+
       case Failure(e) =>
         fail(e.getMessage)
     }
@@ -339,6 +362,8 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   // Routed from server to superserver (not proxied)
   // The super-server will reply with a Charging-Rule-Install -> Charging-Rule-Name containing the Subscription-Id-Data 
   def testGxRouting(): Unit = {
+    
+    println("[TEST] Gx Routing")
     
     val subscriptionId = "the-subscription-id"
     val gxRequest: DiameterMessage = 

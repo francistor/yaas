@@ -53,7 +53,7 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
             System.currentTimeMillis(),
             ("uno" -> "uno") ~ ("dos" -> "dos")))
 
-      } else println("FALSE")
+      }
     
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)

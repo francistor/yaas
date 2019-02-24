@@ -1,7 +1,5 @@
 package yaas.test
 
-import scala.collection.mutable.Queue
-
 import akka.actor.ActorSystem
 import akka.util.{ByteStringBuilder, ByteString}
 import akka.testkit.{TestKit}

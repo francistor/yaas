@@ -170,13 +170,18 @@ object SessionDatabase {
   }
   
   def findSessionsByClientId(clientId: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("RadiusSessions")
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
     sessionsCache.sql("select * from \"Sessions\".Session where clientId = ?", clientId).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
   def findSessionsByMACAddress(macAddress: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("RadiusSessions")
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
     sessionsCache.sql("select * from \"Sessions\".Session where MACAddress = ?", macAddress).getAll.map(entry => JSession(entry.getValue)).toList
+  }
+  
+  def findSessionsByAcctSessionId(acctSessionId: String) = {
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
+    sessionsCache.sql("select * from \"Sessions\".Session where acctSessionId = ?", acctSessionId).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
 }
