@@ -512,12 +512,13 @@ class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
     builder.result
   }
   
-  // TODO: Review this. Prints only the nested values, but not the names
+  // {name=value,name=value} for each inner AVP
   override def stringValue = {
-    value match {
-      case avps: List[Any] => avps.mkString(",")
-      case _ => "Error"
-    }
+    "{" +
+    value.map{inAVP =>
+      s"${inAVP.getName}=${inAVP.stringValue}"
+    }.mkString(",") +
+    "}"
   }
   
   override def copy = {
@@ -1140,6 +1141,23 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps.filter(avp => avp.code == code)
       case None => List()
+    }
+  }
+    
+  /**
+   * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list. If grouped, generates
+   * name = value pairs
+   */  
+  def getAsString(attributeName: String): String = >>++ (attributeName: String)
+    
+  /**
+   * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list. If grouped, generates
+   * name = value pairs
+   */
+  def >>++ (attributeName: String): String = {
+    DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
+      case Some(code) => avps.filter(avp => avp.code == code).map(_.stringValue).mkString(",")
+      case None => ""
     }
   }
   

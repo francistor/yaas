@@ -26,6 +26,8 @@ client									server									superserver
 	- diameterPort = 3867					- diameterPort = 3868					- diameterPort = 3869
 											- RadiusAuth = 1812						- radiusAuth = 11812
 											- RadiusAcct = 1813						- radiusAcct = 11813
+											
+										Handler makes database query				Hosts session server and client database (ignite)
 	
 	
 

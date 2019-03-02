@@ -22,7 +22,10 @@ libraryDependencies ++=
     "org.apache.ignite" % "ignite-spring" % "2.7.0",
     "org.apache.ignite" % "ignite-indexing" % "2.7.0",
     "org.apache.ignite" % "ignite-scalar" % "2.7.0",
-    "org.apache.ignite" % "ignite-slf4j" % "2.7.0"
+    "org.apache.ignite" % "ignite-slf4j" % "2.7.0",
+    "com.typesafe.slick" %% "slick" % "3.3.0",
+    "com.typesafe.slick" %% "slick-hikaricp" % "3.3.0"
+    
   )
   
 scriptClasspath += "../conf"

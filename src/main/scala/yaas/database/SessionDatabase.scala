@@ -2,21 +2,23 @@ package yaas.database
 
 import com.typesafe.config._
 
-import org.apache.ignite.scalar.scalar
-import org.apache.ignite.scalar.scalar._
-import org.apache.ignite.cache.CacheMode._
-import org.apache.ignite.cache.query.SqlFieldsQuery
-import org.apache.ignite.logger.slf4j.Slf4jLogger
-
 import scala.collection.JavaConversions._
 
 import yaas.coding.RadiusAVP
 import yaas.coding.DiameterAVP
 
+import org.apache.ignite.scalar.scalar
+import org.apache.ignite.scalar.scalar._
+import org.apache.ignite.cache.CacheMode._
+import org.apache.ignite.cache.query.SqlFieldsQuery
+import org.apache.ignite.logger.slf4j.Slf4jLogger
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
 import org.apache.ignite.configuration.IgniteConfiguration
+import org.apache.ignite.configuration.DataStorageConfiguration
+import org.apache.ignite.configuration.DataRegionConfiguration
+import org.apache.ignite.cache.CacheMode._
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -115,8 +117,8 @@ object SessionDatabase {
     val localIgniteAddress = config.getString("localIgniteAddress").split(":")
     val memoryMegabytes = config.getLong("memoryMegabytes")
     
-    val dsConfiguration = new org.apache.ignite.configuration.DataStorageConfiguration
-    val dsRegionConfiguration = new org.apache.ignite.configuration.DataRegionConfiguration
+    val dsConfiguration = new DataStorageConfiguration
+    val dsRegionConfiguration = new DataRegionConfiguration
     dsRegionConfiguration.setName("custom")
     dsRegionConfiguration.setInitialSize(memoryMegabytes * 1024L * 1024L)
     dsRegionConfiguration.setMaxSize(memoryMegabytes * 1024L * 1024L)
@@ -147,7 +149,7 @@ object SessionDatabase {
     scalar.start(igniteConfiguration)
     
     // Make sure cache exist
-    if(cache$("Sessions") == None) createCache$("Sessions", org.apache.ignite.cache.CacheMode.REPLICATED, Seq(classOf[String], classOf[Session]))
+    if(cache$("Sessions") == None) createCache$("Sessions", REPLICATED, Seq(classOf[String], classOf[Session]))
   }
   
   def init() = {

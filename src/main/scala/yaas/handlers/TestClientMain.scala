@@ -211,8 +211,8 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     // Server echoes password
     sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
       case Success(response) => 
-        if(OctetOps.fromHexToUTF8(response >> "User-Password") == userPassword){
-          ok("Password attribute received correctly")
+        if(OctetOps.fromHexToUTF8(response >> "User-Password") == userPassword && (response >>++ "Class" == "legacy_1")){
+          ok("Password attribute and class received correctly")
           nextTest
         }
         else fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
@@ -380,7 +380,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
         ) ~
         ("Framed-IP-Address" -> "1.2.3.4") ~
         ("Session-Id" -> "This-is-the-session-id")
-      ) 
+      )
       
     sendDiameterRequest(gxRequest, 1000).onComplete{
       case Success(answer) =>
