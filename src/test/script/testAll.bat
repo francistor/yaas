@@ -13,3 +13,4 @@ call start "SERVER" %BIN_DIR%\aaaserver test-server
 timeout /T 20 /nobreak 1>nul
 
 call start "CLIENT" %BIN_DIR%\aaaserver test-client
+
