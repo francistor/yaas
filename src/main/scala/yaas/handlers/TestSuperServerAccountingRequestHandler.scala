@@ -38,16 +38,22 @@ class TestSuperServerAccountingRequestHandler(statsServer: ActorRef) extends Mes
       dropRadiusPacket
     } 
     else {
-      if((requestPacket >> "Acct-Status-Type").contentEquals("Start")){
-        
-        // Store in sessionDatabase
-         SessionDatabase.putSession(new JSession(
+      if(userName.contains("sessiondb")){
+        if((requestPacket >> "Acct-Status-Type").contentEquals("Start")){
+          
+          // Store in sessionDatabase
+          SessionDatabase.putSession(new JSession(
             requestPacket >> "Acct-Session-Id",
             requestPacket >> "Framed-IP-Address",
             "Client-Id",
             "MAC-O",
             System.currentTimeMillis,
             ("a" -> "aval") ~ ("b" -> 2)))
+        } else if((requestPacket >> "Acct-Status-Type").contentEquals("Stop")){
+          
+          // Remove session
+           SessionDatabase.removeSession(requestPacket >>++ "Acct-Session-Id")
+        }
       }
       
       sendRadiusResponse(requestPacket.response() << ("User-Name" -> userName))

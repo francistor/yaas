@@ -18,6 +18,11 @@ class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(stat
   
   log.info("Instantiated NASREQHandler")
   
+  val writer = new yaas.cdr.CDRFileWriter("cdr", "nasreq_%d{yyyyMMdd-HHmm}.txt")
+  // Framed-IPv6-Pool not sent. Used to check behaviur in case of missing attributes
+  //val format = DiameterSerialFormat.newCSVFormat(List("Origin-Host", "Session-Id", "Tunneling.Tunnel-Type", "Tunneling.Tunnel-Client-Endpoint", "Framed-IPv6-Pool"))
+  val format = DiameterSerialFormat.newJSONFormat()
+  
   override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     
     ctx.diameterRequest.command match {
@@ -67,10 +72,14 @@ class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(stat
    */
   def handleACR(implicit ctx: DiameterRequestContext) = {
     
-    val request = ctx.diameterRequest.proxyRequest << 
+    val request = ctx.diameterRequest
+    
+    writer.writeCDR(request.getCDR(format))
+    
+    val proxyRequest = request.proxyRequest << 
     ("Destination-Realm" -> "yaassuperserver")
     
-    sendDiameterRequest(request, 1000).onComplete {
+    sendDiameterRequest(proxyRequest, 1000).onComplete {
       case Success(proxyAnswer) =>
         log.info("Received proxy answer {}", proxyAnswer)
         

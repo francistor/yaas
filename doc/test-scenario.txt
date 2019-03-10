@@ -1,6 +1,6 @@
 = Test scenario with Nokia AAA.
 
-To be launched with bin/aaaserver and default parameters
+To be launched with bin/aaaserver and default parameters. Will launch one instance
 
 == Diameter
 
@@ -20,6 +20,8 @@ Nokia rt						-> Yaas								-> Nokia AAA
 
 	
 = Test scenario with yass only
+
+To be launched with "testAll" script. Will start three instances
 
 client									server									superserver
 	- diameterHost = client.yaasclient		- diameterHost = server.yaasserver		- diameterHost = superserver.yaassuperserver

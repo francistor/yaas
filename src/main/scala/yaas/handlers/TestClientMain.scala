@@ -82,6 +82,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   val clientStatsURL = "http://localhost:19001"
   val serverStatsURL = "http://localhost:19002"
   val superServerStatsURL = "http://localhost:19003"
+  
   val superServerSessionsURL = "http://localhost:19503"
   
   // Wait some time before starting the tests.
@@ -168,6 +169,13 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   /*
+   * User-Name coding will determine the actions taken by the upstream servers
+   * If domain contains
+   * 	"reject" --> superserver replies with access-reject (auth)
+   *  "drop" --> superserver drops the request (auth and acct)
+   *  "clientdb" --> server looks for the username (without realm) in the client database (auth)
+   *  "sessiondb" --> superserver stores or deletes the session in the session database (acct)
+   * 
    * Radius client
    * -------------
    * 
@@ -204,18 +212,19 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     val userPassword = "The user-password!"
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "test@accept") << 
+      ("User-Name" -> "user_1@clientdb.accept") << 
       ("User-Password" -> userPassword)
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     // Server echoes password
     sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
-      case Success(response) => 
-        if(OctetOps.fromHexToUTF8(response >> "User-Password") == userPassword && (response >>++ "Class" == "legacy_1")){
+      case Success(response) =>
+        if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
+        else if(response >>++ "Class" != "legacy_1") fail("Received class is " + (response >>++ "Class"))
+        else {
           ok("Password attribute and class received correctly")
           nextTest
         }
-        else fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
       case Failure(ex) => fail("Response not received")
     }
   }
@@ -266,10 +275,10 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     val acctSessionId = "radius-session-1"
     
     val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
-      ("User-Name" -> "test@test") <<
+      ("User-Name" -> "test@sessiondb") <<
       ("Acct-Session-Id" -> acctSessionId) <<
       ("Framed-IP-Address" -> ipAddress) <<
-      ("Acct-Status-Type" -> "Start")
+      ("Acct-Status-Type" -> "Start") 
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest("allServers", accountingRequest, 2000, 1).onComplete {
@@ -337,7 +346,8 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       "Destination-Realm" -> "yaasserver" << 
       "Session-Id" -> acctSessionId << 
       "Framed-IP-Address" -> ipAddress <<
-      "Accounting-Record-Type" -> "START_RECORD"
+      "Accounting-Record-Type" -> "START_RECORD"<<
+      ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
     
     sendDiameterRequest(request, 1000).onComplete{
       case Success(answer) =>

@@ -13,9 +13,14 @@ import yaas.coding.RadiusConversions._
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
+
 class TestServerAccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccountingRequestHandler")
+  
+  val writer = new yaas.cdr.CDRFileWriter("cdr", "accounting_request_%d{yyyyMMdd-HHmm}.txt")
+  //val format = RadiusSerialFormat.newCSVFormat(List("User-Name", "Acct-Session-Id"))
+  val format = RadiusSerialFormat.newLivingstoneFormat(List())
   
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
@@ -25,7 +30,9 @@ class TestServerAccountingRequestHandler(statsServer: ActorRef) extends MessageH
   }
   
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
-
+    
+    writer.writeCDR(ctx.requestPacket.getCDR(format))
+    
     sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete{
       case Success(response) =>
         sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
@@ -33,5 +40,9 @@ class TestServerAccountingRequestHandler(statsServer: ActorRef) extends MessageH
         log.error(e.getMessage)
         dropRadiusPacket
     }
+  }
+  
+  override def postStop = {
+    super.postStop
   }
 }

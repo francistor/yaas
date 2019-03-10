@@ -23,6 +23,7 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
   log.info("Instantiated AccessRequestHandler")
   log.info("Populating Clients Database")
   
+  // Get the database configuration
   val dbConf = yaas.config.ConfigManager.getConfigObject("clientsDatabase.json")
   val nThreads = (dbConf \ "numThreads").extract[Int]
   
@@ -32,8 +33,8 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
       executor = slick.util.AsyncExecutor("test1", numThreads=nThreads, queueSize=nThreads)
       )
       
-  // Warm-up
-  val clientQuery = sql"""select legacy_client_id from CLIENTS where CLIENT_ID = 1""".as[String]
+  // Warm-up database connection
+  val clientQuery = sql"""select legacy_client_id from CLIENTS where USERNAME = 'user_1'""".as[String]
   db.run(clientQuery)
   
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
@@ -45,9 +46,22 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
   
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
-    // Look for client in database
-    val clientQuery = sql"""select legacy_client_id from CLIENTS where CLIENT_ID = 1""".as[String]
-    db.run(clientQuery).onComplete {
+    // Initial action depending on the login
+    val request = ctx.requestPacket
+    val userName = request >>++ "User-Name"
+    val login = userName.split("@")(0)
+    
+    // Lookup username
+    val legacyClientIdFuture = if(userName.contains("clientdb")){
+      // Look in the database and get Future
+      val clientQuery = sql"""select legacy_client_id from CLIENTS where USERNAME = $login""".as[String]
+      db.run(clientQuery)
+    } else {
+      // Successful Future
+      scala.concurrent.Future.successful(Vector("unprovisioned_legacy_client_id"))
+    }
+    
+    legacyClientIdFuture.onComplete {
         case Success(queryResult) => 
           // If client not found, drop
           if(queryResult.length == 0){
@@ -56,7 +70,7 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
           }
           else {
             // Proxy to upstream server group "superserver" with single server and random policy
-            // if domain is not @drop, will respond correctly
+            // Response will depend on the realm (accept by default, @reject or @grop)
             // Note: Use group "allServers" if needed to force a previous failed request to "not-existing-server"
             sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete {
               
@@ -76,7 +90,6 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
           dropRadiusPacket
           log.error(error.getMessage)
     }
-    
   }
   
   override def postStop = {

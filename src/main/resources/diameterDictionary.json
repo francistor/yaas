@@ -150,9 +150,61 @@
                 }
             },
             {
+                "code": 64,
+                "name": "Tunnel-Type",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"PPTP": 1,
+                	"L2F": 2,
+                	"L2TP": 3,
+                	"GRE": 10
+                }
+            },
+            {
+                "code": 65,
+                "name": "Tunnel-Medium-Type",
+                "type": "Enumerated",
+                "enumValues": 
+                {
+                	"IPv4": 1,
+                	"IPv6": 2
+                }
+            },
+            {
+                "code": 66,
+                "name": "Tunnel-Client-Endpoint",
+                "type": "UTF8String"
+            },
+            {
+                "code": 67,
+                "name": "Tunnel-Server-Endpoint",
+                "type": "UTF8String"
+            },
+            {
+                "code": 69,
+                "name": "Tunnel-Password",
+                "type": "OctetString"
+            },
+            {
                 "code": 77,
                 "name": "Connect-Info",
                 "type": "UTF8String"
+            },
+            {
+                "code": 81,
+                "name": "Tunnel-Private-Group-Id",
+                "type": "OctetString"
+            },
+            {
+                "code": 82,
+                "name": "Tunnel-Assignment-Id",
+                "type": "OctetString"
+            },
+            {
+                "code": 83,
+                "name": "Tunnel-Preference",
+                "type": "Unsigned32"
             },
             {
                 "code": 85,
@@ -168,6 +220,16 @@
                 "code": 88,
                 "name": "Framed-Pool",
                 "type": "OctetString"
+            },
+            {
+                "code": 90,
+                "name": "Tunnel-Client-Auth-Id",
+                "type": "UTF8String"
+            },
+            {
+                "code": 91,
+                "name": "Tunnel-Server-Auth-Id",
+                "type": "UTF8String"
             },
             {
                 "code": 95,
@@ -444,6 +506,24 @@
 				"code": 400,
 				"name": "NAS-Filter-Rule",
 				"type": "IPFilterRule"
+			},
+			{
+				"code": 401,
+                "name": "Tunneling",
+                "type": "Grouped",
+                "group":
+                {
+					"Tunnel-Type": {"minOccurs": 1, "maxOccurs": 1},
+                    "Tunnel-Medium-Type": {"minOccurs": 1, "maxOccurs": 1},
+                    "Tunnel-Client-Endpoint": {"minOccurs": 1, "maxOccurs": 1},
+                    "Tunnel-Server-Endpoint": {"minOccurs": 1, "maxOccurs": 1},
+                    "Tunnel-Preference": {}, 
+                    "Tunnel-Client-Auth-Id": {}, 
+                    "Tunnel-Server-Auth-Id": {}, 
+                    "Tunnel-Assignment-Id": {}, 
+                    "Tunnel-Password": {}, 
+                    "Tunnel-Private-Group-Id": {}
+                }
 			},
 			{
 				"code": 402,
@@ -1801,7 +1881,8 @@
                         "Framed-IPv6-Pool": {},
                         "Framed-IPv6-Route": {},
 						"Framed-Pool": {},
-                        "Framed-Route": {}
+                        "Framed-Route": {},
+                        "Tunneling":{}
 					},
 					"response": 
 					{

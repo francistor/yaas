@@ -516,7 +516,7 @@ class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue = {
     "{" +
     value.map{inAVP =>
-      s"${inAVP.getName}=${inAVP.stringValue}"
+      s""""${inAVP.getName}"="${inAVP.stringValue}""""
     }.mkString(",") +
     "}"
   }
@@ -559,10 +559,10 @@ class AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
  * Helper methods for Diameter TimeAVP.
  */
 object TimeAVP {
-  val df = new java.text.SimpleDateFormat("YYYY-MM-dd hh:mm:ss")
+  val df = new java.text.SimpleDateFormat("YYYY-MM-dd'T'hh:mm:ss")
   df.setTimeZone(java.util.TimeZone.getTimeZone("UTC"))
   
-  val epochOffset = df.parse("1900-01-01 00:00:00").getTime() / 1000
+  val epochOffset = df.parse("1900-01-01T00:00:00").getTime() / 1000
   
   /**
    * Gets the number of seconds since 1 Jan 1900.
@@ -580,7 +580,7 @@ object TimeAVP {
 }
 
 /**
- * Value is date, as a string in 'YYYY-MM-dd hh:mm:ss' format.
+ * Value is date, as a string in "YYYY-MM-dd'T'hh:mm:ss" format.
  * 
  * The value is stored as a Long representing the seconds since 1 Jan 1990
  * 
@@ -599,7 +599,7 @@ class TimeAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendo
   }
   
   override def stringValue = {
-    val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+    val sdf = new java.text.SimpleDateFormat("YYYY-MM-dd'T'hh:mm:ss")
     sdf.format(value)
   }
   
@@ -1127,6 +1127,38 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   }
   
   // Synonyms
+  
+  /**
+   * Obtains the DiameterAVP from the full name using dot notation
+   */
+  def getDeep(attributeName: String) = >>* (attributeName: String)
+  
+  /**
+   * Obtains the DiameterAVP from the full name using dot notation
+   */
+  def >>* (attributeName: String) = {
+     def getNextAVP(names: List[String], avpOption: Option[DiameterAVP[Any]]): Option[DiameterAVP[Any]] = {
+       avpOption match {
+         case None =>
+           // Done in two steps to avoid this to just ignore the first avp name if does not exist
+           // With this implementation, will return None if the first avp name does not exist
+           val nextAVP = get(names.head)
+           if(nextAVP.isEmpty) None else getNextAVP(names.tail, nextAVP)
+           
+         case Some(avp) =>
+           avp match {
+             case v : GroupedAVP =>
+               getNextAVP(names.tail, v.get(names.head))
+             case v => Some(v)
+               
+           }
+       }
+     }
+     
+     getNextAVP(attributeName.split("\\.").toList, None)
+  }
+  
+  // Synonyms
   /**
    * Extracts a list with all attributes with the specified name.
    */
@@ -1216,6 +1248,19 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     requestMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
     
     requestMessage
+  }
+  
+  /**
+   * To print the DiameterMessage CDR contents to file.
+   */
+  def getCDR(format: DiameterSerialFormat) = {
+    format match {
+      case f: JSONDiameterSerialFormat =>
+        compact(render(DiameterConversions.diameterMessageToJson(this) \ "avps"))
+
+      case f: CSVDiameterSerialFormat =>
+        f.attrList.map(attr => s""""${DiameterConversions.DiameterAVP2String(getDeep(attr))}"""").mkString(",")
+    }
   }
   
   /**
@@ -1336,7 +1381,7 @@ object DiameterConversions {
         new AddressAVP(code, isVendorSpecific, isMandatory, vendorId, java.net.InetAddress.getByName(attrValue))
       
       case DiameterTypes.TIME =>
-        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+        val sdf = new java.text.SimpleDateFormat("YYYY-MM-dd'T'hh:mm:ss")
         new TimeAVP(code, isVendorSpecific, isMandatory, vendorId, TimeAVP.dateToDiameterSeconds(sdf.parse(attrValue)))
       
       case DiameterTypes.UTF8STRING =>
@@ -1525,7 +1570,7 @@ object DiameterConversions {
         new AddressAVP(code, isVendorSpecific, false, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
       
       case DiameterTypes.TIME =>
-        val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+        val sdf = new java.text.SimpleDateFormat("YYYY-MM-dd'T'hh:mm:ss")
         new TimeAVP(code, isVendorSpecific, false, vendorId, TimeAVP.dateToDiameterSeconds(sdf.parse(attrValue.extract[String])))
       
       case DiameterTypes.UTF8STRING =>

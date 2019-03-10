@@ -161,9 +161,9 @@ object SessionDatabase {
     sessionsCache.put(jSession.acctSessionId, jSession.toSession)
   }
   
-  def removeSession(jSession: Session) = {
+  def removeSession(acctSessionId: String) = {
     val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
-    sessionsCache.remove(jSession.acctSessionId)
+    sessionsCache.remove(acctSessionId)
   }
   
   def findSessionsByIPAddress(ipAddress: String) = {

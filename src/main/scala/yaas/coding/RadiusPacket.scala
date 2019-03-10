@@ -18,6 +18,8 @@ class RadiusCodingException(val msg: String) extends java.lang.Exception(msg: St
  */
 object RadiusAVP {
   implicit val byteOrder = ByteOrder.BIG_ENDIAN 
+  
+  val DATE_FORMAT = "YYYY-MM-dd'T'hh:mm:ss"
     
   val ipv6PrefixRegex = """(.+)/([0-9]+)""".r
     
@@ -306,7 +308,7 @@ class TimeRadiusAVP(code: Int, vendorId: Int, value: java.util.Date) extends Rad
 	}
 
 	override def stringValue = {
-    val sdf = new java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
+    val sdf = new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT)
     sdf.format(value)
 	}
 }
@@ -801,6 +803,28 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     this
   }
   
+  /**
+   * To print the RadiusPacket CDR contents to file.
+   */
+  def getCDR(format: RadiusSerialFormat) = {
+    format match {
+      case x: LivingstoneRadiusSerialFormat =>
+        
+        val filteredAVPs = if(format.attrList.length > 0) avps.filter(avp => format.attrList.contains(avp.getName)) else avps
+        
+        new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT).format(new java.util.Date) + "\n" +
+        filteredAVPs.map(avp => s"""${avp.getName}="${avp.stringValue}"""").mkString("\n") + 
+        "\n"
+
+      case x: CSVRadiusSerialFormat =>
+        // Conversion made explicit
+        format.attrList.map(attr => {s""""${RadiusConversions.RadiusAVP2String(get(attr))}""""}).mkString(",")
+        
+      case x: JSONRadiusSerialFormat =>
+        compact(render(RadiusConversions.radiusPacketToJson(this) \ "avps"))
+    }
+  }
+  
   override def toString() = {
     val codeString = code match {
       case RadiusPacket.ACCESS_REQUEST => "Access-Request"
@@ -872,7 +896,7 @@ object RadiusConversions {
       case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue)
       case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, dictItem.enumValues.get(attrValue))
-      case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss").parse(attrValue))
+      case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT).parse(attrValue))
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
       case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue))
       case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue)
@@ -930,7 +954,7 @@ object RadiusConversions {
       case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue.extract[String]))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue.extract[String])
       case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.extract[Int])
-      case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss").parse(attrValue.extract[String]))
+      case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT).parse(attrValue.extract[String]))
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
       case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
       case RadiusTypes.IPV6PREFIX => new IPv6PrefixRadiusAVP(code, vendorId, attrValue.extract[String])
@@ -947,7 +971,7 @@ object RadiusConversions {
       case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
       case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
       case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
-      case avp: TimeRadiusAVP => JField(avp.getName, JString(new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss").format(avp.value)))
+      case avp: TimeRadiusAVP => JField(avp.getName, JString(new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT).format(avp.value)))
       case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: IPv6PrefixRadiusAVP => JField(avp.getName, JString(avp.toString))
@@ -1002,7 +1026,7 @@ object RadiusConversions {
           case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
           case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
           case avp: TimeRadiusAVP =>
-            val sdf = new java.text.SimpleDateFormat("yyyy-MM-ddThh:mm:ss")
+            val sdf = new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT)
             JField(avp.getName, JString(sdf.format(avp.value)))
           case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
           case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))

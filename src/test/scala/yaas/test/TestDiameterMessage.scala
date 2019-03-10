@@ -27,10 +27,10 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   "Diameter Dictionary has been correctly loaded" in {
     val avpNameMap = DiameterDictionary.avpMapByName
     avpNameMap("User-Name") mustEqual BasicAVPDictItem(1, 0, "User-Name", DiameterTypes.UTF8STRING)
-    avpNameMap("3GPP-Bearer-Identifier") mustEqual BasicAVPDictItem(1020, 10415, "Bearer-Identifier", DiameterTypes.OCTETSTRING)
+    avpNameMap("3GPP-Bearer-Identifier") mustEqual BasicAVPDictItem(1020, 10415, "3GPP-Bearer-Identifier", DiameterTypes.OCTETSTRING)
     
     val avpCodeMap = DiameterDictionary.avpMapByCode
-    avpCodeMap.get((10415, 1020)) mustEqual Some(BasicAVPDictItem(1020, 10415, "Bearer-Identifier", DiameterTypes.OCTETSTRING))
+    avpCodeMap.get((10415, 1020)) mustEqual Some(BasicAVPDictItem(1020, 10415, "3GPP-Bearer-Identifier", DiameterTypes.OCTETSTRING))
   }
   
   "OctetString serialization and deserialization" in {
@@ -141,6 +141,9 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     resultCode mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
     // Forced conversion
     (message >> "Result-Code").get.toString mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
+    
+    // Dot notation in not grouped attribute
+    (message >>* "Result-Code").get.stringValue mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
   }
   
   "Adding and retrieving grouped avp to Diameter Message" in {
@@ -153,6 +156,9 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     
     // Retrieve value
     ((diameterMessage >>> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
+    
+    // Retrieve value using dot notation
+    (diameterMessage >>* "Subscription-Id.Subscription-Id-Data").get.stringValue mustEqual userIMSI
   }
   
   "DiameterMessage serialization and deserialization" in {

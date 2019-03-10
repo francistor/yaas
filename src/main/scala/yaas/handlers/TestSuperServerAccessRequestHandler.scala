@@ -30,7 +30,7 @@ class TestSuperServerAccessRequestHandler(statsServer: ActorRef) extends Message
     val userName: String = requestPacket >> "User-Name"
     val password: String = requestPacket >> "User-Password"
     
-    // Will send a response depending on the contents of the User-Name
+    // Will send a response depending on the realm
     if(userName.contains("reject")){
       sendRadiusResponse(requestPacket.responseFailure << ("Reply-Message" -> "The reply message!"))
     } 

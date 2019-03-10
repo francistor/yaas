@@ -1,0 +1,7 @@
+2019-03-10T08:11:16User-Name="test@sessiondb"
+Acct-Session-Id="radius-session-1"
+Framed-IP-Address="199.0.0.1"
+Acct-Status-Type="1"
+
+2019-03-10T08:11:16User-Name="test@drop"
+

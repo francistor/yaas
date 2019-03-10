@@ -46,6 +46,22 @@
   		<appender-ref ref="default-console-appender" />
   		<appender-ref ref="ignite-appender" />
   	</logger>
-
+  	
+  	
+  	<!-- CDR CONFIGURATION -->
+  	<!-- Rolling takes place each minute, not live! -->
+	<appender name="cdr-appender" class="ch.qos.logback.core.rolling.RollingFileAppender">
+	    <file>cdr/current.txt</file>
+	    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+          <fileNamePattern>cdr/cdr_%d{yyyyMMdd-hhmm}.log</fileNamePattern>
+        </rollingPolicy>
+	    <encoder>
+      		<pattern>%msg%n</pattern>
+    	</encoder>
+	</appender>
+	
+  	<logger name="acct.cdr" level="INFO" additivity="false">
+  		<appender-ref ref="cdr-appender" />
+  	</logger>
 </configuration>
 
