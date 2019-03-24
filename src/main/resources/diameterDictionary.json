@@ -798,8 +798,8 @@
                 "type": "Grouped",
                 "group":
                 {
-                    "Subscription-Id-Type": {"minOccurs": 1, "maxOccurs": 1},
-                    "Subscription-Id-Data": {"minOccurs": 1, "maxOccurs": 1}
+                    "Subscription-Id-Type": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1},
+                    "Subscription-Id-Data": {"mandatory": true, "minOccurs": 1, "maxOccurs": 1}
                 }
             },
             {
@@ -1998,7 +1998,7 @@
                         "Acct-Multi-Session-Id": {},
                         "Origin-State-Id": {},
                         "Event-Timestamp": {},
-                        "Subscription-Id": {},
+                        "Subscription-Id": {"mandatory": true},
                         "Service-Identifier": {},
                         "Termination-Cause": {},
                         "Requested-Service-Unit": {},

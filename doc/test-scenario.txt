@@ -1,3 +1,56 @@
+= Test database
+
+Populated when launching TestSuperServerInitClientDatabase.
+
+The test database "CLIENTS" contains a table CLIENTS with columns USERNAME, LEGACY_CLIENT_ID, PLANNAME
+i from 1 to 1000 
+user_<i>, legacy_<i>, plan_<i>
+
+= Server algorithm
+
+== Access Request
+If userName contains "clientdb", looks for User-Name in the test database. 
+If not found, drops packet. 
+If found, proxies to Superserver. The legacy_client_id in the database is sent in the response
+Class attribute or, if not found, set to "unprovisioned_legacy_client_id"
+
+== Accounting Request
+Proxies to Superserver
+Writes CDR
+
+== NASReq AA
+Proxies to Superserver.
+Includes, in the response sent to the client, the Class attribute send by the Superserver
+
+== NASReq AC
+Proxies to Superserver
+Writes CDR
+
+== Gx
+In the default setting, proxies to superserver
+
+= SuperServer algorithm
+
+== Access Request
+If userName contains "reject", rejects the request and sends a Reply-Message
+with the text "The reply message!"
+
+If username contains "drop", drops the request
+
+Otherwise, sends an Access-Accept echoing the User-Password
+
+== Accounting Request
+If username contains "drop", drops the request
+If username contains "sessiondb", stores in session database, including Acct-Session-Id and Framed-IP-Address of the request
+Echoes the User-Name in the response
+
+== NASReq AA
+In the response, two Class attributes are added with the contents of the Framed-Interface-Id and chapIdent contents of the request
+
+== NASReq AC
+If username contains "sessiondb", stores in session database
+
+
 = Test scenario with Nokia AAA.
 
 To be launched with bin/aaaserver and default parameters. Will launch one instance

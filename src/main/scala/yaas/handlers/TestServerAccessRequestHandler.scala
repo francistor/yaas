@@ -30,7 +30,7 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
   val db = Database.forURL(
       (dbConf \ "url").extract[String], 
       driver=(dbConf \ "driver").extract[String], 
-      executor = slick.util.AsyncExecutor("test1", numThreads=nThreads, queueSize=nThreads)
+      executor = slick.util.AsyncExecutor("db-executor", numThreads=nThreads, queueSize=nThreads)
       )
       
   // Warm-up database connection

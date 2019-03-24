@@ -340,12 +340,14 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     
     val ipAddress = "200.0.0.1"
     val acctSessionId = "diameter-session-1"
+    val userName = "user@sessiondb"
     
     val request = DiameterMessage.request("NASREQ", "AC")
     request << 
       "Destination-Realm" -> "yaasserver" << 
       "Session-Id" -> acctSessionId << 
       "Framed-IP-Address" -> ipAddress <<
+      "User-Name" -> userName <<
       "Accounting-Record-Type" -> "START_RECORD"<<
       ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
     

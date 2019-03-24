@@ -98,7 +98,6 @@ object ConfigManager {
             // base + group found in objectName following nameRegex
             val url = base.get +  nameRegex.findFirstMatchIn(objectName).get.group(1)
             log.info(s"Reading $objectName from URL $url")
-            // Remove comments
             parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
           }
           else {

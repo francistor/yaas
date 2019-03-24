@@ -24,7 +24,7 @@ class TestSuperServerGxHandler(statsServer: ActorRef) extends MessageHandler(sta
   
   def handleCCR(implicit ctx: DiameterRequestContext) = {
     
-    // Echoes the subscription-id
+    // Echoes the subscription-id in the charging rule name
     val request = ctx.diameterRequest
     val answer = DiameterMessage.answer(request)
     val subscriptionIdData: String = request >>> "Subscription-Id" >> "Subscription-Id-Data"

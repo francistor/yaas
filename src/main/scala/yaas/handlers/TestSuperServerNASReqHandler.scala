@@ -42,8 +42,9 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
     
     val request = ctx.diameterRequest
     
-    if((request >> "Accounting-Record-Type").contentEquals("START_RECORD")){
-      
+    if(request >>+ "User-Name" contains("sessiondb")){
+      if((request >> "Accounting-Record-Type").contentEquals("START_RECORD")){
+        
           // Store in sessions database
           SessionDatabase.putSession(new JSession(
             request >> "Session-Id",
@@ -52,8 +53,13 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
             "0",
             System.currentTimeMillis(),
             ("uno" -> "uno") ~ ("dos" -> "dos")))
-
-      }
+  
+        } else if((request >> "Acct-Status-Type").contentEquals("Stop")){
+          
+          // Remove session
+           SessionDatabase.removeSession(request >>++ "Session-Id")
+        }
+    }
     
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)

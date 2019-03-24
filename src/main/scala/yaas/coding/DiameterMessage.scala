@@ -190,6 +190,11 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
   def copy : DiameterAVP[Any]
   
   /**
+   * Only GroupedAVP overrides this
+   */
+  def enforceMandatory = {}
+  
+  /**
    * Returns the value of the AVP as a string.
    * 
    * To get names and values use <code>pretty</code>
@@ -433,7 +438,7 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
  *  <code>get()</code>, or <code>>></code>: returns the first attribute with the specified name
  *  <code>get()</code>, or <code>>>+</code>: returns all attributes (List) with the specified name
  */
-class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class GroupedAVP(code: Long, isVendorSpecific: Boolean, var isMandatory: Boolean, vendorId: Long, value: List[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
    /**
    * Secondary constructor from bytes
    */
@@ -449,6 +454,25 @@ class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
         }
         avps
     })
+  }
+  
+  /**
+   * Checks and sets Mandatory-ness (recursive)
+   */
+  override def enforceMandatory = {
+    DiameterDictionary.avpMapByCode((vendorId, code)) match {
+      case GroupedAVPDictItem(_, _, _, _, groupedItems) =>
+        for((name, groupedProps) <- groupedItems){
+          get(name) match {
+            case Some(avp) =>
+              if(groupedProps.isMandatory) avp.isMandatory = true
+              avp.enforceMandatory
+            case None =>
+              if(groupedProps.isMandatory) throw new DiameterCodingException(s"$name attribute mandatory not found")
+          }
+        }
+      // Error if was not GroupedAVPDictItem
+    }
   }
   
   // Synonyms
@@ -978,7 +1002,11 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    
     // Add AVPs. Ignore avp if not in dictionary for this application & command
     for(avp <- avps if commandAVPMap.get((avp.vendorId, avp.code)).isDefined) {
-      if(commandAVPMap((avp.vendorId, avp.code)).isMandatory) avp.isMandatory=true
+      // Command level
+      if(commandAVPMap((avp.vendorId, avp.code)).isMandatory) avp.isMandatory = true
+      // AVP level
+      avp.enforceMandatory
+      
       builder.append(avp.getBytes)
       if(builder.length % 4 != 0) builder.putBytes(new Array[Byte](4 - builder.length % 4))
     }

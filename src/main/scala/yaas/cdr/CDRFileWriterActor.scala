@@ -33,6 +33,9 @@ class CDRFileWriterActor(path: String, fileNamePattern: String) extends Actor wi
     case _ => None
   }
   
+  // Make sure path exists
+  new java.io.File(path).mkdirs
+  
   var currentFormattedDate: Option[String] = None
   var fileWriterOption: Option[java.io.PrintWriter] = None
   var timer: Option[Cancellable] = None
