@@ -149,7 +149,7 @@ object SessionDatabase {
     scalar.start(igniteConfiguration)
     
     // Make sure cache exist
-    if(cache$("Sessions") == None) createCache$("Sessions", REPLICATED, Seq(classOf[String], classOf[Session]))
+    if(cache$("SESSIONS") == None) createCache$("SESSIONS", REPLICATED, Seq(classOf[String], classOf[Session]))
   }
   
   def init() = {
@@ -157,33 +157,33 @@ object SessionDatabase {
   }
   
   def putSession(jSession: JSession) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("SESSIONS")
     sessionsCache.put(jSession.acctSessionId, jSession.toSession)
   }
   
   def removeSession(acctSessionId: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("SESSIONS")
     sessionsCache.remove(acctSessionId)
   }
   
   def findSessionsByIPAddress(ipAddress: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
-    sessionsCache.sql("select * from \"Sessions\".Session where ipAddress = ?", ipAddress).getAll.map(entry => JSession(entry.getValue)).toList
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("SESSIONS")
+    sessionsCache.sql("select * from \"SESSIONS\".Session where ipAddress = ?", ipAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
   def findSessionsByClientId(clientId: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
-    sessionsCache.sql("select * from \"Sessions\".Session where clientId = ?", clientId).getAll.map(entry => JSession(entry.getValue)).toList
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("SESSIONS")
+    sessionsCache.sql("select * from \"SESSIONS\".Session where clientId = ?", clientId).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
   def findSessionsByMACAddress(macAddress: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
-    sessionsCache.sql("select * from \"Sessions\".Session where MACAddress = ?", macAddress).getAll.map(entry => JSession(entry.getValue)).toList
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("SESSIONS")
+    sessionsCache.sql("select * from \"SESSIONS\".Session where MACAddress = ?", macAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
   def findSessionsByAcctSessionId(acctSessionId: String) = {
-    val sessionsCache = ignite$.getOrCreateCache[String, Session]("Sessions")
-    sessionsCache.sql("select * from \"Sessions\".Session where acctSessionId = ?", acctSessionId).getAll.map(entry => JSession(entry.getValue)).toList
+    val sessionsCache = ignite$.getOrCreateCache[String, Session]("SESSIONS")
+    sessionsCache.sql("select * from \"SESSIONS\".Session where acctSessionId = ?", acctSessionId).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
 }

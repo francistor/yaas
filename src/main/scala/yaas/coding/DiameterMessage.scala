@@ -438,7 +438,7 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
  *  <code>get()</code>, or <code>>></code>: returns the first attribute with the specified name
  *  <code>get()</code>, or <code>>>+</code>: returns all attributes (List) with the specified name
  */
-class GroupedAVP(code: Long, isVendorSpecific: Boolean, var isMandatory: Boolean, vendorId: Long, value: List[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
+class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
    /**
    * Secondary constructor from bytes
    */

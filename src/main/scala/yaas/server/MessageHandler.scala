@@ -30,6 +30,8 @@ object MessageHandler {
   // Messages
   case class DiameterRequestTimeout(e2eId: Long) 
   case class RadiusRequestTimeout(radiusId: Long)
+  case class DiameterRequestInternal(promise: Promise[DiameterMessage], requestMessage: DiameterMessage, timeoutMillis: Int)
+  case class RadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int)
 }
 
 /**
@@ -44,6 +46,10 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   ////////////////////////////////
   // Diameter 
   ////////////////////////////////
+  
+  /**
+   * Sends a Diameter Answer.
+   */
   def sendDiameterAnswer(answerMessage: DiameterMessage) (implicit ctx: DiameterRequestContext) = {
     ctx.originActor ! answerMessage
     
@@ -51,16 +57,18 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     log.debug(">> Diameter answer sent\n {}\n", answerMessage.toString())
   }
   
+  /**
+   * Sends a Diameter Request.
+   * 
+   * To be used externally. Will use internal Actor message to avoid thread synchronization issues. It may be used from
+   * any thread
+   */
   def sendDiameterRequest(requestMessage: DiameterMessage, timeoutMillis: Int) = {
-    val requestTimestamp = System.currentTimeMillis
     val promise = Promise[DiameterMessage]
+    val requestTimestamp = System.currentTimeMillis
     
-    // Publish in request map
-    diameterRequestMapIn(requestMessage.endToEndId, timeoutMillis, promise)
-    
-    // Send request using router
-    context.parent ! requestMessage
-    log.debug(">> Diameter request sent\n {}\n", requestMessage.toString())
+    // Use message to avoid threading issues
+    self ! DiameterRequestInternal(promise, requestMessage, timeoutMillis)
     
     // Side-effect action when future is resolved
     promise.future.andThen {
@@ -71,18 +79,28 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     }
   }
   
+  // For internal use
+  private def sendDiameterRequestInternal(promise: Promise[DiameterMessage], requestMessage: DiameterMessage, timeoutMillis: Int) = {
+    // Publish in request map
+    diameterRequestMapIn(requestMessage.endToEndId, timeoutMillis, promise)
+    
+    // Send request using router
+    context.parent ! requestMessage
+    log.debug(">> Diameter request sent\n {}\n", requestMessage.toString())
+  }
+  
   // To be overriden in Handler Classes
   def handleDiameterMessage(ctx: DiameterRequestContext) = {
-    log.warning("Default diameter handleMessage does nothing")
+    log.warning("Default Diameter handleMessage does nothing")
   }
   
   ////////////////////////////////
   // Diameter Request Map
   ////////////////////////////////
   case class DiameterRequestMapEntry(promise: Promise[DiameterMessage], timer: Cancellable)
-  val diameterRequestMap = scala.collection.mutable.Map[Long, DiameterRequestMapEntry]()
+  private val diameterRequestMap = scala.collection.mutable.Map[Long, DiameterRequestMapEntry]()
   
-  def diameterRequestMapIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
+  private def diameterRequestMapIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
     // Schedule timer
     val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, DiameterRequestTimeout(e2eId))
  
@@ -92,7 +110,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     log.debug("Diameter RequestMap In -> {}", e2eId)
   }
   
-  def diameterRequestMapOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {
+  private def diameterRequestMapOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {
     // Remove Map entry
     diameterRequestMap.remove(e2eId) match {
       case Some(requestEntry) =>
@@ -118,6 +136,9 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   ////////////////////////////////
   // Radius
   ////////////////////////////////
+  /**
+   * Sends a Radius Response packet
+   */
   def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext) = {
     ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin)
     
@@ -125,18 +146,39 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
   }
   
+  /**
+   * To be used by the handler to signal to the stats that the packet has been dropped
+   */
   def dropRadiusPacket(implicit ctx: RadiusRequestContext) = {
     StatOps.pushRadiusHandlerDrop(statsServer, ctx.origin, ctx.requestPacket.code)
   }
   
-  def sendRadiusGroupRequest(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int): Future[RadiusPacket] = {
-    sendRadiusGroupRequestInternal(serverGroupName, requestPacket, timeoutMillis, retries, 0)
+  /**
+   * Sends a Radius Request to the specified group.
+   * 
+   * To be used externally. Will use internal Actor message to avoid thread synchronization issues. It may be used from
+   * any thread.
+   */
+  def sendRadiusGroupRequest(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int = 0): Future[RadiusPacket] = {
+    val promise = Promise[RadiusPacket]
+    val sentTimestamp = System.currentTimeMillis
+    
+    self ! RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum)
+    
+    promise.future.recoverWith {
+      case e if(retries > 0) =>
+        StatOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
+        sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1)
+    }.andThen {
+      case Failure(e) =>
+        StatOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
+      case Success(responsePacket) =>
+        StatOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, sentTimestamp) 
+    }
   }
   
-  def sendRadiusGroupRequestInternal(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int): Future[RadiusPacket] = {
-    val promise = Promise[RadiusPacket]
-    
-    val sentTimestamp = System.currentTimeMillis
+  // To be used internally
+  private def sendRadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int) = {
     
     // Publish in request Map
     val radiusId = yaas.util.IDGenerator.nextRadiusId
@@ -146,17 +188,6 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     context.parent ! RadiusGroupClientRequest(requestPacket, serverGroupName, radiusId, retryNum)
     
     log.debug(">> Radius request sent\n {}\n", requestPacket.toString())
-    
-    promise.future.recoverWith {
-      case e if(retries > 0) =>
-        StatOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
-        sendRadiusGroupRequestInternal(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1)
-    }.andThen {
-      case Failure(e) =>
-        StatOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
-      case Success(responsePacket) =>
-        StatOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, sentTimestamp) 
-    }
   }
   
   // To be overriden in Handler Classes
@@ -168,9 +199,9 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   // Radius Request Map
   ////////////////////////////////
   case class RadiusRequestMapEntry(promise: Promise[RadiusPacket], timer: Cancellable, sentTimestamp: Long)
-  val radiusRequestMap = scala.collection.mutable.Map[Long, RadiusRequestMapEntry]()
+  private val radiusRequestMap = scala.collection.mutable.Map[Long, RadiusRequestMapEntry]()
   
-  def radiusRequestMapIn(radiusId: Long, timeoutMillis: Int, promise: Promise[RadiusPacket]) = {
+  private def radiusRequestMapIn(radiusId: Long, timeoutMillis: Int, promise: Promise[RadiusPacket]) = {
     // Schedule timer
     val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.RadiusRequestTimeout(radiusId))
     
@@ -180,7 +211,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     log.debug("Radius Request Map In -> {}", radiusId)
   }
   
-  def radiusRequestMapOut(radiusId: Long, radiusPacketOrError: Either[RadiusPacket, Exception]) = {
+  private def radiusRequestMapOut(radiusId: Long, radiusPacketOrError: Either[RadiusPacket, Exception]) = {
     radiusRequestMap.remove(radiusId) match {
       case Some(requestEntry) =>
         requestEntry.timer.cancel()
@@ -205,7 +236,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   def receive  = LoggingReceive {
     
     // Diameter
-    case DiameterRequestTimeout(e2eId) => 
+    case DiameterRequestTimeout(e2eId) =>
       diameterRequestMapOut(e2eId, Right(new DiameterTimeoutException("Timeout")))
     
     case RoutedDiameterMessage(diameterRequest, originActor) =>
@@ -215,6 +246,9 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     case diameterAnswer: DiameterMessage =>
       log.debug("<< Diameter anwer received\n {}\n", diameterAnswer.toString())
       diameterRequestMapOut(diameterAnswer.endToEndId, Left(diameterAnswer))
+      
+    case DiameterRequestInternal(promise, requestMessage, timeoutMillis) =>
+      sendDiameterRequestInternal(promise, requestMessage, timeoutMillis)
       
     // Radius
     case RadiusRequestTimeout(radiusId) =>
@@ -228,5 +262,8 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     case RadiusClientResponse(radiusResponse: RadiusPacket, radiusId: Long) =>
       log.debug("<< Radius response received\n {}\n", radiusResponse.toString())
       radiusRequestMapOut(radiusId, Left(radiusResponse))
+      
+    case RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum) =>
+      sendRadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum)
 	}
 }

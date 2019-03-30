@@ -23,7 +23,7 @@ SET DESTINATION_ADDRESS=127.0.0.1:3868
 REM Test parameters
 SET REQUESTFILE=%_THIS_FILE_DIRNAME%\CCRequest.txt
 
-SET COUNT=5
+SET COUNT=1
 
 REM Delete Garbage
 del /Q _THIS_FILE_DIRNAME\out\*.* 2>nul
@@ -34,6 +34,7 @@ REM Diameter CCR -------------------------------------------------------------
 @echo.
 
 echo Session-Id = "session-id-1" > %REQUESTFILE%
+echo Auth-Application-Id = 4 >> %REQUESTFILE%
 echo CC-Request-Type = 1 >> %REQUESTFILE%
 echo CC-Request-Number = 1 >> %REQUESTFILE%
 echo Subscription-Id = "Subscription-Id-Type=1, Subscription-Id-Data=913374871" >> %REQUESTFILE%

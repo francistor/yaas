@@ -26,6 +26,9 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
     }
   }
   
+  /**
+   * Sends back two Class attributes with the Framed-Interface-Id and CHAP-Auth.CHAP.Ident
+   */
   def handleAAR(implicit ctx: DiameterRequestContext) = {
     
     val request = ctx.diameterRequest
@@ -42,7 +45,7 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
     
     val request = ctx.diameterRequest
     
-    if(request >>+ "User-Name" contains("sessiondb")){
+    if(request >>++ "User-Name" contains("sessiondb")){
       if((request >> "Accounting-Record-Type").contentEquals("START_RECORD")){
         
           // Store in sessions database
@@ -54,7 +57,7 @@ class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler
             System.currentTimeMillis(),
             ("uno" -> "uno") ~ ("dos" -> "dos")))
   
-        } else if((request >> "Acct-Status-Type").contentEquals("Stop")){
+        } else if((request >> "Accounting-Record-Type").contentEquals("STOP_RECORD")){
           
           // Remove session
            SessionDatabase.removeSession(request >>++ "Session-Id")

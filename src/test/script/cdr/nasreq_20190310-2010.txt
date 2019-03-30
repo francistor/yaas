@@ -1,1 +1,0 @@
-{"Origin-Host":"client.yaasclient","Origin-Realm":"yaasclient","Destination-Realm":"yaasserver","Session-Id":"diameter-session-1","Framed-IP-Address":"200.0.0.1","Accounting-Record-Type":"START_RECORD","Tunneling":{"Tunnel-Type":"L2TP","Tunnel-Client-Endpoint":"my-tunnel-endpoint"}}

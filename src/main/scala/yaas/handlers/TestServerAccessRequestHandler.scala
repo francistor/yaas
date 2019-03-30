@@ -30,7 +30,7 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
   val db = Database.forURL(
       (dbConf \ "url").extract[String], 
       driver=(dbConf \ "driver").extract[String], 
-      executor = slick.util.AsyncExecutor("db-executor", numThreads=nThreads, queueSize=nThreads)
+      executor = slick.util.AsyncExecutor("db-executor", numThreads=nThreads, queueSize=1000)
       )
       
   // Warm-up database connection
@@ -65,7 +65,7 @@ class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandl
         case Success(queryResult) => 
           // If client not found, drop
           if(queryResult.length == 0){
-            log.error("Client not found")
+            log.error(s"Client not found $login")
             dropRadiusPacket
           }
           else {

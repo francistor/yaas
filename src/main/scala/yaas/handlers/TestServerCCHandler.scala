@@ -35,7 +35,11 @@ class TestServerCCHandler(statsServer: ActorRef) extends MessageHandler(statsSer
     val subscriptionIdAVP: GroupedAVP = ("Subscription-Id" -> List(("Subscription-Id-Type" -> subscriptionIdType), ("Subscription-Id-Data" -> subscriptionIdData)))
     val serverRequest = DiameterMessage.request("Credit-Control", "Credit-Control") << 
     subscriptionIdAVP <<
-    ("Destination-Realm" -> "yaassuperserver")
+    ("Destination-Realm" -> "yaassuperserver") <<
+    (request >> "Session-Id") <<
+    (request >> "Auth-Application-Id") <<
+    (request >> "CC-Request-Type") <<
+    (request >> "CC-Request-Number")
     
     sendDiameterRequest(serverRequest, 1000).onComplete {
       case Success(upstreamAnswer) =>

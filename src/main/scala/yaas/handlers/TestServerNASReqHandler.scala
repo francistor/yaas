@@ -55,7 +55,6 @@ class TestServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(stat
     
     sendDiameterRequest(proxyRequest, 1000).onComplete {
       case Success(proxyAnswer) =>
-        log.info("Received proxy answer {}", proxyAnswer)
         
         // Build the answer
         val answer = DiameterMessage.answer(ctx.diameterRequest)

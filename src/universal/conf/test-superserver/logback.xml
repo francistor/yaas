@@ -31,14 +31,14 @@
     	<appender-ref ref="default-file-appender" />
   	</root>
   	
-  	<logger name="yaas" level="DEBUG" additivity="false">
+  	<logger name="yaas" level="INFO" additivity="false">
   		<!-- 
     	<appender-ref ref="default-console-appender" />
     	-->
     	<appender-ref ref="default-file-appender" />
   	</logger>
 
-  	<logger name="yaas.server.DiameterPeer" level="DEBUG" additivity="false">
+  	<logger name="yaas.server.DiameterPeer" level="info" additivity="false">
   		<appender-ref ref="peer-appender" />
   	</logger>
   	

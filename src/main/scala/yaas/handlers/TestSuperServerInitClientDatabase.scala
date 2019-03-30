@@ -16,13 +16,13 @@ class TestSuperServerInitClientDatabase(statsServer: ActorRef) extends MessageHa
   log.info("Creating client database")
   
   // Create table
-  val emptyCache = ignite$.getOrCreateCache[Nothing, Nothing]("CLIENTS")
-  emptyCache.query(new SqlFieldsQuery("CREATE TABLE CLIENTS (USERNAME varchar primary key, LEGACY_CLIENT_ID varchar, PLANNAME varchar)"))
+  val clientCache = ignite$.getOrCreateCache[Nothing, Nothing]("CLIENTS")
+  clientCache.query(new SqlFieldsQuery("CREATE TABLE CLIENTS (USERNAME varchar primary key, LEGACY_CLIENT_ID varchar, PLANNAME varchar)"))
   
   // Populate
-  for(i <- 1 to 1000){
+  for(i <- 0 to 1000){
     val q = new SqlFieldsQuery("INSERT INTO CLIENTS (USERNAME, LEGACY_CLIENT_ID, PLANNAME) values (?, ?, ?)")
     q.setArgs("user_" + i, "legacy_" + i, "plan_" +  i)
-    emptyCache.query(q)
+    clientCache.query(q)
   }
 }

@@ -50,6 +50,11 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
     nextTest
   }
   
+  def intToIPAddress(i: Int) = {
+    val bytes = Array[Byte]((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, (i % 8).toByte)
+    java.net.InetAddress.getByAddress(bytes).getHostAddress
+  }
+  
   def getJson(url: String) = {
     wait(for {
       r <- http.singleRequest(HttpRequest(uri = url))
@@ -122,11 +127,15 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       testGxRouting _,
       sleep _,
       checkSuperserverDiameterStats _,
-      checkServerDiameterStats _
-  )
-  
-  val tests2 = IndexedSeq[() => Unit](
-      testGxRouting _
+      checkServerDiameterStats _,
+      checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Radius Warmup") _,
+      checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Free Wheel") _,
+      checkRadiusPerformance(ACCESS_REQUEST, "@clientdb", 10000, 10, "Database Lookup") _,
+      checkRadiusPerformance(ACCOUNTING_REQUEST, "@sessiondb", 10000, 10, "Session storage") _,
+      checkDiameterPerformance("AA", "@accept", 20000, 10, "AA Warmup") _,
+      checkDiameterPerformance("AA", "@accept", 10000, 10, "AA Free Wheel") _,
+      checkDiameterPerformance("AC", "@accept", 20000, 10, "AC Warmup") _,
+      checkDiameterPerformance("AC", "@accept", 10000, 10, "AC Free Wheel") _
   )
   
   var lastTestIdx = -1
@@ -594,5 +603,166 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       checkStat(jHandlerClient, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
       
       nextTest
+  }
+  
+  def checkRadiusPerformance(requestType: Int, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
+    
+    println(s"[Test] RADIUS Performance. $testName")
+    
+    val serverGroup = "testServer"
+    
+    val startTime = System.currentTimeMillis()
+    
+    // Number of requests being performed
+    var i = new java.util.concurrent.atomic.AtomicInteger(0)
+    
+    // Each thread does this
+    def requestLoop: Future[Unit] = {
+      
+      val promise = Promise[Unit]()
+      
+      def loop: Unit = {
+        val reqIndex = i.getAndIncrement
+        print("\r" +  reqIndex)
+        if(reqIndex < nRequests){
+          // The server will echo the User-Password. We'll test this
+          val password = "test-password!"
+          val accessRequest = 
+            RadiusPacket.request(requestType) << 
+            ("User-Name" -> ("user_"+ (reqIndex % 1000) + domain)) << 
+            ("User-Password" -> password) <<
+            ("Acct-Session-Id" -> ("session-" + testName + "-" + reqIndex)) <<
+            ("Acct-Status-Type" -> "Start") <<
+            ("Framed-IP-Address" -> intToIPAddress(reqIndex))
+            
+            
+          sendRadiusGroupRequest(serverGroup, accessRequest, 3000, 1).onComplete {
+            case Success(response) =>
+              if(response.code == ACCOUNTING_RESPONSE|| (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>++ "User-Password") == password)) loop
+              else promise.failure(new Exception("Bad Radius Response"))
+              
+            case Failure(e) =>
+              promise.failure(e)
+          }
+        } else promise.success(Unit)
+      }
+      
+      loop
+      promise.future
+    }
+    
+    // Launch the threads
+    val requesters = List.fill(nThreads)(requestLoop)
+    Future.reduce(requesters)((a, b) => Unit).onComplete {
+      case Success(v) =>
+        val total = i.get
+        if(total < nRequests) fail(s"Not completed. Got $total requests") 
+        else{
+          // Print results
+          print("\r")
+          val totalTime = System.currentTimeMillis() - startTime
+          ok(s"$nRequests in ${totalTime} milliseconds, ${1000 * nRequests / totalTime} per second")
+          
+          nextTest
+        }
+        
+      case Failure(e) =>
+        fail(e.getMessage)
+    }
+  }
+  
+  def checkDiameterPerformance(requestType: String, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
+    
+    println(s"[Test] Diameter Performance. $testName")
+    
+    val startTime = System.currentTimeMillis()
+    
+    // Number of requests being performed
+    var i = new java.util.concurrent.atomic.AtomicInteger(0)
+    
+    // Each thread does this
+    def requestLoop: Future[Unit] = {
+      
+      val promise = Promise[Unit]()
+      
+      def loop: Unit = {
+        val reqIndex = i.getAndIncrement
+        print("\r" +  reqIndex)
+        if(reqIndex < nRequests){
+          
+          if(requestType == "AA"){
+            // Send AA Request with
+            // Framed-Interface-Id to be echoed as one "Class" attribute
+            // CHAP-Ident to be echoed as another "Class" attribute
+            val sentFramedInterfaceId = "abcdef"
+            val sentCHAPIdent = "abc"
+            val chapAuthAVP: GroupedAVP =  ("CHAP-Auth", Seq()) <-- ("CHAP-Algorithm", "CHAP-With-MD5") <-- ("CHAP-Ident", sentCHAPIdent)
+            
+            val request = DiameterMessage.request("NASREQ", "AA")
+            request << 
+              "Destination-Realm" -> "yaasserver" <<
+              ("Framed-Interface-Id" -> sentFramedInterfaceId)  <<
+              chapAuthAVP
+            
+            sendDiameterRequest(request, 5000).onComplete{
+              case Success(answer) =>
+                // Check answer
+                val classAttrs = answer >>+ "Class" map {avp => OctetOps.fromHexToUTF8(avp.toString)}
+                if (classAttrs sameElements Seq(sentFramedInterfaceId, sentCHAPIdent)) loop
+                else promise.failure(new Exception("Bad answer"))
+                
+              case Failure(e) =>
+                promise.failure(e)
+            }
+          } 
+          else {
+            val ipAddress = "200.0.0.1"
+            val acctSessionId = "diameter-session-1"
+            val userName = "user_" + (reqIndex % 1000) + domain
+            
+            val request = DiameterMessage.request("NASREQ", "AC")
+            request << 
+              "Destination-Realm" -> "yaasserver" << 
+              "Session-Id" -> acctSessionId << 
+              "Framed-IP-Address" -> ipAddress <<
+              "User-Name" -> userName <<
+              "Accounting-Record-Type" -> "START_RECORD"<<
+              ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
+            
+            sendDiameterRequest(request, 5000).onComplete{
+              case Success(answer) =>
+                // Check answer
+                if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) loop
+                else promise.failure(new Exception("Bad answer"))
+        
+              case Failure(e) =>
+                promise.failure(e)
+            }
+          }
+        } else promise.success(Unit)
+      }
+      
+      loop
+      promise.future
+    }
+    
+    // Launch the threads
+    val requesters = List.fill(nThreads)(requestLoop)
+    Future.reduce(requesters)((a, b) => Unit).onComplete {
+      case Success(v) =>
+        val total = i.get
+        if(total < nRequests) fail(s"Not completed. Got $total requests") 
+        else{
+          // Print results
+          print("\r")
+          val totalTime = System.currentTimeMillis() - startTime
+          ok(s"$nRequests in ${totalTime} milliseconds, ${1000 * nRequests / totalTime} per second")
+          
+          nextTest
+        }
+        
+      case Failure(e) =>
+        fail(e.getMessage)
+    }
   }
 }
