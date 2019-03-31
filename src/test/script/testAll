@@ -1,0 +1,16 @@
+#!/bin/bash
+
+_THIS_FILE_DIRNAME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+BIN_DIR=../../../target/universal/stage/bin
+
+rm $_THIS_FILE_DIRNAME/log/*
+rm $_THIS_FILE_DIRNAME/cdr/*
+
+nohup gnome-terminal -- $BIN_DIR/aaaserver test-superserver
+sleep 20
+
+nohup gnome-terminal -- $BIN_DIR/aaaserver test-server
+sleep 20
+
+nohup gnome-terminal -- $BIN_DIR/aaaserver test-client
+
