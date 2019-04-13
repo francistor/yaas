@@ -4,7 +4,8 @@
 	{"name": "TestServerNASReqHandler", "clazz": "yaas.handlers.TestServerNASReqHandler"},
 	
 	// Radius
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.TestServerAccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.TestServerAccountingRequestHandler"}
+	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.DefaultAccessRequestHandler"},
+	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.DefaultAccountingRequestHandler"}
+	
 	// CoARequestHandler not defined
 ]

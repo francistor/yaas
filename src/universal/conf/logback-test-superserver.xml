@@ -1,12 +1,12 @@
 <configuration debug="false" scan="true">
-	<appender name="default-file-appender" class="ch.qos.logback.core.FileAppender">
+	<appender name="file-appender" class="ch.qos.logback.core.FileAppender">
 	    <file>log/aaa_${instance:-default}.log</file>
 	    <encoder>
       		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     	</encoder>
 	</appender>
 
-	<appender name="default-console-appender" class="ch.qos.logback.core.ConsoleAppender">
+	<appender name="console-appender" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
       		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     	</encoder>
@@ -26,24 +26,20 @@
     	</encoder>
 	</appender>
 
-	<root level="WARN">          
-    	<appender-ref ref="default-console-appender" />
-    	<appender-ref ref="default-file-appender" />
+	<root level="ERROR">          
+    	<appender-ref ref="console-appender" />
+    	<appender-ref ref="file-appender" />
   	</root>
   	
   	<logger name="yaas" level="INFO" additivity="false">
-  		<!-- 
-    	<appender-ref ref="default-console-appender" />
-    	-->
-    	<appender-ref ref="default-file-appender" />
+    	<appender-ref ref="file-appender" />
   	</logger>
-
-  	<logger name="yaas.server.DiameterPeer" level="info" additivity="false">
+  	
+  	<logger name="yaas.server.DiameterPeer" level="INFO" additivity="false">
   		<appender-ref ref="peer-appender" />
   	</logger>
   	
-  	<logger name="org.apache.ignite" level="WARN" additivity="false">
-  		<appender-ref ref="default-console-appender" />
+  	<logger name="org.apache.ignite" level="INFO" additivity="false">
   		<appender-ref ref="ignite-appender" />
   	</logger>
 

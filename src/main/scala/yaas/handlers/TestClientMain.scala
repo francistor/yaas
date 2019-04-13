@@ -138,6 +138,8 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
       checkDiameterPerformance("AC", "@accept", 10000, 10, "AC Free Wheel") _
   )
   
+  println("STARTING TESTS")
+  
   var lastTestIdx = -1
   def nextTest(): Unit = {
     lastTestIdx = lastTestIdx + 1
@@ -150,6 +152,11 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   /////////////////////////////////////////////////////////////////////////
   // Test functions
   /////////////////////////////////////////////////////////////////////////
+  
+  // Finishes the tests because does not call nextText
+  def stop(): Unit = {
+    println("Tests stopped")
+  }
   
   def clientPeerConnections(): Unit = {
       // Test-Client is connected to server.yaasserver, and not connected to non-existing-server.yaasserver

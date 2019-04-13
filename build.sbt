@@ -29,13 +29,8 @@ libraryDependencies ++=
   )
   
 scriptClasspath += "../conf"
-batScriptExtraDefines += """if [%1] == [] (set INSTANCE=default) else (set INSTANCE=%1)"""
-batScriptExtraDefines += """set APP_CLASSPATH=%APP_LIB_DIR%\..\conf\%INSTANCE%;%APP_CLASSPATH%"""
-batScriptExtraDefines += """call :add_java "-Dinstance=%INSTANCE%""""
+scriptClasspath += "../handlers"
 
-bashScriptExtraDefines += """INSTANCE=${1:=default}"""
-bashScriptExtraDefines += """app_classpath=$lib_dir/../conf/$INSTANCE:$app_classpath"""
-bashScriptExtraDefines += """addJava "-Dinstance=$INSTANCE""""
 
   
 

@@ -1,3 +1,5 @@
+// For testing
+
 [	
 	// Handle Credit-Control locally
 	{"realm": "yaasserver", "applicationId": "Credit-Control", "handler": "TestServerCCHandler"},

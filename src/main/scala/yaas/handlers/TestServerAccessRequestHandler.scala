@@ -21,7 +21,6 @@ import slick.jdbc.SQLiteProfile.api._
 class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccessRequestHandler")
-  log.info("Populating Clients Database")
   
   // Get the database configuration
   val dbConf = yaas.config.ConfigManager.getConfigObject("clientsDatabase.json")

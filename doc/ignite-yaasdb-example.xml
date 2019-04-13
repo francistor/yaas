@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+AAA server configures programatically an ignite server with configuration like the
+one below.
+
+Use this to launch an standalone ignite server for YAAS. 
+ -->
 
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more

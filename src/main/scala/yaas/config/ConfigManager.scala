@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory
 object ConfigManager {
   
   val separator = System.lineSeparator
+  val instance = System.getProperty("instance")
   
   val log = LoggerFactory.getLogger(ConfigManager.getClass)
   
@@ -58,10 +59,11 @@ object ConfigManager {
 	val configSearchRulesJson = Try(new URL(configSearchRulesLocation)) match {
     case Success(url) => 
       log.info(s"Bootstraping config from URL $configSearchRulesLocation")
-      parse(Source.fromURL(url).mkString)
+      parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+
     case Failure(_) => 
       log.info(s"Bootstraping config from resource $configSearchRulesLocation")
-      parse(Source.fromInputStream(getClass.getResourceAsStream("/" + configSearchRulesLocation)).mkString)
+      parse(Source.fromInputStream(getClass.getResourceAsStream("/" + configSearchRulesLocation)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
       //Scala 1.12 parse(Source.fromResource(configSearchRulesLocation).mkString)
   }
   
@@ -91,31 +93,37 @@ object ConfigManager {
    */
   private def readConfigObject(objectName: String): JValue = { 	
     
-    val co = rules.collectFirst(
-      {
-        case SearchRule(nameRegex, locationType, base) if objectName.matches(nameRegex.regex) =>
-          if(locationType == "URL"){
-            // base + group found in objectName following nameRegex
-            val url = base.get +  nameRegex.findFirstMatchIn(objectName).get.group(1)
-            log.info(s"Reading $objectName from URL $url")
-            parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-          }
-          else {
-            val resName = nameRegex.findFirstMatchIn(objectName).get.group(1)
-            log.info(s"Reading $objectName from resource $resName")
-            // Remove comments
-            parse(Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-            // Scala 2.12 parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-          }
-      }
-    )
+    def lookUp(modObjectName: String) = {
+      rules.collectFirst(
+        {
+          case SearchRule(nameRegex, locationType, base) if modObjectName.matches(nameRegex.regex) =>
+            if(locationType == "URL"){
+              // base + group found in objectName following nameRegex
+              val url = base.get +  nameRegex.findFirstMatchIn(modObjectName).get.group(1)
+              log.info(s"Reading $modObjectName from URL $url")
+              parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+            }
+            else {
+              val resName = nameRegex.findFirstMatchIn(modObjectName).get.group(1)
+              log.info(s"Reading $modObjectName from resource $resName")
+              // Remove comments
+              parse(Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+              // Scala 2.12 parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+            }
+        }
+      )
+    }
     
-    co match {
-      case Some(j) => 
+    // Try instance specific first. Then, regular object name
+    Try(lookUp(s"$instance/$objectName")).orElse(Try(lookUp(objectName))) match {
+      case Success(Some(j)) =>
         configObjectCache(objectName) = j
         j
-      case None => throw new java.util.NoSuchElementException(objectName)
+        
+      case _ =>
+        throw new java.util.NoSuchElementException(objectName)
     }
+    
   }
 
   /**

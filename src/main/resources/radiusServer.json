@@ -1,3 +1,4 @@
+// For testing
 {
 	"bindAddress": "0.0.0.0",
 	"authBindPort": 1812,

@@ -1,3 +1,6 @@
+// Just an example
+// The file will be located in the base URL plus the captured group in the resource name as specified in the nameRegex
+
 [
 	{"nameRegex": "Gx/(.*)", 	"locationType": "URL", "base": "http://localhost:8099/"},
 	{"nameRegex": "Gy/(.*)", 	"locationType": "URL", "base": "file:///etc/yaas/Gy/"},
