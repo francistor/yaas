@@ -368,7 +368,7 @@ class StatsServer extends Actor with ActorLogging {
           case "radiusHandlerDropped" => sender ! getRadiusStats(radiusHandlerDroppedStats, paramList)
           case "radiusHandlerRequest" => sender ! getRadiusStats(radiusHandlerRequestStats, paramList)
           case "radiusHandlerRetransmission" => sender ! getRadiusStats(radiusHandlerRetransmissionStats, paramList)
-          case "radiusHandlerTimeout" => getRadiusStats(radiusHandlerTimeoutStats, paramList)
+          case "radiusHandlerTimeout" => sender ! getRadiusStats(radiusHandlerTimeoutStats, paramList)
         }
       } 
       catch {

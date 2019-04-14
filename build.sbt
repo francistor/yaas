@@ -3,6 +3,7 @@ name := "AAAServer"
 version := "0.1"
 
 organization := "com.gmail.franciscocardosogil"
+maintainer := "francisco.cardosogil@gmail.com"
 
 enablePlugins(JavaAppPackaging)
 
