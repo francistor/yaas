@@ -6,11 +6,11 @@ BIN_DIR=../../../target/universal/stage/bin
 rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
 
-nohup gnome-terminal -- $BIN_DIR/aaaserver test-superserver
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver
 sleep 20
 
-nohup gnome-terminal -- $BIN_DIR/aaaserver test-server
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server
 sleep 20
 
-nohup gnome-terminal -- $BIN_DIR/aaaserver test-client
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client
 

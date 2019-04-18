@@ -1,0 +1,5 @@
+[
+	{"nameRegex": "Gx/(.*)", 	"locationType": "URL", "base": "http://localhost:8099/"},
+	{"nameRegex": "Gy/(.*)", 	"locationType": "URL", "base": "file:///etc/yaas/Gy/"},
+	{"nameRegex": "(.*)", 		"locationType": "resource"}
+]

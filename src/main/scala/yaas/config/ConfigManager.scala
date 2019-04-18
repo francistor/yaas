@@ -39,7 +39,8 @@ import org.slf4j.LoggerFactory
 object ConfigManager {
   
   val separator = System.lineSeparator
-  val instance = System.getProperty("instance")
+  val ti = System.getProperty("instance")
+  val instance = if(ti == null) "default" else ti
   
   val log = LoggerFactory.getLogger(ConfigManager.getClass)
   
@@ -55,6 +56,9 @@ object ConfigManager {
 	val config = ConfigFactory.load()
 	val configSearchRulesLocation = config.getString("aaa.configSearchRulesLocation")
 	
+	val configSearchRulesJson = readConfigSearchRules(configSearchRulesLocation)
+	
+	/*
 	// Try to parse bootstrapLocation as a URL. Otherwise interpret as a resource file in classpath
 	val configSearchRulesJson = Try(new URL(configSearchRulesLocation)) match {
     case Success(url) => 
@@ -66,6 +70,8 @@ object ConfigManager {
       parse(Source.fromInputStream(getClass.getResourceAsStream("/" + configSearchRulesLocation)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
       //Scala 1.12 parse(Source.fromResource(configSearchRulesLocation).mkString)
   }
+  * */
+
   
   // Parse the Json that specifies where to get config objects from
   implicit val jsonFormats = DefaultFormats + new SearchRuleSerializer
@@ -87,6 +93,39 @@ object ConfigManager {
       "radiusClients.json",
       "handlers.json"
       ).foreach(readConfigObject(_))
+      
+  /**
+   * Retrieves the configSearchRules. Tries first with instance name, then without instance name
+   */
+  private def readConfigSearchRules(configSearchRulesLocation: String) = {
+    
+    def lookUp(modLocation: String) = {
+      Try(new URL(modLocation)) match {
+        case Success(url) => 
+          log.info(s"Bootstraping config from URL $modLocation")
+          parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+    
+        case Failure(_) => 
+          log.info(s"Bootstraping config from resource $modLocation")
+          parse(Source.fromInputStream(getClass.getResourceAsStream(modLocation)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+          //Scala 1.12 parse(Source.fromResource(configSearchRulesLocation).mkString)
+      }
+    }
+    
+    val r = "(.*/)(.*)".r
+    val (path, file) = if(configSearchRulesLocation.matches(r.regex)){
+      val m = r.findFirstMatchIn(configSearchRulesLocation).get
+      (m.group(1), m.group(2))
+    } else ("/", configSearchRulesLocation)
+      
+    Try(lookUp(path + instance + "/" + file)).orElse(Try(lookUp(path + file))) match {
+      case Success(j) =>
+        j
+       
+      case Failure(_) =>
+        throw new java.util.NoSuchElementException(configSearchRulesLocation + "not found")
+    }
+  }
   
   /*
    * Retrieves the specified configured object name
