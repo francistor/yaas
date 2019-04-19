@@ -1,8 +1,13 @@
 #!/bin/bash
 
+############################################
 # Build docker image and pull to Docker Hub
-# sbt clean universal:packageBin
+############################################
 
+# Build project
+sbt clean universal:packageBin
+
+# Get version
 zipfile=$(ls target/universal/*.zip)
 if [[ $zipfile =~ (.+)/aaaserver-(.+)\.zip ]]; then
 	directory="${BASH_REMATCH[1]}"
@@ -12,7 +17,15 @@ else
 	exit 1
 fi
 
+# Unzip contents
 unzip -o -d ${directory} ${zipfile}
+
+# Generate docker image
 sudo docker build --file src/main/docker/Dockerfile --build-arg version=$version --tag yaas:$version .
+
+# Publish to docker hub
+sudo docker login --username=francistor
+sudo docker tag yaas:$version francistor/yaas:$version
+sudo docker push francistor/yaas:$version
 
 

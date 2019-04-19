@@ -31,15 +31,9 @@ libraryDependencies ++=
 scriptClasspath += "../conf"
 scriptClasspath += "../handlers"
   
+// --add-exports needed for Ignite compatibility with java 9
 javaOptions in Universal ++= Seq(
-    "-J-verbosegc",
-    "-J-XX:+PrintGCDetails",
-    "-J-XX:+PrintGCDateStamps",
-    "-J-XX:+PrintTenuringDistribution",
-    "-J-Xloggc:garbage.log", 
     "-J-server",
-    "-J-XX:+UseConcMarkSweepGC",
-    "-J-XX:+CMSParallelRemarkEnabled",
 	"-J--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
 	"-J--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
 )
