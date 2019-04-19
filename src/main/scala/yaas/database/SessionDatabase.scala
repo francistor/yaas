@@ -103,6 +103,9 @@ object SessionDatabase {
   
   val log = LoggerFactory.getLogger(SessionDatabase.getClass)
   
+  val ti = System.getProperty("instance")
+  val instance = if(ti == null) "default" else ti
+  
   // Configure Ignite client
   val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
   
@@ -110,43 +113,61 @@ object SessionDatabase {
   if(!role.equalsIgnoreCase("client") && !role.equalsIgnoreCase("server") && !role.equalsIgnoreCase("none")) throw new IllegalArgumentException("role is not <client> or <server> or <none>")
 
   // If configured as "0" or not configured, will not start ignite client
-  // 6 characters isorg.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder the minimum for having configured an IP address in the igniteAddresses parameter
+  // 6 characters is org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder the minimum for having configured an IP address in the igniteAddresses parameter
   if(!role.equalsIgnoreCase("none")) {
     
-    val igniteAddresses = config.getString("igniteAddresses")
-    val localIgniteAddress = config.getString("localIgniteAddress").split(":")
-    val memoryMegabytes = config.getLong("memoryMegabytes")
+    // Try to find the ignite configuration file (ugly due to Scala 2.11)
+    val igniteFileWithInstance = getClass.getResource("/" + instance + "/ignite-yaasdb.xml")
+    val igniteFile = getClass.getResource("/ignite-yaasdb.xml")
     
-    val dsConfiguration = new DataStorageConfiguration
-    val dsRegionConfiguration = new DataRegionConfiguration
-    dsRegionConfiguration.setName("custom")
-    dsRegionConfiguration.setInitialSize(memoryMegabytes * 1024L * 1024L)
-    dsRegionConfiguration.setMaxSize(memoryMegabytes * 1024L * 1024L)
-    dsConfiguration.setDefaultDataRegionConfiguration(dsRegionConfiguration)
+    // To get rid of percent encoding, use URLDecoder
+    if(igniteFileWithInstance != null){
+      log.info(s"Ignite configuration from file ${instance}/ignite-yaasdb.xml")
+      println(s"Ignite configuration from file ${instance}/ignite-yaasdb.xml")
+      scalar.start(java.net.URLDecoder.decode(igniteFileWithInstance.getFile(), "ISO-8859-1"))
+    } else if(igniteFile != null){
+      log.info("Ignite configuration from file ignite-yaasdb.xml")
+      println("Ignite configuration from file ignite-yaasdb.xml")
+      scalar.start(java.net.URLDecoder.decode(igniteFile.getFile(), "ISO-8859-1"))
+    } else {
+      log.info(s"Ignite configuration from application.conf")
+      println("Ignite configuration from application.conf")
 
-    val finder = new TcpDiscoveryVmIpFinder
-    finder.setAddresses(igniteAddresses.split(",").toList)
-    
-    val discSpi = new TcpDiscoverySpi
-    discSpi.setIpFinder(finder)
-    discSpi.setLocalAddress(localIgniteAddress(0))
-    discSpi.setLocalPort(localIgniteAddress(1).toInt)
-    
-    val commSpi = new TcpCommunicationSpi();
-    
-    val igniteConfiguration = new IgniteConfiguration
-    igniteConfiguration.setCommunicationSpi(commSpi)
-    igniteConfiguration.setDiscoverySpi(discSpi)
-    igniteConfiguration.setGridLogger(new org.apache.ignite.logger.slf4j.Slf4jLogger)
-    igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
-    
-    // Start ignite
-    if(role.equalsIgnoreCase("client")){
-      org.apache.ignite.Ignition.setClientMode(true)
-      log.info("Node is a database client")
-    } else log.info("Node is a database server")
-    
-    scalar.start(igniteConfiguration)
+      val igniteAddresses = config.getString("igniteAddresses")
+      val localIgniteAddress = config.getString("localIgniteAddress").split(":")
+      val memoryMegabytes = config.getLong("memoryMegabytes")
+      
+      val dsConfiguration = new DataStorageConfiguration
+      val dsRegionConfiguration = new DataRegionConfiguration
+      dsRegionConfiguration.setName("custom")
+      dsRegionConfiguration.setInitialSize(memoryMegabytes * 1024L * 1024L)
+      dsRegionConfiguration.setMaxSize(memoryMegabytes * 1024L * 1024L)
+      dsConfiguration.setDefaultDataRegionConfiguration(dsRegionConfiguration)
+  
+      val finder = new TcpDiscoveryVmIpFinder
+      finder.setAddresses(igniteAddresses.split(",").toList)
+      
+      val discSpi = new TcpDiscoverySpi
+      discSpi.setIpFinder(finder)
+      discSpi.setLocalAddress(localIgniteAddress(0))
+      discSpi.setLocalPort(localIgniteAddress(1).toInt)
+      
+      val commSpi = new TcpCommunicationSpi();
+      
+      val igniteConfiguration = new IgniteConfiguration
+      igniteConfiguration.setCommunicationSpi(commSpi)
+      igniteConfiguration.setDiscoverySpi(discSpi)
+      igniteConfiguration.setGridLogger(new org.apache.ignite.logger.slf4j.Slf4jLogger)
+      igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
+      
+      // Start ignite
+      if(role.equalsIgnoreCase("client")){
+        org.apache.ignite.Ignition.setClientMode(true)
+        log.info("Node is a sessions database client")
+      } else log.info("Node is a sessions database server")
+      
+      scalar.start(igniteConfiguration)
+    }
     
     // Make sure cache exist
     if(cache$("SESSIONS") == None) createCache$("SESSIONS", REPLICATED, Seq(classOf[String], classOf[Session]))

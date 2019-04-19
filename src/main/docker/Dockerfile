@@ -1,4 +1,4 @@
-FROM openjdk:11.0.3-jdk-slim-stretch
+FROM openjdk:8u212-jdk-slim-stretch
 MAINTAINER francisco.cardosogil@gmail.com
 ARG version=0.0
 RUN groupadd -r -g 1000 yaas && useradd -rM -g yaas -u 1000 yaas

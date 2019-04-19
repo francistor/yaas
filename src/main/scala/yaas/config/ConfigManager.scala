@@ -57,21 +57,6 @@ object ConfigManager {
 	val configSearchRulesLocation = config.getString("aaa.configSearchRulesLocation")
 	
 	val configSearchRulesJson = readConfigSearchRules(configSearchRulesLocation)
-	
-	/*
-	// Try to parse bootstrapLocation as a URL. Otherwise interpret as a resource file in classpath
-	val configSearchRulesJson = Try(new URL(configSearchRulesLocation)) match {
-    case Success(url) => 
-      log.info(s"Bootstraping config from URL $configSearchRulesLocation")
-      parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-
-    case Failure(_) => 
-      log.info(s"Bootstraping config from resource $configSearchRulesLocation")
-      parse(Source.fromInputStream(getClass.getResourceAsStream("/" + configSearchRulesLocation)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-      //Scala 1.12 parse(Source.fromResource(configSearchRulesLocation).mkString)
-  }
-  * */
-
   
   // Parse the Json that specifies where to get config objects from
   implicit val jsonFormats = DefaultFormats + new SearchRuleSerializer

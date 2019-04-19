@@ -14,6 +14,9 @@ package yaas
  * tried first in the specified location plus <instance> in the path, and then without
  * <instance> in the path.
  * 
+ * Ignite configuration is taken from the config.file or, with higher priority, from a
+ * ignite-yaas.xml file in the classpath/<instance> or classpath
+ * 
  */
 package object config {
   
