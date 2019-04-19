@@ -26,11 +26,24 @@ libraryDependencies ++=
     "org.apache.ignite" % "ignite-slf4j" % "2.7.0",
     "com.typesafe.slick" %% "slick" % "3.3.0",
     "com.typesafe.slick" %% "slick-hikaricp" % "3.3.0"
-    
   )
   
 scriptClasspath += "../conf"
 scriptClasspath += "../handlers"
+  
+javaOptions in Universal ++= Seq(
+    "-J-verbosegc",
+    "-J-XX:+PrintGCDetails",
+    "-J-XX:+PrintGCDateStamps",
+    "-J-XX:+PrintTenuringDistribution",
+    "-J-Xloggc:garbage.log", 
+    "-J-server",
+    "-J-XX:+UseConcMarkSweepGC",
+    "-J-XX:+CMSParallelRemarkEnabled",
+	"-J--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
+	"-J--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+)
+  
 
 
   
