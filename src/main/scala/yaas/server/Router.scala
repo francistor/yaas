@@ -167,7 +167,11 @@ class Router() extends Actor with ActorLogging {
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = context.dispatcher
     
-  if(diameterServerIPAddress.contains(".") && diameterServerPort > 0) startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
+  if(diameterServerIPAddress.contains(".") && diameterServerPort > 0){
+    startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
+    peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
+    diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
+  }
   
   // Radius server actors
   if(radiusServerIPAddress.contains(".")){
@@ -177,11 +181,11 @@ class Router() extends Actor with ActorLogging {
   }
   
   // Radius client
-  val radiusClientActor = context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient")
+  val radiusClientActor = if(radiusConfig.clientBasePort > 0) 
+    Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient"))
+    else None
   
-  // Initialize
-  peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
-  diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
+  // Initialize handlers
   handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig)
   
   // Start timer for re-evalutation of peer status
@@ -470,7 +474,7 @@ class Router() extends Actor with ActorLogging {
 	        if(nServers > 0) {
             val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (radiusPacket.authenticator(0).toInt % nServers) else 0)) % nServers
             val radiusServer = radiusServers(servers(serverIndex))
-            radiusClientActor ! RadiusClientRequest(radiusPacket, 
+            radiusClientActor.get ! RadiusClientRequest(radiusPacket, 
                     RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port, radiusServer.secret),
                     sender, radiusId)
 	        }

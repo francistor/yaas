@@ -47,20 +47,31 @@ object ConfigManager {
   // Case classes for JSON deserialization of the configSearchRules file
   case class SearchRule(nameRegex: Regex, locationType: String, base: Option[String])
 		
-  class SearchRuleSerializer extends CustomSerializer[SearchRule](implicit jsonFormats /* If I name this "formats" get an error in Scala 2.11 */ => (
-		{ case jv: JValue => SearchRule((jv \ "nameRegex").extract[String].r, (jv \ "locationType").extract[String], (jv \ "base").extract[Option[String]]) },
-		// Not used
-		{ case v : SearchRule => JObject()}
-		))
-  
 	val config = ConfigFactory.load()
-	val configSearchRulesLocation = config.getString("aaa.configSearchRulesLocation")
 	
-	val configSearchRulesJson = readConfigSearchRules(configSearchRulesLocation)
-  
-  // Parse the Json that specifies where to get config objects from
-  implicit val jsonFormats = DefaultFormats + new SearchRuleSerializer
-  val rules = configSearchRulesJson.extract[List[SearchRule]]
+	val cFile = if(Option(System.getProperty("config.url")).nonEmpty){
+	  // URL was specified
+	  (new java.net.URL(System.getProperty("config.url"))).getPath
+	} 
+	else if(Option(System.getProperty("config.file")).nonEmpty){
+	  // File was specified
+	  "file://" + (new java.io.File(System.getProperty("config.file"))).getCanonicalPath
+	}
+	else "/"
+	  
+	val ncFile = cFile.replace("\\", "/")
+	val defaultBase = ncFile.substring(0, ncFile.lastIndexOf("/") + 1)
+	
+	import scala.collection.JavaConversions._
+	val rules = config.getConfigList("aaa.configSearchRules").map(rule => 
+	  if(rule.getString("locationType") == "resource") SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), None)
+	  else SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), 
+	      // base is optional but throws exception if not found
+	      Try(rule.getString("base")) match {
+	        case Success(base) => Some(base)
+	        case Failure(_) => None
+	        }
+	      )).toList
 	
 	// Cache of read files
   // Concurrent thread-safe map
@@ -78,39 +89,6 @@ object ConfigManager {
       "radiusClients.json",
       "handlers.json"
       ).foreach(readConfigObject(_))
-      
-  /**
-   * Retrieves the configSearchRules. Tries first with instance name, then without instance name
-   */
-  private def readConfigSearchRules(configSearchRulesLocation: String) = {
-    
-    def lookUp(modLocation: String) = {
-      Try(new URL(modLocation)) match {
-        case Success(url) => 
-          log.info(s"Bootstraping config from URL $modLocation")
-          parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-    
-        case Failure(_) => 
-          log.info(s"Bootstraping config from resource $modLocation")
-          parse(Source.fromInputStream(getClass.getResourceAsStream(modLocation)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
-          //Scala 1.12 parse(Source.fromResource(configSearchRulesLocation).mkString)
-      }
-    }
-    
-    val r = "(.*/)(.*)".r
-    val (path, file) = if(configSearchRulesLocation.matches(r.regex)){
-      val m = r.findFirstMatchIn(configSearchRulesLocation).get
-      (m.group(1), m.group(2))
-    } else ("/", configSearchRulesLocation)
-      
-    Try(lookUp(path + instance + "/" + file)).orElse(Try(lookUp(path + file))) match {
-      case Success(j) =>
-        j
-       
-      case Failure(_) =>
-        throw new java.util.NoSuchElementException(configSearchRulesLocation + "not found")
-    }
-  }
   
   /*
    * Retrieves the specified configured object name
@@ -123,7 +101,7 @@ object ConfigManager {
           case SearchRule(nameRegex, locationType, base) if modObjectName.matches(nameRegex.regex) =>
             if(locationType == "URL"){
               // base + group found in objectName following nameRegex
-              val url = base.get +  nameRegex.findFirstMatchIn(modObjectName).get.group(1)
+              val url = base.getOrElse(defaultBase) +  nameRegex.findFirstMatchIn(modObjectName).get.group(1)
               log.info(s"Reading $modObjectName from URL $url")
               parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
             }

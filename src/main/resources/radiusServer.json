@@ -1,4 +1,5 @@
-// For testing
+// Use bindAddress: 0 to disable Radius server
+// Use clientBasePort: 0 to disable Radius client
 {
 	"bindAddress": "0.0.0.0",
 	"authBindPort": 1812,

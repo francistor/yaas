@@ -1,11 +1,10 @@
-// Use bindAddress: 0 to disable Diameter
 {
-	"bindAddress": "127.0.0.1",
+	"bindAddress": "0.0.0.0",
 	"bindPort": 3868,
 	"diameterHost": "server.yaasserver",
 	"diameterRealm": "yaasserver",
 	"vendorId": 1101,
 	"productName": "Lever",
 	"firmwareRevision": 1,
-	"peerCheckTimeSeconds": 120
+	"peerCheckTimeSeconds": 10
 }

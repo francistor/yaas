@@ -1,0 +1,7 @@
+[
+	{
+		"name": "testhost",
+		"IPAddress": "yaas-client",
+		"secret": "secret"
+	}
+]

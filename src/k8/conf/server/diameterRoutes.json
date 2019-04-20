@@ -1,0 +1,10 @@
+[
+	// Handle locally Gx if addressed to this realm only
+	{"realm": "yaasserver", "applicationId": "Gx", "handler": "GxHandler"},
+	
+	// Handle locally all NASREQ, even if for another domain
+	{"realm": "*", "applicationId": "NASREQ", "handler": "NASReqHandler"},
+	
+	// With lower priority, send to superserver
+	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"}
+]

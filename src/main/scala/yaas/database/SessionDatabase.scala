@@ -125,10 +125,12 @@ object SessionDatabase {
       log.info(s"Ignite configuration from file ${instance}/ignite-yaasdb.xml")
       println(s"Ignite configuration from file ${instance}/ignite-yaasdb.xml")
       scalar.start(java.net.URLDecoder.decode(igniteFileWithInstance.getFile(), "ISO-8859-1"))
+      
     } else if(igniteFile != null){
       log.info("Ignite configuration from file ignite-yaasdb.xml")
       println("Ignite configuration from file ignite-yaasdb.xml")
       scalar.start(java.net.URLDecoder.decode(igniteFile.getFile(), "ISO-8859-1"))
+      
     } else {
       log.info(s"Ignite configuration from application.conf")
       println("Ignite configuration from application.conf")
@@ -149,8 +151,10 @@ object SessionDatabase {
       
       val discSpi = new TcpDiscoverySpi
       discSpi.setIpFinder(finder)
-      discSpi.setLocalAddress(localIgniteAddress(0))
-      discSpi.setLocalPort(localIgniteAddress(1).toInt)
+      if(role == "server"){
+        discSpi.setLocalAddress(localIgniteAddress(0))
+        discSpi.setLocalPort(localIgniteAddress(1).toInt)
+      }
       
       val commSpi = new TcpCommunicationSpi();
       
@@ -158,7 +162,7 @@ object SessionDatabase {
       igniteConfiguration.setCommunicationSpi(commSpi)
       igniteConfiguration.setDiscoverySpi(discSpi)
       igniteConfiguration.setGridLogger(new org.apache.ignite.logger.slf4j.Slf4jLogger)
-      igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
+      if(role == "server") igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
       
       // Start ignite
       if(role.equalsIgnoreCase("client")){

@@ -1,0 +1,9 @@
+[
+	// Diameter
+	{"name": "GxHandler", "clazz": "yaas.handlers.TestServerGxHandler"},
+	{"name": "NASReqHandler", "clazz": "yaas.handlers.TestServerNASReqHandler"},
+	
+	// Radius
+	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.TestServerAccessRequestHandler"},
+	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.TestServerAccountingRequestHandler"}
+]
