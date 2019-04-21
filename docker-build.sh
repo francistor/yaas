@@ -4,8 +4,12 @@
 # Build docker image and pull to Docker Hub
 ############################################
 
+# Better at the beginning
+echo "DockerHub password"
+sudo docker login --username=francistor
+
 # Build project
-sbt clean universal:packageBin
+#sbt clean universal:packageBin
 
 # Get version
 zipfile=$(ls target/universal/*.zip)
@@ -24,7 +28,6 @@ unzip -o -d ${directory} ${zipfile}
 sudo docker build --file src/main/docker/Dockerfile --build-arg version=$version --tag yaas:$version .
 
 # Publish to docker hub
-sudo docker login --username=francistor
 sudo docker tag yaas:$version francistor/yaas:$version
 sudo docker push francistor/yaas:$version
 

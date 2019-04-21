@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: yaas
+spec:
+  containers:
+    - image: francistor/yaas:0.1
+      name: yaas
+      command: ["./aaaserver", "-Dinstance=test-superserver"]
+      ports:
+        - containerPort: 19000 # Instrumentation
+        - containerPort: 19500 # Sessions database
+        - containerPort: 1812  # Radius Auth
+        - containerPort: 1813  # Radius Acct
+        - containerPort: 3799  # Radius CoA
+        - containerPort: 3868  # Diameter
+      securityContext:
+        runAsUser: 1000
+      imagePullPolicy: Always
