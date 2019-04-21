@@ -1,6 +1,6 @@
 [
 	{
-		"name": "testhost",
+		"name": "radiuserver",
 		"IPAddress": "0.0.0.0/0",
 		"secret": "secret"
 	}

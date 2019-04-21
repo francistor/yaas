@@ -28,19 +28,18 @@
 
 	<root level="ERROR">          
     	<appender-ref ref="console-appender" />
-    	<appender-ref ref="file-appender" />
   	</root>
   	
   	<logger name="yaas" level="INFO" additivity="false">
-    	<appender-ref ref="file-appender" />
+    	<appender-ref ref="console-appender" />
   	</logger>
   	
   	<logger name="yaas.server.DiameterPeer" level="INFO" additivity="false">
-  		<appender-ref ref="peer-appender" />
+  		<appender-ref ref="console-appender" />
   	</logger>
   	
   	<logger name="org.apache.ignite" level="INFO" additivity="false">
-  		<appender-ref ref="ignite-appender" />
+  		<appender-ref ref="console-appender" />
   	</logger>
 
 </configuration>
