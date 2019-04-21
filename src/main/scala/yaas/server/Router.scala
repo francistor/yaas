@@ -159,7 +159,6 @@ class Router() extends Actor with ActorLogging {
   radiusServerAcctPort = radiusConfig.acctBindPort
   radiusServerCoAPort = radiusConfig.coABindPort
   radiusServerGroups = RadiusConfigManager.radiusServerGroups
-  radiusClients = RadiusConfigManager.radiusClients
   radiusServers = getRadiusServers(RadiusConfigManager.radiusServers)
   
   // Diameter Server socket

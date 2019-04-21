@@ -3,6 +3,8 @@ package yaas.config
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
+import yaas.util.Net
+
 /**
  * Represents the basic properties of the Radius Server, as defined in the <code>radiusServer.json</code> configuration object
  */
@@ -124,5 +126,18 @@ object RadiusConfigManager {
       client <- ConfigManager.getConfigObject("radiusClients.json").extract[List[RadiusClientConfig]]
     } yield (client.IPAddress -> client)).toMap
     radiusClients
+  }
+  
+  /**
+   * Gets the first radius client that conforms to the network specification
+   */
+  def findRadiusClient(remoteIPAddress: String) = {
+    // First try exact match. For performance reasons
+    val exactMatchedClient = radiusClients.get(remoteIPAddress)
+    
+    // Then try network match
+    if(exactMatchedClient.isEmpty) radiusClients.collectFirst{
+      case (name, radiusClient) if(radiusClient.IPAddress.contains("/") && Net.isAddressInNetwork(remoteIPAddress, radiusClient.IPAddress)) => radiusClient  
+    } else exactMatchedClient
   }
 }

@@ -370,6 +370,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     val answer = DiameterMessage.answer(message)
     
     // Check host name
+    /*
     DiameterConfigManager.diameterPeerConfig.get(message >> "Origin-Host") match {
       case diameterConfig @ Some(DiameterPeerConfig(diameterHost, ipAddr, _, _, _)) => 
         if(ipAddr == remoteAddr.getOrElse("<none>")) sendSuccess (diameterConfig.get)
@@ -379,6 +380,18 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
         }
       case _ => 
         log.warning("Origin-Host {} not found in Peer table", message >> "Origin-Host")
+        sendFailure
+    }
+    * 
+    */
+    
+    // Check peer parameters
+    DiameterConfigManager.findDiameterPeer(remoteAddr.getOrElse("<none>"), message >> "Origin-Host") match {
+      case Some(diameterConfig) => 
+        sendSuccess(diameterConfig)
+      
+      case _ =>
+        log.warning("Origin-Host {} does not match the remoteAddress {}", message >> "Origin-Host", remoteAddr.getOrElse("<none>"))
         sendFailure
     }
     

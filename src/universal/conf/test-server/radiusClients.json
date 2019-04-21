@@ -1,7 +1,7 @@
 [
 	{
 		"name": "testhost",
-		"IPAddress": "127.0.0.1",
+		"IPAddress": "127.0.0.0/24",
 		"secret": "secret"
 	}
 ]

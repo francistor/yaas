@@ -36,7 +36,7 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
       // Check origin
       val remoteIPAddress = remote.getAddress().getHostAddress
       val remotePort = remote.getPort
-      val radiusClient = RadiusConfigManager.radiusClients.get(remoteIPAddress)
+      val radiusClient = RadiusConfigManager.findRadiusClient(remoteIPAddress)
       
       radiusClient match {
         case Some(radiusClientConfig) =>

@@ -3,6 +3,7 @@ package yaas.config
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
+import yaas.util.Net
 
 /**
  * Represents the basic properties of the Diameter Server, as defined in the <code>diameterServer.json</code> configuration object
@@ -12,7 +13,7 @@ case class DiameterServerConfig(bindAddress: String, bindPort: Int, peerCheckTim
 /**
  * Represents a diameter peer as read from the <code>diameterPeers.json</code> configuration object
  */
-case class DiameterPeerConfig(diameterHost: String, IPAddress: String, port: Int, connectionPolicy: String, watchdogIntervalMillis: Int)
+case class DiameterPeerConfig(diameterHost: String, IPAddress: String, port: Int, connectionPolicy: String, watchdogIntervalMillis: Int, originNetwork: String)
 
 /**
  * Represents a diameter route as read from the <code>diameterRoutes.json</code> configuration object.
@@ -86,6 +87,16 @@ object DiameterConfigManager {
   def getDiameterRouteConfig = {
     diameterRouteConfig = ConfigManager.getConfigObject("diameterRoutes.json").extract[Seq[DiameterRouteConfig]]
     diameterRouteConfig
+  }
+  
+  /**
+   * Gets the first Diameter Peer that conforms to the specification
+   */
+  def findDiameterPeer(remoteIPAddress: String, diameterHost: String) = {
+   
+    diameterPeerConfig.collectFirst {
+      case (name, diameterPeer) if(Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork) && diameterHost == diameterPeer.diameterHost) => diameterPeer
+    } 
   }
 }
 
