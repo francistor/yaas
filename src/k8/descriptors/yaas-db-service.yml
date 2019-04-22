@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-db
+spec:
+  clusterIP: None
+  selector:
+    app: yaas-db
+  ports:
+    - name: instrumentation
+      port: 19000
+    - name: sessions
+      port: 19500
+    - name: ignite
+      port: 41000

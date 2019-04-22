@@ -19,11 +19,11 @@ spec:
         args: ["clone", "https://github.com/francistor/Yaas.git"]
         volumeMounts:
           - name: configuration
-            mountPath: /git/src/k8/conf/db
+            mountPath: /git
       containers:
       - name: yaas-db
         image: francistor/yaas:0.1
-        command: ["./aaaserver"]
+        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8/conf/db/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8/conf/db/logback-default.conf"]
         volumeMounts:
           - name: configuration
             mountPath: /aaaserver/conf 
