@@ -35,7 +35,7 @@ spec:
         ports:
           - containerPort: 19000 # Instrumentation
           - containerPort: 19500 # Sessions database
-          - containerPort: 42000 # Ignite
+          - containerPort: 41000 # Ignite
         securityContext:
           runAsUser: 1000
         imagePullPolicy: Always
