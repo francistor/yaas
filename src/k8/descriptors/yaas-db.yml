@@ -27,6 +27,11 @@ spec:
         volumeMounts:
           - name: configuration
             mountPath: /aaaserver/conf 
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
         ports:
           - containerPort: 19000 # Instrumentation
           - containerPort: 19500 # Sessions database
