@@ -9,7 +9,3 @@ spec:
   ports:
     - name: instrumentation
       port: 19000
-    - name: sessions
-      port: 19500
-    - name: ignite
-      port: 41000

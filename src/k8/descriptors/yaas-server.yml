@@ -1,18 +1,20 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: DaemonSet
 metadata:
-  name: yaas-db
+  name: yaas-server
 spec:
   selector:
     matchLabels:
-      app: yaas-db
-  serviceName: yaas-db
-  replicas: 2
+      app: yaas-server
   template:
     metadata:
+      name: yaas-server
       labels:
-        app: yaas-db
+        app: yaas-server
     spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
       initContainers:
       - name: git
         image: alpine/git:1.0.7
@@ -23,7 +25,7 @@ spec:
       containers:
       - name: yaas-db
         image: francistor/yaas:0.1
-        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8/conf/db/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8/conf/db/logback-default.xml"]
+        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8/conf/server/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8/conf/server/logback-default.xml"]
         volumeMounts:
           - name: configuration
             mountPath: /aaaserver/conf 
@@ -35,7 +37,9 @@ spec:
         ports:
           - containerPort: 19000 # Instrumentation
           - containerPort: 19500 # Sessions database
-          - containerPort: 41000 # Ignite
+          - containerPort: 1812  # RadiusAuth
+          - containerPort: 1813  # RadiusAcct
+          - containerPort: 3868  # Diameter
         securityContext:
           runAsUser: 1000
         imagePullPolicy: Always

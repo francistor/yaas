@@ -1,17 +1,17 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
-  name: yaas-db
+  name: yaas-superserver
 spec:
+  replicas: 2
   selector:
     matchLabels:
-      app: yaas-db
-  serviceName: yaas-db
-  replicas: 2
+      app: yaas-superserver
   template:
     metadata:
+      name: yaas-superserver
       labels:
-        app: yaas-db
+        app: yaas-superserver
     spec:
       initContainers:
       - name: git
@@ -23,7 +23,7 @@ spec:
       containers:
       - name: yaas-db
         image: francistor/yaas:0.1
-        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8/conf/db/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8/conf/db/logback-default.xml"]
+        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8/conf/superserver/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8/conf/superserver/logback-default.xml"]
         volumeMounts:
           - name: configuration
             mountPath: /aaaserver/conf 
@@ -35,7 +35,9 @@ spec:
         ports:
           - containerPort: 19000 # Instrumentation
           - containerPort: 19500 # Sessions database
-          - containerPort: 41000 # Ignite
+          - containerPort: 1812  # RadiusAuth
+          - containerPort: 1813  # RadiusAcct
+          - containerPort: 3868  # Diameter
         securityContext:
           runAsUser: 1000
         imagePullPolicy: Always
