@@ -1,3 +1,3 @@
 [
-	{"name": "Main", "clazz": "yaas.handlers.TestClientMain"}
+	{"name": "Main", "clazz": "yaas.handlers.test.TestClientMain"}
 ]

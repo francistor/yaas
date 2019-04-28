@@ -1,12 +1,12 @@
 [
 	// Diameter
-	{"name": "GxHandler", "clazz": "yaas.handlers.TestSuperServerGxHandler"},
-	{"name": "NASReqHandler", "clazz": "yaas.handlers.TestSuperServerNASReqHandler"},
+	{"name": "GxHandler", "clazz": "yaas.handlers.test.superserver.GxHandler"},
+	{"name": "NASReqHandler", "clazz": "yaas.handlers.test.superserver.NASReqHandler"},
 	
 	// Radius
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.TestSuperServerAccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.TestSuperServerAccountingRequestHandler"},
+	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.test.superserver.AccessRequestHandler"},
+	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.test.superserver.AccountingRequestHandler"},
 	
 	// Testing
-	{"name": "ClientDatabaseInittHandler", "clazz": "yaas.handlers.TestSuperServerInitClientDatabase"}
+	{"name": "ClientDatabaseInittHandler", "clazz": "yaas.handlers.test.superserver.InitClientDatabase"}
 ]

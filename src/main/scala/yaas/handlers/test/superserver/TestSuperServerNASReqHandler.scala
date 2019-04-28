@@ -1,20 +1,14 @@
-package yaas.handlers
+package yaas.handlers.test.superserver
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-
 import yaas.server._
 import yaas.coding._
 import yaas.coding.DiameterConversions._
-import yaas.config.DiameterConfigManager
-import yaas.dictionary.DiameterDictionary
-
-import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 import yaas.database._
-
 import org.json4s.JsonDSL._
 
-class TestSuperServerNASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class NASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated NASREQ Handler")
   

@@ -1,17 +1,12 @@
-package yaas.handlers
+package yaas.handlers.test.superserver
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-
 import yaas.server._
-
-import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
-
-import org.apache.ignite.scalar.scalar
 import org.apache.ignite.scalar.scalar._
 import org.apache.ignite.cache.query.SqlFieldsQuery
 
-class TestSuperServerInitClientDatabase(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class InitClientDatabase(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Creating client database")
   

@@ -1,0 +1,44 @@
+{
+	"servers" : 
+	[
+		{
+        "name": "test-server",
+        "IPAddress": "127.0.0.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799,
+          "dm": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
+      },
+      {
+        "name": "non-existing-server",
+        "IPAddress": "1.1.1.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799,
+          "dm": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
+      }
+	],
+	"serverGroups" :
+	[
+	  {
+        "name": "allServers",
+        "servers": ["non-existing-server", "test-server"],
+        "policy": "fixed"
+      },
+      {
+        "name": "testServer",
+        "servers": ["test-server"],
+        "policy": "fixed"
+      }
+	]
+}

@@ -1,11 +1,11 @@
 [
 	// Diameter
-	{"name": "TestServerCCHandler", "clazz": "yaas.handlers.TestServerCCHandler"},
-	{"name": "TestServerNASReqHandler", "clazz": "yaas.handlers.TestServerNASReqHandler"},
+	{"name": "TestServerCCHandler", "clazz": "yaas.handlers.test.server.CCHandler"},
+	{"name": "TestServerNASReqHandler", "clazz": "yaas.handlers.test.server.NASReqHandler"},
 	
 	// Radius
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.DefaultAccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.DefaultAccountingRequestHandler"}
+	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.test.DefaultAccessRequestHandler"},
+	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.test.DefaultAccountingRequestHandler"}
 	
 	// CoARequestHandler not defined
 ]

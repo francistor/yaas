@@ -1,4 +1,4 @@
-package yaas.handlers
+package yaas.handlers.test.server
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
@@ -14,7 +14,7 @@ import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
 
-class TestServerAccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccountingRequestHandler")
   

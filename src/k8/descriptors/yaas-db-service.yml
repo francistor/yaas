@@ -6,6 +6,3 @@ spec:
   clusterIP: None
   selector:
     app: yaas-db
-  ports:
-    - name: instrumentation
-      port: 19000

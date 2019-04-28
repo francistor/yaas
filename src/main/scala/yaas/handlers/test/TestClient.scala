@@ -1,4 +1,4 @@
-package yaas.handlers
+package yaas.handlers.test
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
@@ -32,7 +32,7 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) with JsonSupport {
+abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(statsServer) with JsonSupport {
   
   log.info("Instantiated Radius/Diameter client application")
   
@@ -84,11 +84,10 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   
   //////////////////////////////////////////////////////////////////////////////
   
-  val clientStatsURL = "http://localhost:19001"
-  val serverStatsURL = "http://localhost:19002"
-  val superServerStatsURL = "http://localhost:19003"
-  
-  val superServerSessionsURL = "http://localhost:19503"
+  val clientStatsURL : String
+  val serverStatsURL : String
+  val superServerStatsURL : String
+  val superServerSessionsURL : String
   
   // Wait some time before starting the tests.
   // peerCheckTimeSeconds should be configured with about 10 seconds. Starting the tests after
@@ -109,35 +108,7 @@ class TestClientMain(statsServer: ActorRef) extends MessageHandler(statsServer) 
   }
   
   // _ is needed to promote the method (no arguments) to a function
-  val tests = IndexedSeq[() => Unit](
-      clientPeerConnections _, 
-      serverPeerConnections _, 
-      superserverPeerConnections _, 
-      testAccessRequestWithAccept _,
-      testAccessRequestWithReject _, 
-      testAccessRequestWithDrop _,
-      testAccountingRequest _,
-      testAccountingRequestWithDrop _,
-      sleep _,
-      checkSuperserverRadiusStats _,
-      checkServerRadiusStats _,
-      checkClientRadiusStats _,
-      testAA _,
-      testAC _,
-      testGxRouting _,
-      sleep _,
-      checkSuperserverDiameterStats _,
-      checkServerDiameterStats _,
-      stop _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Radius Warmup") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Free Wheel") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@clientdb", 10000, 10, "Database Lookup") _,
-      checkRadiusPerformance(ACCOUNTING_REQUEST, "@sessiondb", 10000, 10, "Session storage") _,
-      checkDiameterPerformance("AA", "@accept", 20000, 10, "AA Warmup") _,
-      checkDiameterPerformance("AA", "@accept", 10000, 10, "AA Free Wheel") _,
-      checkDiameterPerformance("AC", "@accept", 20000, 10, "AC Warmup") _,
-      checkDiameterPerformance("AC", "@accept", 10000, 10, "AC Free Wheel") _
-  )
+  val tests : IndexedSeq[() => Unit]
   
   println("STARTING TESTS")
   

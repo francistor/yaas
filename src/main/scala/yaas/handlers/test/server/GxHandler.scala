@@ -1,17 +1,12 @@
-package yaas.handlers
+package yaas.handlers.test.server
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-
 import yaas.server._
 import yaas.coding._
 import yaas.coding.DiameterConversions._
-import yaas.config.DiameterConfigManager
-import yaas.dictionary.DiameterDictionary
-
-import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
-class TestServerGxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated GxHandler")
   

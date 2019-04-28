@@ -1,4 +1,4 @@
-package yaas.handlers
+package yaas.handlers.test.server
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
@@ -18,7 +18,7 @@ import slick.jdbc.JdbcBackend.Database
 // Generic JDBC is deprecated. Use any profile
 import slick.jdbc.SQLiteProfile.api._
 
-class TestServerAccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
   log.info("Instantiated AccessRequestHandler")
   
