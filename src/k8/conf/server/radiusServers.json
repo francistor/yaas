@@ -1,0 +1,43 @@
+{
+	"servers" : 
+	[
+		{
+        "name": "test-superserver",
+        "IPAddress": "yaas-superserver",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
+      },
+      {
+        "name": "non-existing-server",
+        "IPAddress": "192.168.250.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
+      }
+	],
+	"serverGroups" :
+	[
+	  {
+        "name": "allServers",
+        "servers": ["non-existing-server", "test-superserver"],
+        # policy may be "fixed", "random", "fixed-withclear", "random-withclear"
+        "policy": "fixed"
+      },
+      {
+      	"name": "superServer",
+      	"servers": ["test-superserver"],
+      	"policy": "random"
+      }
+	]
+}
