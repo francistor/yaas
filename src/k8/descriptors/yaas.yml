@@ -107,12 +107,12 @@ spec:
           emptyDir: {}
 
 ---
-# Yaas Superserver Service
+# Yaas Superserver radius Service
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: yaas-superserver
+  name: yaas-superserver-radius
 spec:
   selector:
     app: yaas-superserver
@@ -123,6 +123,19 @@ spec:
     - name: radiusacct
       protocol: UDP
       port: 1813
+
+---
+# Yaas Superserver diameter Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-superserver-diameter
+spec:
+  clusterIP: None
+  selector:
+    app: yaas-superserver
+  ports:
     - name: diameter
       protocol: TCP
       port: 3868
