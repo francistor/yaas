@@ -9,7 +9,7 @@ echo "DockerHub password"
 sudo docker login --username=francistor
 
 # Build project
-#sbt clean universal:packageBin
+sbt clean universal:packageBin
 
 # Get version
 zipfile=$(ls target/universal/*.zip)

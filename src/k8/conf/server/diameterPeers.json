@@ -8,8 +8,16 @@
 		"originNetwork": "0.0.0.0/0"
 	},
 	{
-        "diameterHost": "superserver.yaassuperserver",
-        "IPAddress": "yaas-superserver",
+        "diameterHost": "yaas-superserver-0.yaassuperserver",
+        "IPAddress": "yaas-superserver-diameter-0.yaas-superserver-diameter",
+        "port": 3868,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000,
+		"originNetwork": "0.0.0.0/0"
+	},
+	{
+        "diameterHost": "yaas-superserver-1.yaassuperserver",
+        "IPAddress": "yaas-superserver-diameter-1.yaas-superserver-diameter",
         "port": 3868,
 		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 300000,

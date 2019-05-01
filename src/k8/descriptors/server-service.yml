@@ -1,0 +1,21 @@
+# Yaas Server Nodeport
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-server
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app: yaas-server
+  ports:
+    - name: radiusauth
+      protocol: UDP
+      port: 1812
+    - name: radiusacct
+      protocol: UDP
+      port: 1813
+    - name: diameter
+      protocol: TCP
+      port: 3868
