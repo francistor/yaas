@@ -4,6 +4,8 @@ import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props}
 
 object StatsServer {
   
+  def props() = Props(new StatsServer)
+  
   class DiameterStatsKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) {
     def getValue(key : String) = {
       key match {
@@ -219,9 +221,6 @@ object StatsServer {
   // Get stat messages
   case class GetDiameterStats(statName: String, params: List[String])
   case class GetRadiusStats(statName: String, params: List[String])
-  
-  def props() = Props(new StatsServer)
-  
 }
 
 case class RadiusStatsItem(keyMap: Map[String, String], counter: Long)

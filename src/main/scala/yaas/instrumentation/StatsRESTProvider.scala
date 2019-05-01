@@ -26,7 +26,7 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging /* with JsonSupport */ {
+class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
   
   import StatsRESTProvider._
   
@@ -154,7 +154,7 @@ class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging /
     case Success(binding) =>
       log.info("Instrumentation REST server bound to {}", binding.localAddress)
     case Failure(e) =>
-       log.error(e.getMessage)
+      log.error(e.getMessage)
   }
   
   def getPrometheusDiameterStatsFut(statName: String) = {

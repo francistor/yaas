@@ -1,4 +1,4 @@
-package yaas.handlers
+package yaas.handlers.test
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 

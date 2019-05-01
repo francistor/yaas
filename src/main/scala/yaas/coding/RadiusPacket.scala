@@ -637,14 +637,18 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    * Gets the bytes to be sent to the wire, patching id and authenticator.
 	 *
    * If access request, authenticator is created new and the AVP are encrypted using this value
-   * If accounting request, no encryption can take place (!! used 0 as the authenticator), and the request authenticator is calculated as a md5 hash
+   * If other packet types, no encryption can take place (!! used 0 as the authenticator), and the request authenticator is calculated as a md5 hash
    * 
    */
   def getRequestBytes(secret: String, id: Int) : ByteString = {
     
     identifier = id
     code match {
-      case RadiusPacket.ACCOUNTING_REQUEST =>
+      case RadiusPacket.ACCESS_REQUEST =>
+        authenticator = RadiusPacket.newAuthenticator
+        getBytes(secret)
+        
+      case _ => 
         // Just in case it was filled
         authenticator = List.fill[Byte](16)(0).toArray
         val bytes = getBytes(secret)
@@ -652,10 +656,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         // Authenticator is md5(code+identifier+zeroed authenticator+request attributes+secret)
         // patch authenticator
         bytes.patch(4, RadiusPacket.md5(bytes.concat(ByteString.fromString(secret, "UTF-8")).toArray), 16)
-        
-      case _ => 
-        authenticator = RadiusPacket.newAuthenticator
-        getBytes(secret)
     }
   }
 

@@ -20,7 +20,6 @@ object RadiusClient {
   case object Clean
 }
 
-
 case class RadiusPortId(port: Int, id: Int)
 case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, requestCode: Int, requestTimestamp: Long)
 
@@ -48,7 +47,6 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   
   // Span actors. One for each socket
   val socketActors = (for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i))
-  
   
   def receive = {
     

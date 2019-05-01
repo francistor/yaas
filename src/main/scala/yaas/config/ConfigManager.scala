@@ -35,8 +35,13 @@ import org.slf4j.LoggerFactory
  * ]<br>
  * </code>
  * 
+ * The contents of the configuration files may include replacements for environment of system variables ${}
+ * 
  */
 object ConfigManager {
+  
+  val var1Regex = """\$\{(.+)\}""".r
+  val var2Regex = """%(.+)%""".r
   
   val separator = System.lineSeparator
   val ti = System.getProperty("instance")
@@ -49,6 +54,7 @@ object ConfigManager {
 		
 	val config = ConfigFactory.load()
 	
+	// The default base is the location where the config.file or config.url file lives
 	val cFile = if(Option(System.getProperty("config.url")).nonEmpty){
 	  // URL was specified
 	  (new java.net.URL(System.getProperty("config.url"))).getPath
@@ -62,9 +68,11 @@ object ConfigManager {
 	val ncFile = cFile.replace("\\", "/")
 	val defaultBase = ncFile.substring(0, ncFile.lastIndexOf("/") + 1)
 	
+	// Parse the search rules specified in the config file
 	import scala.collection.JavaConversions._
 	val rules = config.getConfigList("aaa.configSearchRules").map(rule => 
-	  if(rule.getString("locationType") == "resource") SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), None)
+	  if(rule.getString("locationType") == "resource") 
+	    SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), None)
 	  else SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), 
 	      // base is optional but throws exception if not found
 	      Try(rule.getString("base")) match {
@@ -103,13 +111,19 @@ object ConfigManager {
               // base + group found in objectName following nameRegex
               val url = base.getOrElse(defaultBase) +  nameRegex.findFirstMatchIn(modObjectName).get.group(1)
               log.info(s"Reading $modObjectName from URL $url")
-              parse(Source.fromURL(url).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+              parse(Source.fromURL(url).getLines.
+                  flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
+                  map(replaceVars(_)).
+                  mkString(separator))
             }
             else {
               val resName = nameRegex.findFirstMatchIn(modObjectName).get.group(1)
               log.info(s"Reading $modObjectName from resource $resName")
               // Remove comments
-              parse(Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+              parse(Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.
+                  flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
+                  map(replaceVars(_)).
+                  mkString(separator))
               // Scala 2.12 parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
             }
         }
@@ -125,7 +139,6 @@ object ConfigManager {
       case _ =>
         throw new java.util.NoSuchElementException(objectName)
     }
-    
   }
 
   /**
@@ -156,5 +169,12 @@ object ConfigManager {
 	 */
 	def reloadAllConfigObjects = {
 	  for(objectName <- configObjectCache.keySet) configObjectCache(objectName) = readConfigObject(objectName)
+	}	
+	
+	// Helper
+	private def replaceVars(input: String) = {
+	  val varMap = System.getenv.toMap ++ System.getProperties.toMap
+	  val r1 = var1Regex.replaceSomeIn(input, m => varMap.get(m.group(1)))
+	  var2Regex.replaceSomeIn(r1, m => varMap.get(m.group(1)))
 	}
 }
