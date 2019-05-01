@@ -48,52 +48,40 @@ object DiameterConfigManager {
    */
   val diameterConfig = ConfigManager.getConfigObject("diameterServer.json").extract[DiameterServerConfig]
   
+  def isDiameterEnabled = diameterConfig.bindAddress.contains(".") && (diameterConfig.bindPort > 0)
+  
   /**
    * Holds a map from peer host names to peer configurations
    */
   var diameterPeerConfig = Map[String, DiameterPeerConfig]()
-  getDiameterPeerConfig
+  if(isDiameterEnabled) updateDiameterPeerConfig
   
   /**
    * Holds the sequence of routes
    */
   var diameterRouteConfig = Seq[DiameterRouteConfig]()
-  getDiameterRouteConfig
+  if(isDiameterEnabled) updateDiameterRouteConfig
   
   /**
-   * Retrieves the diameter server configuration.
-   * 
-   * Since this configuration cannot change, the value is fixed on startup
+   * Reloads the Diameter peer configuration reading it from the JSON configuration object.
    */
-  def getDiameterConfig = diameterConfig
-  
-  /**
-   * Obtains the Diameter peer configuration reading it from the JSON configuration object.
-   * 
-   * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
-   */
-  def getDiameterPeerConfig = {
-      diameterPeerConfig = (for {
-      peer <- ConfigManager.getConfigObject("diameterPeers.json").extract[Seq[DiameterPeerConfig]]
+  def updateDiameterPeerConfig = {
+    diameterPeerConfig = (for {
+      peer <- ConfigManager.reloadConfigObject("diameterPeers.json").extract[Seq[DiameterPeerConfig]]
     } yield (peer.diameterHost -> peer)).toMap
-    diameterPeerConfig
   }
   
    /**
-   * Obtains the Diameter routes configuration reading it from the JSON configuration object.
-   * 
-   * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
+   * Reloads the Diameter routes configuration reading it from the JSON configuration object. 
    */
-  def getDiameterRouteConfig = {
-    diameterRouteConfig = ConfigManager.getConfigObject("diameterRoutes.json").extract[Seq[DiameterRouteConfig]]
-    diameterRouteConfig
+  def updateDiameterRouteConfig = {
+    diameterRouteConfig = ConfigManager.reloadConfigObject("diameterRoutes.json").extract[Seq[DiameterRouteConfig]]
   }
   
   /**
    * Gets the first Diameter Peer that conforms to the specification
    */
   def findDiameterPeer(remoteIPAddress: String, diameterHost: String) = {
-   
     diameterPeerConfig.collectFirst {
       case (name, diameterPeer) if(Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork) && diameterHost == diameterPeer.diameterHost) => diameterPeer
     } 

@@ -325,7 +325,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     
     // Supported applications into a set to remove duplicates
     val supportedAppDictItems = for {
-      route <- DiameterConfigManager.getDiameterRouteConfig.toSet if(route.applicationId != "*")
+      route <- DiameterConfigManager.diameterRouteConfig.toSet if(route.applicationId != "*")
     } yield DiameterDictionary.appMapByName.get(route.applicationId)
     
     // Add to message

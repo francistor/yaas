@@ -13,6 +13,7 @@ import scala.util.{Try, Success, Failure}
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+
 /**
  * Reads and caches JSON configuration files from java resources, files or URLs. The syntax MUST be Json.
  * 
@@ -23,8 +24,8 @@ import org.slf4j.LoggerFactory
  * 
  * Entries are refreshed using <code>reloadConfigObject(objectName)</code> or <code>reloadAllConfigObjects</code>
  * 
- * The rules for where to get the configuration objects are stored in the file specified by the aaa.configSearchRulesLocation
- * property, that may point to a java resource or a URL
+ * The rules for where to get the configuration objects are stored in the configuration variable <code>configSearchRules</code>
+ * that holds an array with the locations where to look for configuration objects
  * 
  * Example. The name of the resource is taken from the regular expression group
  * <code><br>
@@ -61,7 +62,7 @@ object ConfigManager {
 	} 
 	else if(Option(System.getProperty("config.file")).nonEmpty){
 	  // File was specified
-	  "file://" + (new java.io.File(System.getProperty("config.file"))).getCanonicalPath
+	  "file:///" + (new java.io.File(System.getProperty("config.file"))).getCanonicalPath
 	}
 	else "/"
 	  
@@ -85,18 +86,17 @@ object ConfigManager {
   // Concurrent thread-safe map
   val configObjectCache = new scala.collection.concurrent.TrieMap[String, JValue]
 	  
-  // Read mandatory configuration objects
-  Array(
+  /* Common configuration objects
       "diameterDictionary.json", 
+      "radiusDictionary.json",
       "diameterPeers.json",
       "diameterRoutes.json",
       "diameterServer.json",
-      "radiusDictionary.json",
       "radiusServer.json",
       "radiusServers.json",
       "radiusClients.json",
       "handlers.json"
-      ).foreach(readConfigObject(_))
+	*/
   
   /*
    * Retrieves the specified configured object name

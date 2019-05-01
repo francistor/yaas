@@ -166,14 +166,14 @@ class Router() extends Actor with ActorLogging {
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = context.dispatcher
     
-  if(diameterServerIPAddress.contains(".") && diameterServerPort > 0){
+  if(DiameterConfigManager.isDiameterEnabled){
     startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
     peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
     diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
   }
   
   // Radius server actors
-  if(radiusServerIPAddress.contains(".")){
+  if(RadiusConfigManager.isRadiusEnabled){
     if(radiusServerAuthPort > 0 ) newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
     if(radiusServerAcctPort > 0 ) newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
     if(radiusServerCoAPort > 0 ) newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
@@ -529,7 +529,7 @@ class Router() extends Actor with ActorLogging {
 	        log.debug("Peer down for Actor {} not found in peer map", sender.path)
 	    }
 	    
-	  case PeerMapTimer =>
+	  case PeerMapTimer if(DiameterConfigManager.isDiameterEnabled) =>
       peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
       diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
       handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig)

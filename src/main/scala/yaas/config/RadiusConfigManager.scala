@@ -49,83 +49,58 @@ object RadiusConfigManager {
    */
   val radiusConfig = ConfigManager.getConfigObject("radiusServer.json").extractOrElse[RadiusThisServerConfig](RadiusThisServerConfig("0", 0, 0, 0, 0, 0))
   
+  def isRadiusEnabled = radiusConfig.bindAddress.contains(".")
+  
   /**
    * Holds a map from radius server names to radius server configuration
    */
   var radiusServers = Map[String, RadiusServerConfig]()
-  getRadiusServers
   
   /**
    * Holds a map from radius server IP addresses to radius server configuration
    */
-  var radiusServerIPAddresses = Map[String, RadiusServerConfig]()
-  getRadiusServerIPAddresses
+  var radiusServerIPAddresses = Map[String, RadiusServerConfig]() 
   
   /**
    * Holds a map from radius server group name to its configuration
    */
   var radiusServerGroups = Map[String, RadiusServerGroupConfig]()
-  getRadiusServerGroups
+  
+  if(isRadiusEnabled) updateRadiusServers
   
   /**
    * Holds a map of IP addresses to radius client configuration
    */
   var radiusClients = Map[String, RadiusClientConfig]()
-  getRadiusClients
+  if(isRadiusEnabled) updateRadiusClients
   
   /**
-   * Obtains the general radius configuration reading it from the JSON configuration object.
+   * Reloads the Radius server map configuration reading it from the JSON configuration object.
    * 
-   * Since this configuration cannot change, the value is fixed on startup
    */
-  def getRadiusConfig = radiusConfig
-  
-  /**
-   * Obtains the Radius server map configuration reading it from the JSON configuration object.
-   * 
-   * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
-   */
-  def getRadiusServers = {
+  def updateRadiusServers = {
     radiusServers =  (for {
-      server <- (ConfigManager.getConfigObject("radiusServers.json") \ "servers").extract[List[RadiusServerConfig]]
+      server <- (ConfigManager.reloadConfigObject("radiusServers.json") \ "servers").extract[List[RadiusServerConfig]]
     } yield (server.name -> server)).toMap
-    radiusServers
-  }
-  
-  /**
-   * Obtains the Radius IP address to configurations map reading it from the JSON configuration object.
-   * 
-   * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
-   */
-  def getRadiusServerIPAddresses = {
+    
     radiusServerIPAddresses = for {
       (serverName, serverConfig) <- radiusServers
     } yield (serverConfig.IPAddress, serverConfig)
-    radiusServerIPAddresses
-  }
-  
-   /**
-   * Obtains the Radius server group configuration map reading it from the JSON configuration object.
-   * 
-   * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
-   */
-  def getRadiusServerGroups = {
+    
     radiusServerGroups = (for {
       group <- (ConfigManager.getConfigObject("radiusServers.json") \ "serverGroups").extract[List[RadiusServerGroupConfig]]
     } yield (group.name -> group)).toMap
-    radiusServerGroups
+    
+    
   }
   
    /**
-   * Obtains the Radius client map configuration reading it from the JSON configuration object.
-   * 
-   * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
+   * Reloads the Radius client map configuration reading it from the JSON configuration object. 
    */
-  def getRadiusClients = {
+  def updateRadiusClients = {
     radiusClients = (for {
       client <- ConfigManager.getConfigObject("radiusClients.json").extract[List[RadiusClientConfig]]
     } yield (client.IPAddress -> client)).toMap
-    radiusClients
   }
   
   /**

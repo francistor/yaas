@@ -147,14 +147,15 @@ class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
       }
   }
 
-  
-  val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ textRoute, bindAddress, bindPort)
-  
-  bindFuture.onComplete {
-    case Success(binding) =>
-      log.info("Instrumentation REST server bound to {}", binding.localAddress)
-    case Failure(e) =>
-      log.error(e.getMessage)
+  if(bindAddress.contains(".")){
+    val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ textRoute, bindAddress, bindPort)
+    
+    bindFuture.onComplete {
+      case Success(binding) =>
+        log.info("Instrumentation REST server bound to {}", binding.localAddress)
+      case Failure(e) =>
+        log.error(e.getMessage)
+    }
   }
   
   def getPrometheusDiameterStatsFut(statName: String) = {
