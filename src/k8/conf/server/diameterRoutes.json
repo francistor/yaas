@@ -6,5 +6,5 @@
 	{"realm": "*", "applicationId": "NASREQ", "handler": "NASReqHandler"},
 	
 	// With lower priority, send to superserver
-	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"}
+	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["yaas-superserver-0.yaassuperserver", "yaas-superserver-1.yaassuperserver"], "policy": "fixed"}
 ]

@@ -130,6 +130,20 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
     println("Tests stopped")
   }
   
+  def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
+      println(s"[TEST] $url connected to $connectedPeer")
+      val peerStatus = getJson(s"${url}/diameter/peers")
+      if((peerStatus \ connectedPeer \ "status").extract[Int] == PeerStatus.STATUS_READY) ok(s"Connected to $connectedPeer") else fail(s"Not connected to $connectedPeer") 
+      nextTest
+  }
+  
+  def checkNotConnectedPeer(url: String, notConnectedPeer: String)(): Unit = {
+      println(s"[TEST] $url connected to notConnectedPeer")
+      val peerStatus = getJson(s"${url}/diameter/peers")
+      if((peerStatus \ notConnectedPeer \ "status").extract[Int] != PeerStatus.STATUS_READY) ok(s"$notConnectedPeer status is != 2") else fail(s"Connected to $notConnectedPeer") 
+      nextTest
+  }
+  
   def clientPeerConnections(): Unit = {
       // Test-Client is connected to server.yaasserver, and not connected to non-existing-server.yaasserver
       println("[TEST] Client Peer connections")

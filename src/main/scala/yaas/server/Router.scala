@@ -173,14 +173,14 @@ class Router() extends Actor with ActorLogging {
   }
   
   // Radius server actors
-  if(RadiusConfigManager.isRadiusEnabled){
+  if(RadiusConfigManager.isRadiusServerEnabled){
     if(radiusServerAuthPort > 0 ) newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
     if(radiusServerAcctPort > 0 ) newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
     if(radiusServerCoAPort > 0 ) newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
   }
   
   // Radius client
-  val radiusClientActor = if(radiusConfig.clientBasePort > 0) 
+  val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled) 
     Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient"))
     else None
   

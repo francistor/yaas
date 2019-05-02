@@ -11,9 +11,11 @@ class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) 
   
     // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
-      clientPeerConnections _, 
-      serverPeerConnections _, 
-      superserverPeerConnections _, 
+      checkConnectedPeer(s"${clientStatsURL}", "server.yaasserver") _,
+      checkNotConnectedPeer(s"${clientStatsURL}", "non-existing-server.yaasserver") _,
+      checkConnectedPeer(s"${serverStatsURL}", "superserver.yaassuperserver") _,
+      checkConnectedPeer(s"${serverStatsURL}", "client.yaasclient") _,
+      checkConnectedPeer(s"${superServerStatsURL}", "server.yaasserver") _,
       testAccessRequestWithAccept _,
       testAccessRequestWithReject _, 
       testAccessRequestWithDrop _,

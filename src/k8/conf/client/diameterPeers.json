@@ -1,6 +1,6 @@
 [
 	{
-        "diameterHost": "server.yaasserver",
+        "diameterHost": "yaas-server-0.yaasserver",
         "IPAddress": "127.0.0.1",
         "port": 3868,
 		"connectionPolicy": "active",

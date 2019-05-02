@@ -11,11 +11,11 @@ class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase
   
     // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
-      clientPeerConnections _, 
       testAA _,
       testAC _,
       testGxRouting _,
-      stop _,      checkDiameterPerformance("AA", "@accept", 20000, 10, "AA Warmup") _,
+      stop _,      
+      checkDiameterPerformance("AA", "@accept", 20000, 10, "AA Warmup") _,
       checkDiameterPerformance("AA", "@accept", 10000, 10, "AA Free Wheel") _,
       checkDiameterPerformance("AC", "@accept", 20000, 10, "AC Warmup") _,
       checkDiameterPerformance("AC", "@accept", 10000, 10, "AC Free Wheel") _

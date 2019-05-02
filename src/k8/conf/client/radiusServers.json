@@ -2,7 +2,7 @@
 	"servers" : 
 	[
 		{
-        "name": "test-server",
+        "name": "yaas-server",
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
@@ -32,12 +32,12 @@
 	[
 	  {
         "name": "allServers",
-        "servers": ["non-existing-server", "test-server"],
+        "servers": ["non-existing-server", "yaast-server"],
         "policy": "fixed"
       },
       {
         "name": "testServer",
-        "servers": ["test-server"],
+        "servers": ["yaas-server"],
         "policy": "fixed"
       }
 	]

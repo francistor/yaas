@@ -49,7 +49,8 @@ object RadiusConfigManager {
    */
   val radiusConfig = ConfigManager.getConfigObject("radiusServer.json").extractOrElse[RadiusThisServerConfig](RadiusThisServerConfig("0", 0, 0, 0, 0, 0))
   
-  def isRadiusEnabled = radiusConfig.bindAddress.contains(".")
+  def isRadiusServerEnabled = radiusConfig.bindAddress.contains(".")
+  def isRadiusClientEnabled = radiusConfig.clientBasePort > 0
   
   /**
    * Holds a map from radius server names to radius server configuration
@@ -66,13 +67,13 @@ object RadiusConfigManager {
    */
   var radiusServerGroups = Map[String, RadiusServerGroupConfig]()
   
-  if(isRadiusEnabled) updateRadiusServers
+  if(isRadiusClientEnabled) updateRadiusServers
   
   /**
    * Holds a map of IP addresses to radius client configuration
    */
   var radiusClients = Map[String, RadiusClientConfig]()
-  if(isRadiusEnabled) updateRadiusClients
+  if(isRadiusServerEnabled) updateRadiusClients
   
   /**
    * Reloads the Radius server map configuration reading it from the JSON configuration object.
@@ -90,8 +91,6 @@ object RadiusConfigManager {
     radiusServerGroups = (for {
       group <- (ConfigManager.getConfigObject("radiusServers.json") \ "serverGroups").extract[List[RadiusServerGroupConfig]]
     } yield (group.name -> group)).toMap
-    
-    
   }
   
    /**
