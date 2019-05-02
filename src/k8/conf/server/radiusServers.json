@@ -2,8 +2,8 @@
 	"servers" : 
 	[
 		{
-        "name": "test-superserver",
-        "IPAddress": "yaas-superserver",
+        "name": "yaas-superserver",
+        "IPAddress": "yaas-superserver-radius",
         "secret": "secret",
         "ports": {
           "auth": 1812,
@@ -15,7 +15,7 @@
       },
       {
         "name": "non-existing-server",
-        "IPAddress": "192.168.250.1",
+        "IPAddress": "1.1.1.1",
         "secret": "secret",
         "ports": {
           "auth": 1812,
@@ -30,13 +30,13 @@
 	[
 	  {
         "name": "allServers",
-        "servers": ["non-existing-server", "test-superserver"],
+        "servers": ["non-existing-server", "yaas-superserver"],
         # policy may be "fixed", "random", "fixed-withclear", "random-withclear"
         "policy": "fixed"
       },
       {
       	"name": "superServer",
-      	"servers": ["test-superserver"],
+      	"servers": ["yaas-superserver"],
       	"policy": "random"
       }
 	]
