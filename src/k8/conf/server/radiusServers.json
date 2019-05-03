@@ -12,18 +12,6 @@
         },
         "errorLimit": 3,
         "quarantineTimeMillis": 60000
-      },
-      {
-        "name": "non-existing-server",
-        "IPAddress": "1.1.1.1",
-        "secret": "secret",
-        "ports": {
-          "auth": 1812,
-          "acct": 1813,
-          "coA": 3799
-        },
-        "errorLimit": 3,
-        "quarantineTimeMillis": 60000
       }
 	],
 	"serverGroups" :

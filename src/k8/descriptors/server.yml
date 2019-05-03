@@ -2,13 +2,15 @@
 # Yaas Server Daemonset
 
 apiVersion: apps/v1
-kind: DaemonSet
+kind: StatefulSet
 metadata:
   name: yaas-server
 spec:
   selector:
     matchLabels:
       app: yaas-server
+  replicas: 2
+  serviceName: yaas-server
   template:
     metadata:
       name: yaas-server
