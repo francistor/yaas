@@ -37,13 +37,14 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
       val remoteIPAddress = remote.getAddress().getHostAddress
       val remotePort = remote.getPort
       val radiusClient = RadiusConfigManager.findRadiusClient(remoteIPAddress)
+      log.debug(s"Radius datagram from $remoteIPAddress")
       
       radiusClient match {
         case Some(radiusClientConfig) =>
           try {
-            val origin = RadiusActorMessages.RadiusEndpoint(remoteIPAddress, remotePort, radiusClientConfig.secret)
-            val requestPacket = RadiusPacket(data, None, origin.secret)
-            context.parent ! RadiusActorMessages.RadiusServerRequest(requestPacket, self, origin)
+            val origin = RadiusActorMessages.RadiusEndpoint(remoteIPAddress, remotePort)
+            val requestPacket = RadiusPacket(data, None, radiusClientConfig.secret)
+            context.parent ! RadiusActorMessages.RadiusServerRequest(requestPacket, self, origin, radiusClientConfig.secret)
             StatOps.pushRadiusServerRequest(statsServer, origin, requestPacket.code)
           } catch {
             case e: Exception =>
@@ -55,9 +56,9 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
           StatOps.pushRadiusServerDrop(statsServer: ActorRef, remoteIPAddress, remotePort)
       }
       
-    case RadiusServerResponse(responsePacket, origin) =>
+    case RadiusServerResponse(responsePacket, origin, secret) =>
       log.debug(s"Sending radius response to $origin")
-      val responseBytes = responsePacket.getResponseBytes(origin.secret)
+      val responseBytes = responsePacket.getResponseBytes(secret)
       udpEndPoint ! Udp.Send(responseBytes, new InetSocketAddress(origin.ipAddress, origin.port))
       StatOps.pushRadiusServerResponse(statsServer, origin, responsePacket.code)
   }

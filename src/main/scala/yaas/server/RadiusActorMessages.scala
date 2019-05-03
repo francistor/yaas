@@ -11,15 +11,15 @@ import yaas.coding.RadiusPacket
 
 object RadiusActorMessages {
   
-  case class RadiusEndpoint(ipAddress: String, port: Int, secret: String)
+  case class RadiusEndpoint(ipAddress: String, port: Int)
   
   // Server <--> Handler
-  case class RadiusServerRequest(radiusPacket: RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint)
-  case class RadiusServerResponse(radiusPacket: RadiusPacket, origin: RadiusEndpoint)
+  case class RadiusServerRequest(radiusPacket: RadiusPacket, originActor: ActorRef, origin: RadiusEndpoint, secret: String)
+  case class RadiusServerResponse(radiusPacket: RadiusPacket, origin: RadiusEndpoint, secret: String)
   
   // Router/Client <--> Handler
   case class RadiusGroupClientRequest(radiusPacket: RadiusPacket, serverGroupName: String, radiusId: Long, retryNum: Int)
-  case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, originActor: ActorRef, radiusId: Long)
+  case class RadiusClientRequest(radiusPacket: RadiusPacket, destination: RadiusEndpoint, secret: String, originActor: ActorRef, radiusId: Long)
   case class RadiusClientResponse(radiusPacket: RadiusPacket, radiusId: Long)
   
   // Client <--> ClientSocket

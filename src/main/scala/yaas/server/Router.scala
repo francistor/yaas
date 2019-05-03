@@ -400,7 +400,7 @@ class Router() extends Actor with ActorLogging {
 	      (serverName, radiusServerPointer) <- radiusServers
 	      (_, epStatus) <- radiusServerPointer.endpointMap
 	    } {
-	      stats.get(RadiusEndpoint(radiusServerPointer.IPAddress, epStatus.port, radiusServerPointer.secret)) match {
+	      stats.get(RadiusEndpoint(radiusServerPointer.IPAddress, epStatus.port)) match {
 	        case Some((successes, errors)) => 
 	          // Only if not in quarantine
 	          if(radiusServerPointer.quarantineTimeMillis < currentTimestamp) {
@@ -422,23 +422,23 @@ class Router() extends Actor with ActorLogging {
 	      }
 	    }
 	    
-	  case RadiusServerRequest(packet, actorRef, origin) =>
+	  case RadiusServerRequest(packet, actorRef, origin, secret) =>
 	    packet.code match {
 	    case RadiusPacket.ACCESS_REQUEST =>
   	    handlerMap.get("AccessRequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin)
+    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
     	    case None => log.warning("No handler defined for Access-Request")
     	  }
 
 	    case RadiusPacket.ACCOUNTING_REQUEST =>
   	    handlerMap.get("AccountingRequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin)
+    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
     	    case None => log.warning("No handler defined for Accounting-Request")
     	  }
 
 	    case RadiusPacket.COA_REQUEST =>
   	    handlerMap.get("CoARequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin)
+    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
     	    case None => log.warning("No handler defined for CoA-Request")
     	  }
 	    }
@@ -474,7 +474,7 @@ class Router() extends Actor with ActorLogging {
             val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (radiusPacket.authenticator(0).toInt % nServers) else 0)) % nServers
             val radiusServer = radiusServers(servers(serverIndex))
             radiusClientActor.get ! RadiusClientRequest(radiusPacket, 
-                    RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port, radiusServer.secret),
+                    RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port), radiusServer.secret,
                     sender, radiusId)
 	        }
           else log.warning("No available server found for group {}. Discarding packet", serverGroupName)

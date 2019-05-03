@@ -21,7 +21,7 @@ object RadiusClient {
 }
 
 case class RadiusPortId(port: Int, id: Int)
-case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, requestCode: Int, requestTimestamp: Long)
+case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, secret: String, requestCode: Int, requestTimestamp: Long)
 
 class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) extends Actor with ActorLogging {
   
@@ -50,15 +50,15 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   
   def receive = {
     
-    case RadiusClientRequest(requestPacket, destinationEndpoint, originActor, radiusId) =>
+    case RadiusClientRequest(requestPacket, destinationEndpoint, secret, originActor, radiusId) =>
       // Get port and id
       val radiusPortId = nextRadiusPortId(destinationEndpoint)
       
       // Get packet to send
-      val bytes = requestPacket.getRequestBytes(destinationEndpoint.secret, radiusPortId.id)
+      val bytes = requestPacket.getRequestBytes(secret, radiusPortId.id)
       
       // Populate request Map
-      pushToRequestMap(destinationEndpoint, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, destinationEndpoint, requestPacket.code, System.currentTimeMillis))
+      pushToRequestMap(destinationEndpoint, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, destinationEndpoint, secret, requestPacket.code, System.currentTimeMillis))
       log.debug(s"Pushed entry to request Map: destinationEndpoint -> $radiusPortId")
       
       // Send message to socket Actor
@@ -74,12 +74,12 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
       log.debug(s"Looking for entry in request Map: $originEndpoint -> $radiusPortId")
       
       requestMap(originEndpoint).remove(radiusPortId) match {
-        case Some(RadiusRequestRef(originActor, reqAuthenticator, radiusId, originEndpoint, reqCode, requestTimestamp)) =>
-          val responsePacket = RadiusPacket(bytes, Some(reqAuthenticator), originEndpoint.secret)
+        case Some(RadiusRequestRef(originActor, reqAuthenticator, radiusId, originEndpoint, secret, reqCode, requestTimestamp)) =>
+          val responsePacket = RadiusPacket(bytes, Some(reqAuthenticator), secret)
           
           // Check authenticator
           val code = responsePacket.code
-          if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, reqAuthenticator, originEndpoint.secret)){
+          if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, reqAuthenticator, secret)){
             log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
                 originEndpoint, reqAuthenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), bytes.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
             StatOps.pushRadiusClientDrop(statsServer, originEndpoint.ipAddress, originEndpoint.port)

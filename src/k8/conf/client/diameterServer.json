@@ -1,5 +1,5 @@
 {
-	"bindAddress": "127.0.0.1",
+	"bindAddress": "0.0.0.0",
 	"bindPort": 3868,
 	"diameterHost": "client.yaasclient",
 	"diameterRealm": "yaasclient",

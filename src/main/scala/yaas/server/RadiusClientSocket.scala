@@ -31,24 +31,8 @@ class RadiusClientSocket(bindIPAddress: String, bindPort: Int) extends Actor wit
   
   def ready(udpEndPoint: ActorRef): Receive = {
     case Udp.Received(data, remote) =>
-      // Check origin
-      val remoteIPAddress = remote.getAddress().getHostAddress
-      val remotePort = remote.getPort
-      val radiusServer = RadiusConfigManager.radiusServerIPAddresses.get(remoteIPAddress)
-      
-      radiusServer match {
-        case Some(radiusServerConfig) =>
-          try {
-            val origin = RadiusEndpoint(remoteIPAddress, remotePort, radiusServerConfig.secret)
-            context.parent ! RadiusClientSocketResponse(data, origin, bindPort)
-          } catch {
-            case e: Exception =>
-              log.warning(e.getMessage)
-          }
-          
-        case None =>
-          log.warning(s"Discarding packet from $remoteIPAddress")
-      }
+      val radiusEndpoint = RadiusEndpoint(remote.getAddress().getHostAddress, remote.getPort)
+      context.parent ! RadiusClientSocketResponse(data, radiusEndpoint, bindPort)
       
     case RadiusClientSocketRequest(bytes, destination) =>
       log.debug(s"Sending radius request to $destination")

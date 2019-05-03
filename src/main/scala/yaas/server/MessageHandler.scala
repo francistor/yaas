@@ -24,7 +24,7 @@ class RadiusTimeoutException(msg: String) extends RadiusResponseException(msg)
 
 // Context classes. Just to avoid passing too many opaque parameters from request to response
 case class DiameterRequestContext(diameterRequest: DiameterMessage, originActor: ActorRef, requestTimestamp: Long)
-case class RadiusRequestContext(requestPacket: RadiusPacket, origin: RadiusEndpoint, originActor: ActorRef, receivedTimestamp: Long)
+case class RadiusRequestContext(requestPacket: RadiusPacket, origin: RadiusEndpoint, secret: String, originActor: ActorRef, receivedTimestamp: Long)
 
 object MessageHandler {
   // Messages
@@ -140,7 +140,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
    * Sends a Radius Response packet
    */
   def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext) = {
-    ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin)
+    ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin, ctx.secret)
     
     StatOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, ctx.receivedTimestamp)
     log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
@@ -255,9 +255,9 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
       log.debug("<< Radius timeout\n {}\n", radiusId)
       radiusRequestMapOut(radiusId, Right(new RadiusTimeoutException("Timeout")))
         
-    case RadiusServerRequest(requestPacket, originActor, origin) =>
+    case RadiusServerRequest(requestPacket, originActor, origin, secret) =>
       log.debug("<< Radius request received\n {}\n", requestPacket.toString())
-      handleRadiusMessage(RadiusRequestContext(requestPacket, origin, originActor, System.currentTimeMillis))
+      handleRadiusMessage(RadiusRequestContext(requestPacket, origin, secret, originActor, System.currentTimeMillis))
       
     case RadiusClientResponse(radiusResponse: RadiusPacket, radiusId: Long) =>
       log.debug("<< Radius response received\n {}\n", radiusResponse.toString())
