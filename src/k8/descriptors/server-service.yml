@@ -13,9 +13,12 @@ spec:
     - name: radiusauth
       protocol: UDP
       port: 1812
+      nodePort: 30101
     - name: radiusacct
       protocol: UDP
       port: 1813
+      nodePort: 30102
     - name: diameter
       protocol: TCP
       port: 3868
+      nodePort: 30201

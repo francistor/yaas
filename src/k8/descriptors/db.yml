@@ -18,7 +18,8 @@ spec:
       initContainers:
       - name: git
         image: alpine/git:1.0.7
-        args: ["clone", "https://github.com/francistor/Yaas.git"]
+        command: ["/bin/sh", "-c"]
+        args: ["git clone https://github.com/francistor/Yaas.git || (cd Yaas; git pull)"]
         volumeMounts:
           - name: configuration
             mountPath: /git

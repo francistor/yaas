@@ -6,10 +6,10 @@
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
-          "auth": 1812,
-          "acct": 1813,
-          "coA": 3799,
-          "dm": 3799
+          "auth": 30101,
+          "acct": 30102,
+          "coA": 30103,
+          "dm": 30103
         },
         "errorLimit": 3,
         "quarantineTimeMillis": 60000
