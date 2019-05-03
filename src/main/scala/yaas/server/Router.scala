@@ -317,7 +317,7 @@ class Router() extends Actor with ActorLogging {
       log.info("Connection from {}", remoteAddress)
       
       // Check that there is at last one peer configured with that IP Address
-      if(DiameterConfigManager.validatePeerIPAddress(remoteAddress)){
+      if(!DiameterConfigManager.validatePeerIPAddress(remoteAddress)){
         log.warning("No valid peer found for {}", remoteAddress);
         connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
       } else {

@@ -18,7 +18,8 @@ object Net {
   }
   
   /**
-   * Applies the specified mask to the address
+   * Applies the specified mask to the address. That is, the bytes from the first to the
+   * size of the mask are untouched, and the rest is set to zero.
    */
   def masked(address: Array[Byte], mask: Int) = {
     
@@ -43,7 +44,7 @@ object Net {
   def isAddressInNetwork(address: String, network: String) = {
     val (networkAddr, networkMask) = decomposeNetwork(network)
     
-    masked(java.net.InetAddress.getByName(address).getAddress, networkMask).sameElements(networkAddr.getAddress)
+    masked(java.net.InetAddress.getByName(address).getAddress, networkMask).sameElements(masked(networkAddr.getAddress, networkMask))
     
   }
 }
