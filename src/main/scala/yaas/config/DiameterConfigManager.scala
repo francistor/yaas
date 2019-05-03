@@ -86,5 +86,14 @@ object DiameterConfigManager {
       case (name, diameterPeer) if(Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork) && diameterHost == diameterPeer.diameterHost) => diameterPeer
     } 
   }
+  
+  /**
+   * Checks that there may be at least one Peer with the specified IP address
+   */
+  def validatePeerIPAddress(remoteIPAddress: String) = {
+    diameterPeerConfig.collectFirst {
+      case (name, diameterPeer) if(Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork)) => diameterPeer
+    } .nonEmpty
+  }
 }
 

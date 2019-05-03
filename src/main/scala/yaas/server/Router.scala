@@ -317,8 +317,8 @@ class Router() extends Actor with ActorLogging {
       log.info("Connection from {}", remoteAddress)
       
       // Check that there is at last one peer configured with that IP Address
-      if(!peerHostMap.exists{case (hostName, peerPointer) => peerPointer.config.IPAddress == remoteAddress}){
-        log.info("No peer found for {}", remoteAddress);
+      if(DiameterConfigManager.validatePeerIPAddress(remoteAddress)){
+        log.warning("No valid peer found for {}", remoteAddress);
         connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
       } else {
         // Create handling actor and send it the connection. The Actor will register itself as peer or die
