@@ -6,7 +6,6 @@ metadata:
   name: yaas-server
 spec:
   type: NodePort
-  externalTrafficPolicy: Local
   selector:
     app: yaas-server
   ports:
