@@ -3,7 +3,7 @@
 	[
 		{
         "name": "yaas-server",
-        "IPAddress": "192.168.0.101",
+        "IPAddress": "yaas-localhost",
         "secret": "secret",
         "ports": {
           "auth": 30101,
