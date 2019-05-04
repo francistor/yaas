@@ -4,10 +4,13 @@ import akka.actor.{ActorRef}
 import yaas.coding.RadiusPacket._
 
 class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase(statsServer) {
+  // Not used
   val clientStatsURL = "http://localhost:19001"
   val serverStatsURL = "http://localhost:19002"
   val superServerStatsURL = "http://localhost:19003"
-  val superServerSessionsURL = "http://localhost:19503"
+  
+  // Used
+  val superServerSessionsURL = "http://localhost:30501"
   
     // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](

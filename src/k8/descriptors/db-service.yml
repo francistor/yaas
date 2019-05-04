@@ -9,4 +9,19 @@ spec:
   clusterIP: None
   selector:
     app: yaas-db
+
+---
     
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-sessiondb
+spec:
+  type: NodePort
+  selector:
+    app: yaas-db
+  ports:
+    - name: sessions
+      protocol: TCP
+      port: 19500
+      nodePort: 30501
