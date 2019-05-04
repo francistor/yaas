@@ -50,51 +50,51 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
   
   def receive = {
     
-    case RadiusClientRequest(requestPacket, destinationEndpoint, secret, originActor, radiusId) =>
+    case RadiusClientRequest(requestPacket, endpoint, secret, originActor, radiusId) =>
       // Get port and id
-      val radiusPortId = nextRadiusPortId(destinationEndpoint)
+      val radiusPortId = nextRadiusPortId(endpoint)
       
       // Get packet to send
       val bytes = requestPacket.getRequestBytes(secret, radiusPortId.id)
       
       // Populate request Map
-      pushToRequestMap(destinationEndpoint, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, destinationEndpoint, secret, requestPacket.code, System.currentTimeMillis))
-      log.debug(s"Pushed entry to request Map: destinationEndpoint -> $radiusPortId")
+      pushToRequestMap(endpoint, radiusPortId, RadiusRequestRef(originActor, requestPacket.authenticator, radiusId, endpoint, secret, requestPacket.code, System.currentTimeMillis))
+      log.debug(s"Pushed entry to request Map: $endpoint - $radiusPortId")
       
       // Send message to socket Actor
-      socketActors(radiusPortId.port - basePort) ! RadiusClientSocketRequest(bytes, destinationEndpoint)
+      socketActors(radiusPortId.port - basePort) ! RadiusClientSocketRequest(bytes, endpoint)
       
       // Add stats
-      StatOps.pushRadiusClientRequest(statsServer, destinationEndpoint, requestPacket.code)
+      StatOps.pushRadiusClientRequest(statsServer, endpoint, requestPacket.code)
       
-    case RadiusClientSocketResponse(bytes, originEndpoint, clientPort) =>
+    case RadiusClientSocketResponse(bytes, endpoint, clientPort) =>
       val identifier = UByteString.getUnsignedByte(bytes.slice(1, 2))
       // Look in request Map
       val radiusPortId = RadiusPortId(clientPort, identifier)
-      log.debug(s"Looking for entry in request Map: $originEndpoint -> $radiusPortId")
+      log.debug(s"Looking for entry in request Map: $endpoint - $radiusPortId")
       
-      requestMap(originEndpoint).remove(radiusPortId) match {
-        case Some(RadiusRequestRef(originActor, reqAuthenticator, radiusId, originEndpoint, secret, reqCode, requestTimestamp)) =>
+      requestMap(endpoint).remove(radiusPortId) match {
+        case Some(RadiusRequestRef(originActor, reqAuthenticator, radiusId, ep, secret, reqCode, requestTimestamp)) =>
           val responsePacket = RadiusPacket(bytes, Some(reqAuthenticator), secret)
           
           // Check authenticator
           val code = responsePacket.code
           if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, reqAuthenticator, secret)){
             log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
-                originEndpoint, reqAuthenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), bytes.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
-            StatOps.pushRadiusClientDrop(statsServer, originEndpoint.ipAddress, originEndpoint.port)
+                ep, reqAuthenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), bytes.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
+            StatOps.pushRadiusClientDrop(statsServer, ep.ipAddress, ep.port)
           }
           else {
             originActor ! RadiusClientResponse(responsePacket, radiusId)
-            StatOps.pushRadiusClientResponse(statsServer, originEndpoint, reqCode, responsePacket.code, requestTimestamp)
+            StatOps.pushRadiusClientResponse(statsServer, ep, reqCode, responsePacket.code, requestTimestamp)
           }
           
           // Update stats
-          endpointSuccesses(originEndpoint) = endpointSuccesses(originEndpoint) + 1
+          endpointSuccesses(ep) = endpointSuccesses(ep) + 1
           
         case None =>
-          log.warning("Radius request not found for response received")
-          StatOps.pushRadiusClientDrop(statsServer, originEndpoint.ipAddress, originEndpoint.port)
+          log.warning(s"Radius request not found for response received from endpoint $endpoint to $radiusPortId")
+          StatOps.pushRadiusClientDrop(statsServer, endpoint.ipAddress, endpoint.port)
       }
       
     case Clean =>

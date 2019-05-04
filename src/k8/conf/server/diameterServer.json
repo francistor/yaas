@@ -6,5 +6,5 @@
 	"vendorId": 1101,
 	"productName": "Lever",
 	"firmwareRevision": 1,
-	"peerCheckTimeSeconds": 10
+	"peerCheckTimeSeconds": 20
 }

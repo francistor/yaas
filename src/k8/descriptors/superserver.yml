@@ -21,7 +21,7 @@ spec:
       - name: git
         image: alpine/git:1.0.7
         command: ["/bin/sh", "-c"]
-        args: ["git clone https://github.com/francistor/Yaas.git || (cd Yaas; git pull)"]
+        args: ["git clone https://github.com/francistor/Yaas.git || (cd Yaas; git reset --hard; git pull)"]
         volumeMounts:
           - name: configuration
             mountPath: /git
