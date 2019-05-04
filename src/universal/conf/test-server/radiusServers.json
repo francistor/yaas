@@ -3,7 +3,7 @@
 	[
 		{
         "name": "test-superserver",
-        "IPAddress": "127.0.0.1",
+        "IPAddress": "localhost",
         "secret": "secret",
         "ports": {
           "auth": 11812,

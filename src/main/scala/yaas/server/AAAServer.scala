@@ -12,6 +12,9 @@ import yaas.dictionary.{DiameterDictionary, RadiusDictionary}
 
 object AAAServer extends App {
   
+  java.security.Security.setProperty("networkaddress.cache.ttl" , "60");
+  java.security.Security.setProperty("networkaddress.cache.negative.ttl " , "30");
+  
   // Set config.file property as aaa-<instance>.conf, where <instance> is -Dinstance value or "default"
   val ti = System.getProperty("instance")
   val instance = if(ti == null) "default" else ti

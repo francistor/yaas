@@ -458,7 +458,7 @@ class Router() extends Actor with ActorLogging {
 	        )
 	        val allServers = serverGroup.servers
 	        
-	        // If no available servers, use all servers instead, disregarding
+	        // Get candidate servers. If no available servers, ignore status if policy contains "clear"
 	        val servers = 
 	          if(availableServers.length > 0) {
 	            availableServers 
@@ -473,8 +473,9 @@ class Router() extends Actor with ActorLogging {
 	        if(nServers > 0) {
             val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (radiusPacket.authenticator(0).toInt % nServers) else 0)) % nServers
             val radiusServer = radiusServers(servers(serverIndex))
+            // Name is converted to address here
             radiusClientActor.get ! RadiusClientRequest(radiusPacket, 
-                    RadiusEndpoint(radiusServer.IPAddress, radiusServer.endpointMap(radiusPacket.code).port), radiusServer.secret,
+                    RadiusEndpoint(java.net.InetAddress.getByName(radiusServer.IPAddress).getHostAddress(), radiusServer.endpointMap(radiusPacket.code).port), radiusServer.secret,
                     sender, radiusId)
 	        }
           else log.warning("No available server found for group {}. Discarding packet", serverGroupName)
