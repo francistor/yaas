@@ -128,7 +128,7 @@ class Router() extends Actor with ActorLogging {
   val statsServer = context.actorOf(StatsServer.props)
   
   // Create instrumentation server
-  val instrumentationActor = context.actorOf(yaas.instrumentation.StatsRESTProvider.props(statsServer))
+  val instrumentationActor = context.actorOf(yaas.instrumentation.RESTProvider.props(statsServer))
   
   // Empty initial maps to working objects
   // Diameter

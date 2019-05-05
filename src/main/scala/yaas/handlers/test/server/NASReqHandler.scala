@@ -77,7 +77,6 @@ class NASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
     
     sendDiameterRequest(proxyRequest, 1000).onComplete {
       case Success(proxyAnswer) =>
-        log.info("Received proxy answer {}", proxyAnswer)
         
         // Build the answer
         val answer = DiameterMessage.answer(ctx.diameterRequest)
@@ -87,8 +86,5 @@ class NASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
       case Failure(e) =>
         log.error("Timeout")
     }
-
-    
-    
   }
 }

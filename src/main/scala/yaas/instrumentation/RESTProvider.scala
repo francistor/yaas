@@ -17,8 +17,8 @@ import yaas.instrumentation.StatsServer._
 
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 
-object StatsRESTProvider {
-  def props(statsServer: ActorRef) = Props(new StatsRESTProvider(statsServer))
+object RESTProvider {
+  def props(statsServer: ActorRef) = Props(new RESTProvider(statsServer))
 }
 
 trait JsonSupport extends Json4sSupport {
@@ -26,9 +26,9 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
+class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
   
-  import StatsRESTProvider._
+  import RESTProvider._
   
   implicit val actorSystem = context.system
   implicit val materializer = ActorMaterializer()
@@ -79,7 +79,32 @@ class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
     }
   }
   
-  val textRoute = 
+  val loglevelRoute =
+    pathPrefix("loglevel"){
+      pathPrefix("set"){
+        patch {
+          parameterMap { params =>
+            val loggerOption = params.get("loggerName")
+            val levelOption = params.get("level")
+            if(loggerOption.isEmpty || levelOption.isEmpty || (! List("TRACE", "DEBUG", "INFO", "WARN", "ERROR").contains(levelOption.get.toUpperCase))){
+              complete(404, s"Invalid loggerName or level parameters: $params")
+            } else {            
+             
+              import org.slf4j.LoggerFactory
+              import ch.qos.logback.classic.Level
+              import ch.qos.logback.classic.Logger
+              
+              log.info(s"Setting log level for ${loggerOption.get} to ${levelOption.get}")
+              val logger = LoggerFactory.getLogger(loggerOption.get).asInstanceOf[ch.qos.logback.classic.Logger]
+              logger.setLevel(Level.toLevel(levelOption.get))
+              complete(200, "OK")
+            }
+          }
+        }
+      }
+  }
+  
+  val prometheusRoute = 
     pathPrefix("metrics"){
       // Prometheus
       val futList = List(
@@ -148,7 +173,7 @@ class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
   }
 
   if(bindAddress.contains(".")){
-    val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ textRoute, bindAddress, bindPort)
+    val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ prometheusRoute ~ loglevelRoute, bindAddress, bindPort)
     
     bindFuture.onComplete {
       case Success(binding) =>
@@ -158,25 +183,28 @@ class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
     }
   }
   
+  /**
+   * Helper functions
+   */
   def getPrometheusDiameterStatsFut(statName: String) = {
 		  def toPrometheus(statName: String, stats: List[DiameterStatsItem]): String = {
 
 				  def genPrometheusString(counterName: String, helpString: String): String = {
 						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
-						  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
-						  "\n"
+								  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
+								  "\n"
 				  }
 
 				  statName match {
-  				  case "diameterRequestReceived" => genPrometheusString("diameter_requests_received", "The number of Diameter requests received")
-  				  case "diameterAnswerReceived" => genPrometheusString("diameter_answers_received", "The number of Diameter answers received")
-  				  case "diameterRequestTimeout" => genPrometheusString("diameter_requests_timeout", "The number of Diameter timeouts")
-  				  case "diameterAnswerSent" => genPrometheusString("diameter_answers_sent", "The number of Diameter answers sent")
-  				  case "diameterRequestSent" => genPrometheusString("diameter_requests_sent", "The number of Diameter requests sent")
-  				  case "diameterRequestDropped" => genPrometheusString("diameter_requests_dropped", "The number of Diameter requests dropped")
-  				  case "diameterHandlerServer" => genPrometheusString("diameter_handler_server", "The number of Diameter requests handled")
-  				  case "diameterHandlerClient" => genPrometheusString("diameter_handler_client", "The number of Diameter requests sent by handlers")
-  				  case "diameterHandlerClientTimeout" => genPrometheusString("diameter_handler_client_timeout", "The number of Diameter requests sent by handler timed out")
+				  case "diameterRequestReceived" => genPrometheusString("diameter_requests_received", "The number of Diameter requests received")
+				  case "diameterAnswerReceived" => genPrometheusString("diameter_answers_received", "The number of Diameter answers received")
+				  case "diameterRequestTimeout" => genPrometheusString("diameter_requests_timeout", "The number of Diameter timeouts")
+				  case "diameterAnswerSent" => genPrometheusString("diameter_answers_sent", "The number of Diameter answers sent")
+				  case "diameterRequestSent" => genPrometheusString("diameter_requests_sent", "The number of Diameter requests sent")
+				  case "diameterRequestDropped" => genPrometheusString("diameter_requests_dropped", "The number of Diameter requests dropped")
+				  case "diameterHandlerServer" => genPrometheusString("diameter_handler_server", "The number of Diameter requests handled")
+				  case "diameterHandlerClient" => genPrometheusString("diameter_handler_client", "The number of Diameter requests sent by handlers")
+				  case "diameterHandlerClientTimeout" => genPrometheusString("diameter_handler_client_timeout", "The number of Diameter requests sent by handler timed out")
 
 				  case _ => ""
 
@@ -184,35 +212,35 @@ class StatsRESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
 		  }
 		  (statsServer ? GetDiameterStats(statName, diameterKeys(statName))).mapTo[List[DiameterStatsItem]].map(f => toPrometheus(statName, f))
   }
-  
-    def getPrometheusRadiusStatsFut(statName: String) = {
+
+  def getPrometheusRadiusStatsFut(statName: String) = {
 		  def toPrometheus(statName: String, stats: List[RadiusStatsItem]): String = {
 
 				  def genPrometheusString(counterName: String, helpString: String): String = {
 						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
-						  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
-						  "\n"
+								  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
+								  "\n"
 				  }
 
 				  statName match {
-  				  case "radiusServerRequest" => genPrometheusString("radius_server_requests_received", "The number of Radius server requests received")
-  				  case "radiusServerDropped" => genPrometheusString("radius_server_requests_dropped", "The number of Radius server requests dropped")
-  				  case "radiusServerResponse" => genPrometheusString("radius_server_responses", "The number of Radius server requests responsed")
-  				  case "radiusClientRequest" => genPrometheusString("radius_client_requests", "The number of Radius client requests sent")
-  				  case "radiusClientResponse" => genPrometheusString("radius_client_responses", "The number of Radius client responses received")
-  				  case "radiusClientTimeout" => genPrometheusString("radius_client_timeout", "The number of Radius client requests timed out")
-  				  case "radiusClientDropped" => genPrometheusString("radius_client_dropped", "The number of Radius client responses dropped")
-  				  case "radiusHandlerResponse" => genPrometheusString("radius_handler_responses", "The number of Radius responses sent by handlers")
-  				  case "radiusHandlerDropped" => genPrometheusString("radius_handler_dropped", "The number of Radius requests dropped by handlers")
-  				  case "radiusHandlerRequest" => genPrometheusString("radius_handler_requests", "The number of Radius requests received by handlers")
-  				  case "radiusHandlerRetransmission" => genPrometheusString("radius_handler_retransmission", "The number of Radius requests retransmitted")
-  				  case "radiusHandlerTimeout" => genPrometheusString("radius_handler_timeout", "The number of Radius requests timed out")
+				  case "radiusServerRequest" => genPrometheusString("radius_server_requests_received", "The number of Radius server requests received")
+				  case "radiusServerDropped" => genPrometheusString("radius_server_requests_dropped", "The number of Radius server requests dropped")
+				  case "radiusServerResponse" => genPrometheusString("radius_server_responses", "The number of Radius server requests responsed")
+				  case "radiusClientRequest" => genPrometheusString("radius_client_requests", "The number of Radius client requests sent")
+				  case "radiusClientResponse" => genPrometheusString("radius_client_responses", "The number of Radius client responses received")
+				  case "radiusClientTimeout" => genPrometheusString("radius_client_timeout", "The number of Radius client requests timed out")
+				  case "radiusClientDropped" => genPrometheusString("radius_client_dropped", "The number of Radius client responses dropped")
+				  case "radiusHandlerResponse" => genPrometheusString("radius_handler_responses", "The number of Radius responses sent by handlers")
+				  case "radiusHandlerDropped" => genPrometheusString("radius_handler_dropped", "The number of Radius requests dropped by handlers")
+				  case "radiusHandlerRequest" => genPrometheusString("radius_handler_requests", "The number of Radius requests received by handlers")
+				  case "radiusHandlerRetransmission" => genPrometheusString("radius_handler_retransmission", "The number of Radius requests retransmitted")
+				  case "radiusHandlerTimeout" => genPrometheusString("radius_handler_timeout", "The number of Radius requests timed out")
 
 				  case _ => ""
 
 				  }
 		  }
-		  
+
 		  (statsServer ? GetRadiusStats(statName, radiusKeys(statName))).mapTo[List[RadiusStatsItem]].map(f => toPrometheus(statName, f))
   }
     
