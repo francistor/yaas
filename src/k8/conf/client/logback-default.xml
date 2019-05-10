@@ -30,15 +30,15 @@
     	<appender-ref ref="console-appender" />
   	</root>
   	
-  	<logger name="yaas" level="INFO" additivity="false">
+  	<logger name="yaas" level="ERROR" additivity="false">
     	<appender-ref ref="console-appender" />
   	</logger>
   	
-  	<logger name="yaas.server.DiameterPeer" level="INFO" additivity="false">
+  	<logger name="yaas.server.DiameterPeer" level="ERROR" additivity="false">
   		<appender-ref ref="console-appender" />
   	</logger>
   	
-  	<logger name="org.apache.ignite" level="INFO" additivity="false">
+  	<logger name="org.apache.ignite" level="ERROR" additivity="false">
   		<appender-ref ref="console-appender" />
   	</logger>
 
