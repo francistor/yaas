@@ -2,6 +2,12 @@
 aaaserver=$HOME/Yaas/target/universal/stage/bin/aaaserver
 k8clientConfig=$HOME/Yaas/src/k8/conf/client
 
+# Launch radius client
+$aaaserver -Dinstance=radius -Dconfig.file=${k8clientConfig}/aaa-default.conf -Dlogback.configurationFile=${k8clientConfig}/logback-default.xml
+# Launch diameter client
+$aaaserver -Dinstance=diameter -Dconfig.file=${k8clientConfig}/aaa-default.conf -Dlogback.configurationFile=${k8clientConfig}/logback-default.xml
+
+
 # Deploy
 kubectl create -f Yaas/src/k8/descriptors/kagent.yml
 
@@ -21,6 +27,4 @@ kubectl exec -it kagent -- wget -q -O- http://yaas-server-1.yaas-server:19000/di
 kubectl exec -it kagent -- wget -q -O- http://yaas-superserver-0.yaas-superserver-diameter:19000/diameter/peers | jq .
 kubectl exec -it kagent -- wget -q -O- http://yaas-superserver-1.yaas-superserver-diameter:19000/diameter/peers | jq .
 
-# Launch radius client
-$aaaserver -Dinstance=radius -Dconfig.file=${k8clientConfig}/aaa-default.conf -Dlogback.configurationFile=${k8clientConfig}/logback-default.xml
 
