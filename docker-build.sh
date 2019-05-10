@@ -9,6 +9,7 @@ echo "DockerHub password"
 sudo docker login --username=francistor
 
 # Build project
+git pull
 sbt clean universal:packageBin
 
 # Get version
