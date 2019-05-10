@@ -16,8 +16,7 @@ class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase
   val tests = IndexedSeq[() => Unit](
       testAA _,
       testAC _,
-      testGxRouting _,
-      stop _,      
+      testGxRouting _,   
       checkDiameterPerformance("AA", "@accept", 20000, 10, "AA Warmup") _,
       checkDiameterPerformance("AA", "@accept", 10000, 10, "AA Free Wheel") _,
       checkDiameterPerformance("AC", "@accept", 20000, 10, "AC Warmup") _,
