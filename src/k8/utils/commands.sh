@@ -20,11 +20,12 @@ kubectl scale --replicas=2 statefulSet/yaas-superserver
 # Peer status
 
 # Server
-kubectl exec -it kagent -- wget -q -O- http://yaas-server-0.yaas-server:19000/diameter/peers | jq .
-kubectl exec -it kagent -- wget -q -O- http://yaas-server-1.yaas-server:19000/diameter/peers | jq .
+kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/diameter/peers | jq .
+kubectl exec -it kagent -- curl http://yaas-server-1.yaas-server:19000/diameter/peers | jq .
 
 # Superserver
-kubectl exec -it kagent -- wget -q -O- http://yaas-superserver-0.yaas-superserver-diameter:19000/diameter/peers | jq .
-kubectl exec -it kagent -- wget -q -O- http://yaas-superserver-1.yaas-superserver-diameter:19000/diameter/peers | jq .
+kubectl exec -it kagent -- curl http://yaas-superserver-0.yaas-superserver-diameter:19000/diameter/peers | jq .
+kubectl exec -it kagent -- curl http://yaas-superserver-1.yaas-superserver-diameter:19000/diameter/peers | jq .
 
-
+# Change log level
+kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/logLevel/set?loggerName=yaas&level=DEBUG

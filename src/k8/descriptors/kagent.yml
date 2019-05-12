@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
   - name: busybox
-    image: busybox:1.28
+    image: giantswarm/tiny-tools
     command:
       - sleep
       - "360000"
