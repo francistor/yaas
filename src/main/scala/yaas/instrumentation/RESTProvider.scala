@@ -13,7 +13,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import yaas.server.Router._
 import yaas.server.DiameterPeerPointer
-import yaas.instrumentation.StatsServer._
+import yaas.instrumentation.MetricsServer._
 
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 
@@ -108,14 +108,14 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
     pathPrefix("metrics"){
       // Prometheus
       val futList = List(
-        getPrometheusDiameterStatsFut("diameterRequestReceived"),
-        getPrometheusDiameterStatsFut("diameterAnswerReceived"),
-        getPrometheusDiameterStatsFut("diameterRequestTimeout"),
-        getPrometheusDiameterStatsFut("diameterAnswerSent"),
-        getPrometheusDiameterStatsFut("diameterRequestDropped"),
-        getPrometheusDiameterStatsFut("diameterHandlerServer"),
-        getPrometheusDiameterStatsFut("diameterHandlerClient"),
-        getPrometheusDiameterStatsFut("diameterHandlerClientTimeout"),
+        getPrometheusDiameterMetricFut("diameterRequestReceived"),
+        getPrometheusDiameterMetricFut("diameterAnswerReceived"),
+        getPrometheusDiameterMetricFut("diameterRequestTimeout"),
+        getPrometheusDiameterMetricFut("diameterAnswerSent"),
+        getPrometheusDiameterMetricFut("diameterRequestDropped"),
+        getPrometheusDiameterMetricFut("diameterHandlerServer"),
+        getPrometheusDiameterMetricFut("diameterHandlerClient"),
+        getPrometheusDiameterMetricFut("diameterHandlerClientTimeout"),
         
         getPrometheusRadiusStatsFut("radiusServerRequest"),
         getPrometheusRadiusStatsFut("radiusServerDropped"),
@@ -139,8 +139,11 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
       pathPrefix("diameter"){
         pathPrefix("peers"){
           get {
-            complete((context.parent ? IXGetPeerStatus).mapTo[Map[String, StatOps.DiameterPeerStat]])
+            complete((context.parent ? IXGetPeerStatus).mapTo[Map[String, MetricsOps.DiameterPeerStatus]])
           }
+        } ~
+        pathPrefix("requestQueues"){
+          complete((statsServer ? GetDiameterPeerRequestQueueGauges).mapTo[Map[String, Int]])
         } ~
         pathPrefix("stats"){
           path(Remaining){ statName =>
@@ -150,13 +153,16 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
               val allKeys = diameterKeys(statName)
               val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
               val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-              if(invalidKeys.length == 0) complete((statsServer ? GetDiameterStats(statName, inputKeys)).mapTo[List[DiameterStatsItem]])  
+              if(invalidKeys.length == 0) complete((statsServer ? GetDiameterMetrics(statName, inputKeys)).mapTo[List[DiameterMetricsItem]])  
               else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
             }
           }
         }
       } ~ 
       pathPrefix("radius") {
+        pathPrefix("requestQueues"){
+          complete((statsServer ? GetRadiusServerRequestQueueGauges).mapTo[Map[String, Int]])
+        } ~
         pathPrefix("stats") {
           path(Remaining) { statName =>
             parameterMap { params =>
@@ -164,7 +170,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
               val allKeys = radiusKeys(statName)
               val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
               val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-              if(invalidKeys.length == 0) complete((statsServer ? GetRadiusStats(statName, inputKeys)).mapTo[List[RadiusStatsItem]])  
+              if(invalidKeys.length == 0) complete((statsServer ? GetRadiusMetrics(statName, inputKeys)).mapTo[List[RadiusMetricsItem]])  
               else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
             }
           }
@@ -186,8 +192,8 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
   /**
    * Helper functions
    */
-  def getPrometheusDiameterStatsFut(statName: String) = {
-		  def toPrometheus(statName: String, stats: List[DiameterStatsItem]): String = {
+  def getPrometheusDiameterMetricFut(statName: String) = {
+		  def toPrometheus(statName: String, stats: List[DiameterMetricsItem]): String = {
 
 				  def genPrometheusString(counterName: String, helpString: String): String = {
 						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
@@ -210,11 +216,11 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
 
 				  }
 		  }
-		  (statsServer ? GetDiameterStats(statName, diameterKeys(statName))).mapTo[List[DiameterStatsItem]].map(f => toPrometheus(statName, f))
+		  (statsServer ? GetDiameterMetrics(statName, diameterKeys(statName))).mapTo[List[DiameterMetricsItem]].map(f => toPrometheus(statName, f))
   }
 
   def getPrometheusRadiusStatsFut(statName: String) = {
-		  def toPrometheus(statName: String, stats: List[RadiusStatsItem]): String = {
+		  def toPrometheus(statName: String, stats: List[RadiusMetricsItem]): String = {
 
 				  def genPrometheusString(counterName: String, helpString: String): String = {
 						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
@@ -241,7 +247,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
 				  }
 		  }
 
-		  (statsServer ? GetRadiusStats(statName, radiusKeys(statName))).mapTo[List[RadiusStatsItem]].map(f => toPrometheus(statName, f))
+		  (statsServer ? GetRadiusMetrics(statName, radiusKeys(statName))).mapTo[List[RadiusMetricsItem]].map(f => toPrometheus(statName, f))
   }
     
 }

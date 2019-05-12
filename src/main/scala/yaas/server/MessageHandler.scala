@@ -11,7 +11,7 @@ import scala.{Left, Right}
 import yaas.coding.{DiameterMessage, DiameterMessageKey, RadiusPacket}
 import yaas.server.Router._
 import yaas.server.RadiusActorMessages._
-import yaas.instrumentation.StatOps
+import yaas.instrumentation.MetricsOps
 
 // Diameter Exceptions
 class DiameterResponseException(msg: String) extends Exception(msg)
@@ -53,7 +53,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   def sendDiameterAnswer(answerMessage: DiameterMessage) (implicit ctx: DiameterRequestContext) = {
     ctx.originActor ! answerMessage
     
-    StatOps.pushDiameterHandlerServer(statsServer, ctx.diameterRequest, answerMessage, ctx.requestTimestamp)
+    MetricsOps.pushDiameterHandlerServer(statsServer, ctx.diameterRequest, answerMessage, ctx.requestTimestamp)
     log.debug(">> Diameter answer sent\n {}\n", answerMessage.toString())
   }
   
@@ -73,9 +73,9 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     // Side-effect action when future is resolved
     promise.future.andThen {
       case Success(ans) =>
-        StatOps.pushDiameterHandlerClient(statsServer, requestMessage.key, ans, requestTimestamp)
+        MetricsOps.pushDiameterHandlerClient(statsServer, requestMessage.key, ans, requestTimestamp)
       case Failure(ex) =>
-        StatOps.pushDiameterHandlerClientTimeout(statsServer, requestMessage.key)
+        MetricsOps.pushDiameterHandlerClientTimeout(statsServer, requestMessage.key)
     }
   }
   
@@ -142,7 +142,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
   def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext) = {
     ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin, ctx.secret)
     
-    StatOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, ctx.receivedTimestamp)
+    MetricsOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, ctx.receivedTimestamp)
     log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
   }
   
@@ -150,7 +150,7 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
    * To be used by the handler to signal to the stats that the packet has been dropped
    */
   def dropRadiusPacket(implicit ctx: RadiusRequestContext) = {
-    StatOps.pushRadiusHandlerDrop(statsServer, ctx.origin, ctx.requestPacket.code)
+    MetricsOps.pushRadiusHandlerDrop(statsServer, ctx.origin, ctx.requestPacket.code)
   }
   
   /**
@@ -167,13 +167,13 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     
     promise.future.recoverWith {
       case e if(retries > 0) =>
-        StatOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
+        MetricsOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
         sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1)
     }.andThen {
       case Failure(e) =>
-        StatOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
+        MetricsOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
       case Success(responsePacket) =>
-        StatOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, sentTimestamp) 
+        MetricsOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, sentTimestamp) 
     }
   }
   

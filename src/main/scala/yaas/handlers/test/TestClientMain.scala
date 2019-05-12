@@ -9,7 +9,7 @@ class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) 
   val superServerStatsURL = "http://localhost:19003"
   val superServerSessionsURL = "http://localhost:19503"
   
-    // _ is needed to promote the method (no arguments) to a function
+  // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
       checkConnectedPeer(s"${clientStatsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientStatsURL}", "non-existing-server.yaasserver") _,
@@ -31,7 +31,6 @@ class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) 
       sleep _,
       checkSuperserverDiameterStats _,
       checkServerDiameterStats _,
-      stop _,
       checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Radius Warmup") _,
       checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Free Wheel") _,
       checkRadiusPerformance(ACCESS_REQUEST, "@clientdb", 10000, 10, "Database Lookup") _,

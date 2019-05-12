@@ -9,7 +9,7 @@ import yaas.server.Router.RoutedDiameterMessage
 import yaas.coding.{DiameterMessage, DiameterMessageKey}
 import yaas.coding.DiameterConversions._
 import yaas.config.{DiameterPeerConfig}
-import yaas.instrumentation.StatOps
+import yaas.instrumentation.MetricsOps
 
 import akka.stream._
 import akka.stream.scaladsl._
@@ -26,7 +26,7 @@ import java.net.InetSocketAddress
  * Constructor and helpers for DiameterPeer.
  */
 object DiameterPeer {
-  def props(config: Option[DiameterPeerConfig], statsServer: ActorRef) = Props(new DiameterPeer(config, statsServer))
+  def props(config: Option[DiameterPeerConfig], metricsServer: ActorRef) = Props(new DiameterPeer(config, metricsServer))
   
   case object Clean
   case object CERTimeout
@@ -36,6 +36,7 @@ object DiameterPeer {
   
   case class BaseDiameterMessageReceive(message: DiameterMessage)
   case class BaseDiameterMessageSend(message: DiameterMessage)
+  case class DiameterMessageReceive(message: DiameterMessage)
   
   val config = ConfigFactory.load().getConfig("aaa.diameter")
   val messageQueueSize = config.getInt("peerMessageQueueSize")
@@ -64,7 +65,7 @@ object DiameterPeer {
  * 
  * If created by the server ("active" policy), <code>config</config> has a value. Otherwise is set to None.
  */
-class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: ActorRef) extends Actor with ActorLogging {
+class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: ActorRef) extends Actor with ActorLogging {
   
   import DiameterPeer._
   import context.dispatcher
@@ -100,24 +101,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
           self ! BaseDiameterMessageReceive(decodedMessage)
         }
         else {
-          // If request, route message
-          if(decodedMessage.isRequest){
-            context.parent ! decodedMessage
-            StatOps.pushDiameterRequestReceived(statsServer, peerHostName, decodedMessage)
-            log.debug(s">> Received diameter request $decodedMessage")
-          }
-          // If response, check where to send it to, and clean from map
-          else {
-            requestMapOut(decodedMessage.hopByHopId) match {
-              case Some(RequestEntry(hopByHopId, requestTimestamp, destActor, messageKey)) => 
-                destActor ! decodedMessage
-                StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, decodedMessage, requestTimestamp)
-                log.debug(s">> Received diameter answer $decodedMessage")
-              case None =>
-                StatOps.pushDiameterDiscardedAnswer(statsServer, peerHostName, decodedMessage)
-                log.warning(s"Unsolicited or staled response $decodedMessage")
-            }
-          }
+          self ! DiameterMessageReceive(decodedMessage)
         }
       } catch {
         case e: Throwable =>
@@ -157,50 +141,72 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
    */
   def receiveConnected(ks: KillSwitch, q: SourceQueueWithComplete[ByteString], remote: String) : Receive = {
     
-    case BaseDiameterMessageReceive(message) =>
-      if(!message.isRequest) {
-        requestMapOut(message.hopByHopId) match {
+    case BaseDiameterMessageReceive(decodedMessage) =>
+      if(!decodedMessage.isRequest) {
+        requestMapOut(decodedMessage.hopByHopId) match {
           case Some(RequestEntry(hopByHopId, requestTimestamp, sendingActor, key)) =>
-            StatOps.pushDiameterAnswerReceived(statsServer, peerHostName, message, requestTimestamp)
-            log.debug(s">> Received diameter answer $message")
+            MetricsOps.pushDiameterAnswerReceived(metricsServer, peerHostName, decodedMessage, requestTimestamp)
+            log.debug(s">> Received diameter answer decodedMessage")
           case None =>
             // Unsolicited or stalled response. 
-            StatOps.pushDiameterDiscardedAnswer(statsServer, peerHostName, message)
+            MetricsOps.pushDiameterDiscardedAnswer(metricsServer, peerHostName, decodedMessage)
         }
       } else{
-        StatOps.pushDiameterRequestReceived(statsServer, peerHostName, message)
-        log.debug(s">> Received diameter request $message")
+        MetricsOps.pushDiameterRequestReceived(metricsServer, peerHostName, decodedMessage)
+        log.debug(s">> Received diameter request decodedMessage")
       }
           
-      handleDiameterBase(message)
+      handleDiameterBase(decodedMessage)
       
     case BaseDiameterMessageSend(message) =>
       q.offer(message.getBytes)
       if(message.isRequest){
         requestMapIn(message, self)
-        StatOps.pushDiameterRequestSent(statsServer, peerHostName, message)
+        MetricsOps.pushDiameterRequestSent(metricsServer, peerHostName, message)
         log.debug(s"<< Sent diameter request $message")
       } else{
-        StatOps.pushDiameterAnswerSent(statsServer, peerHostName, message)
+        MetricsOps.pushDiameterAnswerSent(metricsServer, peerHostName, message)
         log.debug(s"<< Sent diameter answer $message")
       }
       
     // Message to send a answer to peer
     case message: DiameterMessage => 
       q.offer(message.getBytes)
-      StatOps.pushDiameterAnswerSent(statsServer, peerHostName, message)
+      MetricsOps.pushDiameterAnswerSent(metricsServer, peerHostName, message)
       log.debug(s"<< Sent diameter answer $message")
       
     // Message to send request to peer
     case RoutedDiameterMessage(message, originActor) =>
       requestMapIn(message, originActor)
       q.offer(message.getBytes)
-      StatOps.pushDiameterRequestSent(statsServer, peerHostName, message)
+      MetricsOps.pushDiameterRequestSent(metricsServer, peerHostName, message)
       log.debug(s"<< Sent diameter request $message")
+      
+    // Response received
+    case DiameterMessageReceive(decodedMessage) =>
+      // If request, route message
+      if(decodedMessage.isRequest){
+        context.parent ! decodedMessage
+        MetricsOps.pushDiameterRequestReceived(metricsServer, peerHostName, decodedMessage)
+        log.debug(s">> Received diameter request $decodedMessage")
+      }
+      // If response, check where to send it to, and clean from map
+      else {
+        requestMapOut(decodedMessage.hopByHopId) match {
+          case Some(RequestEntry(hopByHopId, requestTimestamp, destActor, messageKey)) => 
+            destActor ! decodedMessage
+            MetricsOps.pushDiameterAnswerReceived(metricsServer, peerHostName, decodedMessage, requestTimestamp)
+            log.debug(s">> Received diameter answer $decodedMessage")
+          case None =>
+            MetricsOps.pushDiameterDiscardedAnswer(metricsServer, peerHostName, decodedMessage)
+            log.warning(s"Unsolicited or staled response $decodedMessage")
+        }
+      }
 
     case Clean => 
       requestMapClean
       cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanIntervalMillis milliseconds, self, Clean))
+      MetricsOps.updateDiameterPeerRequestQueueGauge(metricsServer, peerHostName, requestMap.size)
       
     case CERTimeout =>
       log.error("No answer to CER received from Peer")
@@ -266,6 +272,9 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
     cerTimeoutTimer.map(_.cancel)
     dwrTimeoutTimer.map(_.cancel)
     dwrTimer.map(_.cancel)
+    
+    // Signal that this peer now has no queue size to report
+    MetricsOps.updateDiameterPeerRequestQueueGauge(metricsServer, peerHostName, -1)
   }
   
   ////////////////////////////////////////////////////////////////////////////
@@ -274,6 +283,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val statsServer: Acto
   case class RequestEntry(hopByHopId: Long, requestTimestamp: Long, sendingActor: ActorRef, key: DiameterMessageKey)
   
   val requestMap = scala.collection.mutable.Map[Int, RequestEntry]()
+  //val a = scala.collection.concurrent.TrieMap[Int, RequestEntry]()
   
   def requestMapIn(diameterMessage: DiameterMessage, sendingActor: ActorRef) = {
     log.debug("Request Map -> in {}", diameterMessage.hopByHopId)

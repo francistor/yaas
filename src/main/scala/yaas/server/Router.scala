@@ -56,8 +56,8 @@ import yaas.coding.DiameterMessage
 import yaas.coding.DiameterConversions._
 import yaas.coding.RadiusPacket
 import yaas.server.RadiusActorMessages._
-import yaas.instrumentation.StatsServer
-import yaas.instrumentation.StatOps
+import yaas.instrumentation.MetricsServer
+import yaas.instrumentation.MetricsOps
 
 
 /********************************
@@ -125,7 +125,7 @@ class Router() extends Actor with ActorLogging {
   val config = ConfigFactory.load().getConfig("aaa")
   
   // Create stats server
-  val statsServer = context.actorOf(StatsServer.props)
+  val statsServer = context.actorOf(MetricsServer.props)
   
   // Create instrumentation server
   val instrumentationActor = context.actorOf(yaas.instrumentation.RESTProvider.props(statsServer))
@@ -362,7 +362,7 @@ class Router() extends Actor with ActorLogging {
 	            handlerActor ! RoutedDiameterMessage(message, context.sender)
 	          case None => 
 	            log.warning("Attempt to route message to a non exising handler {}", handler)
-	            StatOps.pushDiameterReceivedDropped(statsServer, message) 
+	            MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
 	        }
 	      
 	      // Send to Peer
@@ -371,21 +371,21 @@ class Router() extends Actor with ActorLogging {
 	        val candidatePeers = peerHostMap.filter{case (host, peerPtr) => peers.contains(host) && peerPtr.status == PeerStatus.STATUS_READY}
 	        if(candidatePeers.size == 0){
 	          	log.warning("Peer not available among {}", peers)
-	            StatOps.pushDiameterReceivedDropped(statsServer, message) 
+	            MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
 	        } else {
 	          (if(policy == Some("fixed")) candidatePeers.values.head else scala.util.Random.shuffle(candidatePeers.values).head) match {
 	            case DiameterPeerPointer(_, _, Some(actorRef)) => 
 	              actorRef ! RoutedDiameterMessage(message, context.sender)
 	            case _ => 
 	              log.warning("This should never happen {}", peers(0))
-	              StatOps.pushDiameterReceivedDropped(statsServer, message) 
+	              MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
 	          }
 	        }
 	        
 	      // No route
 	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
-	        StatOps.pushDiameterReceivedDropped(statsServer, message) 
+	        MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
 	    }
 	    
     /*
@@ -542,9 +542,9 @@ class Router() extends Actor with ActorLogging {
 	   * Instrumentation messages
 	   */
     case IXGetPeerStatus =>
-      val peerStatus: scala.collection.immutable.Map[String, StatOps.DiameterPeerStat] = for {
+      val peerStatus: scala.collection.immutable.Map[String, MetricsOps.DiameterPeerStatus] = for {
         (hostName, dpp) <- peerHostMap.toMap
-      } yield (hostName, StatOps.DiameterPeerStat(dpp.config.copy(), dpp.status))
+      } yield (hostName, MetricsOps.DiameterPeerStatus(dpp.config.copy(), dpp.status))
       
       sender ! peerStatus
 

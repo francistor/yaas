@@ -324,7 +324,7 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
       ("Framed-Interface-Id" -> sentFramedInterfaceId)  <<
       chapAuthAVP
     
-    sendDiameterRequest(request, 1000).onComplete{
+    sendDiameterRequest(request, 3000).onComplete{
       case Success(answer) =>
         // Check answer
         val classAttrs = answer >>+ "Class" map {avp => OctetOps.fromHexToUTF8(avp.toString)}
@@ -353,7 +353,7 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
       "Accounting-Record-Type" -> "START_RECORD"<<
       ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
     
-    sendDiameterRequest(request, 1000).onComplete{
+    sendDiameterRequest(request, 3000).onComplete{
       case Success(answer) =>
         // Check answer
         if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
@@ -396,7 +396,7 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
         ("Session-Id" -> "This-is-the-session-id")
       )
       
-    sendDiameterRequest(gxRequest, 1000).onComplete{
+    sendDiameterRequest(gxRequest, 3000).onComplete{
       case Success(answer) =>
         // Check answer in binary format
         if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
@@ -729,6 +729,8 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
                 else promise.failure(new Exception("Bad answer"))
         
               case Failure(e) =>
+                // TODO: Remove this
+                println(e.getMessage + "->" + reqIndex)
                 promise.failure(e)
             }
           }

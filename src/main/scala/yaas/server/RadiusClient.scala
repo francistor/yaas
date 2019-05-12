@@ -9,12 +9,12 @@ import yaas.config.RadiusServerConfig
 import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusPacket
 import yaas.util._
-import yaas.instrumentation.StatOps
+import yaas.instrumentation.MetricsOps
 import com.typesafe.config.ConfigFactory
 
 // This Actor handles the communication with upstream radius servers
 object RadiusClient {
-  def props(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) = Props(new RadiusClient(bindIPAddress, basePort, numPorts, statsServer))
+  def props(bindIPAddress: String, basePort: Int, numPorts: Int, metricsServer: ActorRef) = Props(new RadiusClient(bindIPAddress, basePort, numPorts, metricsServer))
  
   // Messages
   case object Clean
@@ -23,7 +23,7 @@ object RadiusClient {
 case class RadiusPortId(port: Int, id: Int)
 case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, secret: String, requestCode: Int, requestTimestamp: Long)
 
-class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsServer: ActorRef) extends Actor with ActorLogging {
+class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsServer: ActorRef) extends Actor with ActorLogging {
   
   import RadiusClient._
   
@@ -65,7 +65,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
       socketActors(radiusPortId.port - basePort) ! RadiusClientSocketRequest(bytes, endpoint)
       
       // Add stats
-      StatOps.pushRadiusClientRequest(statsServer, endpoint, requestPacket.code)
+      MetricsOps.pushRadiusClientRequest(metricsServer, endpoint, requestPacket.code)
       
     case RadiusClientSocketResponse(bytes, endpoint, clientPort) =>
       val identifier = UByteString.getUnsignedByte(bytes.slice(1, 2))
@@ -82,11 +82,11 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
           if((code != RadiusPacket.ACCOUNTING_RESPONSE) && !RadiusPacket.checkAuthenticator(bytes, reqAuthenticator, secret)){
             log.warning("Bad authenticator from {}. Request-Authenticator: {}. Response-Authenticator: {}", 
                 ep, reqAuthenticator.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","), bytes.slice(4, 20).toArray.map(b => "%02X".format(UByteString.fromUnsignedByte(b))).mkString(","))
-            StatOps.pushRadiusClientDrop(statsServer, ep.ipAddress, ep.port)
+            MetricsOps.pushRadiusClientDrop(metricsServer, ep.ipAddress, ep.port)
           }
           else {
             originActor ! RadiusClientResponse(responsePacket, radiusId)
-            StatOps.pushRadiusClientResponse(statsServer, ep, reqCode, responsePacket.code, requestTimestamp)
+            MetricsOps.pushRadiusClientResponse(metricsServer, ep, reqCode, responsePacket.code, requestTimestamp)
           }
           
           // Update stats
@@ -94,7 +94,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
           
         case None =>
           log.warning(s"Radius request not found for response received from endpoint $endpoint to $radiusPortId")
-          StatOps.pushRadiusClientDrop(statsServer, endpoint.ipAddress, endpoint.port)
+          MetricsOps.pushRadiusClientDrop(metricsServer, endpoint.ipAddress, endpoint.port)
       }
       
     case Clean =>
@@ -106,7 +106,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
         (portId, requestRef) <- endpointRequestMap
       } if(requestRef.requestTimestamp < thresholdTimestamp) {
         endpointErrors(endpoint) = endpointErrors(endpoint) + 1
-        requestMap(endpoint).remove(portId).foreach(reqRef => StatOps.pushRadiusClientTimeout(statsServer, reqRef.endPoint, reqRef.requestCode))
+        requestMap(endpoint).remove(portId).foreach(reqRef => MetricsOps.pushRadiusClientTimeout(metricsServer, reqRef.endPoint, reqRef.requestCode))
       }
       
       // Build immutable map to send as message
@@ -122,6 +122,16 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, statsSer
       endpointSuccesses = Map().withDefaultValue(0)
       endpointErrors = Map().withDefaultValue(0)
       cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
+      
+      // Metrics for request queue size
+      for{
+        (endpoint, reqMap) <- requestMap
+      } 
+      
+      MetricsOps.updateRadiusServerRequestQueueGauges(
+          metricsServer, 
+          (for{(endpoint, reqMap) <- requestMap} yield (endpoint, reqMap.size)).toMap
+      )
       
     case _ =>
   }
