@@ -1,9 +1,9 @@
-# Yaas Server Nodeport
+# Yaas Server for Radius
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: yaas-server
+  name: yaas-server-radius
 spec:
   type: NodePort
   selector:
@@ -17,6 +17,36 @@ spec:
       protocol: UDP
       port: 1813
       nodePort: 30102
+      
+---      
+# Yaas Server for Diameter. Node 0
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-server-diameter-0
+spec:
+  type: NodePort
+  selector:
+    statefulset.kubernetes.io/pod-name: yaas-server-0
+  ports:   
+    - name: diameter
+      protocol: TCP
+      port: 3868
+      nodePort: 30200
+      
+ --- 
+ # Yaas Server for Diameter. Node 1
+      
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-server-diameter-1
+spec:
+  type: NodePort
+  selector:
+    statefulset.kubernetes.io/pod-name: yaas-server-1
+  ports:   
     - name: diameter
       protocol: TCP
       port: 3868

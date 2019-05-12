@@ -158,6 +158,27 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
           
       handleDiameterBase(decodedMessage)
       
+    // Non base message received
+    case DiameterMessageReceive(decodedMessage) =>
+      // If request, route message
+      if(decodedMessage.isRequest){
+        context.parent ! decodedMessage
+        MetricsOps.pushDiameterRequestReceived(metricsServer, peerHostName, decodedMessage)
+        log.debug(s">> Received diameter request $decodedMessage")
+      }
+      // If response, check where to send it to, and clean from map
+      else {
+        requestMapOut(decodedMessage.hopByHopId) match {
+          case Some(RequestEntry(hopByHopId, requestTimestamp, destActor, messageKey)) => 
+            destActor ! decodedMessage
+            MetricsOps.pushDiameterAnswerReceived(metricsServer, peerHostName, decodedMessage, requestTimestamp)
+            log.debug(s">> Received diameter answer $decodedMessage")
+          case None =>
+            MetricsOps.pushDiameterDiscardedAnswer(metricsServer, peerHostName, decodedMessage)
+            log.warning(s"Unsolicited or staled response $decodedMessage")
+        }
+      }
+      
     case BaseDiameterMessageSend(message) =>
       q.offer(message.getBytes)
       if(message.isRequest){
@@ -181,27 +202,6 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
       q.offer(message.getBytes)
       MetricsOps.pushDiameterRequestSent(metricsServer, peerHostName, message)
       log.debug(s"<< Sent diameter request $message")
-      
-    // Response received
-    case DiameterMessageReceive(decodedMessage) =>
-      // If request, route message
-      if(decodedMessage.isRequest){
-        context.parent ! decodedMessage
-        MetricsOps.pushDiameterRequestReceived(metricsServer, peerHostName, decodedMessage)
-        log.debug(s">> Received diameter request $decodedMessage")
-      }
-      // If response, check where to send it to, and clean from map
-      else {
-        requestMapOut(decodedMessage.hopByHopId) match {
-          case Some(RequestEntry(hopByHopId, requestTimestamp, destActor, messageKey)) => 
-            destActor ! decodedMessage
-            MetricsOps.pushDiameterAnswerReceived(metricsServer, peerHostName, decodedMessage, requestTimestamp)
-            log.debug(s">> Received diameter answer $decodedMessage")
-          case None =>
-            MetricsOps.pushDiameterDiscardedAnswer(metricsServer, peerHostName, decodedMessage)
-            log.warning(s"Unsolicited or staled response $decodedMessage")
-        }
-      }
 
     case Clean => 
       requestMapClean
@@ -283,7 +283,6 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
   case class RequestEntry(hopByHopId: Long, requestTimestamp: Long, sendingActor: ActorRef, key: DiameterMessageKey)
   
   val requestMap = scala.collection.mutable.Map[Int, RequestEntry]()
-  //val a = scala.collection.concurrent.TrieMap[Int, RequestEntry]()
   
   def requestMapIn(diameterMessage: DiameterMessage, sendingActor: ActorRef) = {
     log.debug("Request Map -> in {}", diameterMessage.hopByHopId)

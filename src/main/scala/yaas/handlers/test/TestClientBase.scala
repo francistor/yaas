@@ -729,8 +729,6 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
                 else promise.failure(new Exception("Bad answer"))
         
               case Failure(e) =>
-                // TODO: Remove this
-                println(e.getMessage + "->" + reqIndex)
                 promise.failure(e)
             }
           }
