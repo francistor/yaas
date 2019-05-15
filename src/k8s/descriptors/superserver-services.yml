@@ -1,0 +1,36 @@
+# Yaas Superserver generic (monitoring)
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-superserver
+  labels:
+    app: yaas-monitor
+spec:
+  clusterIP: None
+  selector:
+    app: yaas-superserver
+  ports:
+    - name: monitoring
+      protocol: TCP
+      port: 19000
+    - name: diameter
+      protocol: TCP
+      port: 3868
+---
+# Yaas Superserver radius Service
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-superserver-radius
+spec:
+  selector:
+    app: yaas-superserver
+  ports:
+    - name: radiusauth
+      protocol: UDP
+      port: 1812
+    - name: radiusacct
+      protocol: UDP
+      port: 1813
+

@@ -1,0 +1,31 @@
+{
+	"servers" : 
+	[
+		{
+        "name": "yaas-server",
+        "IPAddress": "yaas-localhost",
+        "secret": "secret",
+        "ports": {
+          "auth": 30101,
+          "acct": 30102,
+          "coA": 30103,
+          "dm": 30103
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
+      }
+	],
+	"serverGroups" :
+	[
+	  {
+        "name": "allServers",
+        "servers": ["yaas-server"],
+        "policy": "fixed"
+      },
+      {
+        "name": "testServer",
+        "servers": ["yaas-server"],
+        "policy": "fixed"
+      }
+	]
+}

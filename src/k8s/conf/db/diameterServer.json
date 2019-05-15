@@ -1,0 +1,10 @@
+{
+	"bindAddress": "0",
+	"bindPort": 0,
+	"diameterHost": "",
+	"diameterRealm": "",
+	"vendorId": 0,
+	"productName": "",
+	"firmwareRevision": 0,
+	"peerCheckTimeSeconds": 0
+}
