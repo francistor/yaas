@@ -31,7 +31,7 @@ spec:
       containers:
       - name: yaas
         image: francistor/yaas:0.1
-        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8/conf/server/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8/conf/server/logback-default.xml"]
+        command: ["./aaaserver", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8s/conf/server/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8s/conf/server/logback-default.xml"]
         volumeMounts:
           - name: configuration
             mountPath: /aaaserver/conf 
