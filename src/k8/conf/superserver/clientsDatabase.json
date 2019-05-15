@@ -1,6 +1,0 @@
-// TODO: Redundancy. Now pointing only to yaas.db
-{
-	"url": "jdbc:ignite:thin://yaas-db:10800/CLIENTS",
-	"driver": "org.apache.ignite.IgniteJdbcThinDriver",
-	"numThreads": 10
-}

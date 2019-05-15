@@ -1,5 +1,0 @@
-[
-	// Handle NASREQ and Gx
-	{"realm": "*", "applicationId": "NASREQ", "handler": "NASReqHandler"},
-	{"realm": "*", "applicationId": "Gx", "handler": "GxHandler"}
-]
