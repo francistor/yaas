@@ -26,7 +26,7 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
+class RESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
   
   import RESTProvider._
   
@@ -153,9 +153,9 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
           }
         } ~
         pathPrefix("requestQueues"){
-          complete((statsServer ? GetDiameterPeerRequestQueueGauges).mapTo[Map[String, Int]])
+          complete((metricsServer ? GetDiameterPeerRequestQueueGauges).mapTo[Map[String, Int]])
         } ~
-        pathPrefix("stats"){
+        pathPrefix("metrics"){
           path(Remaining){ statName =>
             parameterMap { params =>
               
@@ -163,7 +163,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
               val allKeys = diameterKeys(statName)
               val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
               val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-              if(invalidKeys.length == 0) complete((statsServer ? GetDiameterMetrics(statName, inputKeys)).mapTo[List[DiameterMetricsItem]])  
+              if(invalidKeys.length == 0) complete((metricsServer ? GetDiameterMetrics(statName, inputKeys)).mapTo[List[DiameterMetricsItem]])  
               else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
             }
           }
@@ -171,16 +171,16 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
       } ~ 
       pathPrefix("radius") {
         pathPrefix("requestQueues"){
-          complete((statsServer ? GetRadiusServerRequestQueueGauges).mapTo[Map[String, Int]])
+          complete((metricsServer ? GetRadiusServerRequestQueueGauges).mapTo[Map[String, Int]])
         } ~
-        pathPrefix("stats") {
+        pathPrefix("metrics") {
           path(Remaining) { statName =>
             parameterMap { params =>
               // To validate the input and generate the full list if none is specified
               val allKeys = radiusKeys(statName)
               val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
               val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-              if(invalidKeys.length == 0) complete((statsServer ? GetRadiusMetrics(statName, inputKeys)).mapTo[List[RadiusMetricsItem]])  
+              if(invalidKeys.length == 0) complete((metricsServer ? GetRadiusMetrics(statName, inputKeys)).mapTo[List[RadiusMetricsItem]])  
               else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
             }
           }
@@ -226,7 +226,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
 
 				  }
 		  }
-		  (statsServer ? GetDiameterMetrics(statName, diameterKeys(statName))).mapTo[List[DiameterMetricsItem]].map(f => toPrometheus(statName, f))
+		  (metricsServer ? GetDiameterMetrics(statName, diameterKeys(statName))).mapTo[List[DiameterMetricsItem]].map(f => toPrometheus(statName, f))
   }
 
   def getPrometheusRadiusStatsFut(statName: String) = {
@@ -239,8 +239,8 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
 				  }
 
 				  statName match {
-				  case "radiusServerRequest" => genPrometheusString("radius_server_requests_received", "The number of Radius server requests received")
-				  case "radiusServerDropped" => genPrometheusString("radius_server_requests_dropped", "The number of Radius server requests dropped")
+				  case "radiusServerRequest" => genPrometheusString("radius_server_requests", "The number of Radius server requests received")
+				  case "radiusServerDropped" => genPrometheusString("radius_server_dropped", "The number of Radius server requests dropped")
 				  case "radiusServerResponse" => genPrometheusString("radius_server_responses", "The number of Radius server requests responsed")
 				  case "radiusClientRequest" => genPrometheusString("radius_client_requests", "The number of Radius client requests sent")
 				  case "radiusClientResponse" => genPrometheusString("radius_client_responses", "The number of Radius client responses received")
@@ -257,7 +257,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
 				  }
 		  }
 
-		  (statsServer ? GetRadiusMetrics(statName, radiusKeys(statName))).mapTo[List[RadiusMetricsItem]].map(f => toPrometheus(statName, f))
+		  (metricsServer ? GetRadiusMetrics(statName, radiusKeys(statName))).mapTo[List[RadiusMetricsItem]].map(f => toPrometheus(statName, f))
   }
     
 }

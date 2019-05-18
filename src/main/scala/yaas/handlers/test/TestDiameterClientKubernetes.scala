@@ -5,9 +5,9 @@ import yaas.coding.RadiusPacket._
 
 class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase(statsServer) {
   // Not used
-  val clientStatsURL = "http://localhost:19001"
-  val serverStatsURL = "http://localhost:19002"
-  val superServerStatsURL = "http://localhost:19003"
+  val clientMetricsURL = "http://localhost:19001"
+  val serverMetricsURL = "http://localhost:19002"
+  val superServerMetricsURL = "http://localhost:19003"
   
   // Used. yaas-localhost must be defined in hosts file and point to the local node
   val superServerSessionsURL = "http://yaas-localhost:30501"

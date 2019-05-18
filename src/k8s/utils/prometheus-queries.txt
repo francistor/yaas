@@ -1,0 +1,6 @@
+# Radius requests for yaas-server, per pod
+sum(radius_server_requests{service="yaas-server"}) by (pod)
+
+# Radius requests for yaas-server, per pod
+sum(radius_server_requests{service="yaas-superserver"}) by (pod)
+
