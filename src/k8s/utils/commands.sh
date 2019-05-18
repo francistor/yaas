@@ -30,4 +30,6 @@ kubectl exec -it kagent -- curl http://yaas-superserver-1.yaas-superserver:19000
 # Change log level
 kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/setLogLevel?loggerName=yaas&level=DEBUG
 
+# Reload configuration
+kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/reload?fileName=diameterPeers.json
 

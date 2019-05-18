@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   containers:
-  - name: busybox
+  - name: alpine 
     image: giantswarm/tiny-tools
     command:
       - sleep
