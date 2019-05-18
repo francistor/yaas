@@ -20,8 +20,8 @@ class TestRadiusClientKubernetes(statsServer: ActorRef) extends TestClientBase(s
       testAccountingRequest _,
       testAccountingRequestWithDrop _,
       checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Radius Warmup") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@accept", 20000, 10, "Free Wheel") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@clientdb", 10000, 10, "Database Lookup") _,
-      checkRadiusPerformance(ACCOUNTING_REQUEST, "@sessiondb", 10000, 10, "Session storage") _
+      checkRadiusPerformance(ACCESS_REQUEST, "@accept", 100000, 10, "Free Wheel") _,
+      checkRadiusPerformance(ACCESS_REQUEST, "@clientdb", 100000, 10, "Database Lookup") _,
+      checkRadiusPerformance(ACCOUNTING_REQUEST, "@sessiondb", 100000, 10, "Session storage") _
   )
 }
