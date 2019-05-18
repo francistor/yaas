@@ -21,6 +21,7 @@ metadata:
   name: yaas-server-radius
 spec:
   type: NodePort
+  sessionAffinity: None
   selector:
     app: yaas-server
   ports:

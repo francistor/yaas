@@ -26,6 +26,7 @@ metadata:
 spec:
   selector:
     app: yaas-superserver
+  sessionAffinity: None
   ports:
     - name: radiusauth
       protocol: UDP
