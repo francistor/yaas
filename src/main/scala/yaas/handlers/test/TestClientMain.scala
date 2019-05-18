@@ -4,18 +4,18 @@ import akka.actor.{ActorRef}
 import yaas.coding.RadiusPacket._
 
 class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) {
-  val clientStatsURL = "http://localhost:19001"
-  val serverStatsURL = "http://localhost:19002"
-  val superServerStatsURL = "http://localhost:19003"
+  val clientMetricsURL = "http://localhost:19001"
+  val serverMetricsURL = "http://localhost:19002"
+  val superServerMetricsURL = "http://localhost:19003"
   val superServerSessionsURL = "http://localhost:19503"
   
   // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
-      checkConnectedPeer(s"${clientStatsURL}", "server.yaasserver") _,
-      checkNotConnectedPeer(s"${clientStatsURL}", "non-existing-server.yaasserver") _,
-      checkConnectedPeer(s"${serverStatsURL}", "superserver.yaassuperserver") _,
-      checkConnectedPeer(s"${serverStatsURL}", "client.yaasclient") _,
-      checkConnectedPeer(s"${superServerStatsURL}", "server.yaasserver") _,
+      checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
+      checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,
+      checkConnectedPeer(s"${serverMetricsURL}", "superserver.yaassuperserver") _,
+      checkConnectedPeer(s"${serverMetricsURL}", "client.yaasclient") _,
+      checkConnectedPeer(s"${superServerMetricsURL}", "server.yaasserver") _,
       testAccessRequestWithAccept _,
       testAccessRequestWithReject _, 
       testAccessRequestWithDrop _,

@@ -32,7 +32,7 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(statsServer) with JsonSupport {
+abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(metricsServer) with JsonSupport {
   
   log.info("Instantiated Radius/Diameter client application")
   
@@ -77,16 +77,16 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
     if(out.length == 0) -1 else out(0)
   }
   
-  def checkStat(jStat: JValue, targetCounter: Int, key: Map[String, String], legend: String) = {
-    val counter = getCounterForKey(jStat, key)
+  def checkMetric(jMetric: JValue, targetCounter: Int, key: Map[String, String], legend: String) = {
+    val counter = getCounterForKey(jMetric, key)
     if(targetCounter == counter) ok(legend + ": " + counter) else fail(legend + ": " + counter + " expected: " + targetCounter)
   }
   
   //////////////////////////////////////////////////////////////////////////////
   
-  val clientStatsURL : String
-  val serverStatsURL : String
-  val superServerStatsURL : String
+  val clientMetricsURL : String
+  val serverMetricsURL : String
+  val superServerMetricsURL : String
   val superServerSessionsURL : String
   
   // Wait some time before starting the tests.
@@ -147,7 +147,7 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
   def clientPeerConnections(): Unit = {
       // Test-Client is connected to server.yaasserver, and not connected to non-existing-server.yaasserver
       println("[TEST] Client Peer connections")
-      val testClientPeers = getJson(s"${clientStatsURL}/diameter/peers")
+      val testClientPeers = getJson(s"${clientMetricsURL}/diameter/peers")
       if((testClientPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
       if((testClientPeers \ "non-existing-server.yaasserver" \ "status").extract[Int] != PeerStatus.STATUS_READY) ok("non-existing-server status is != 2") else fail("Connected to non-existing-server!") 
       nextTest
@@ -156,7 +156,7 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
   def serverPeerConnections(): Unit = {
       // Test-Server is connected to client.yaasclient and superserver.yaassuperserver
       println("[TEST] Server Peer connections")
-      val testServerPeers = getJson(s"${serverStatsURL}/diameter/peers")
+      val testServerPeers = getJson(s"${serverMetricsURL}/diameter/peers")
       if((testServerPeers \ "superserver.yaassuperserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to supersserver") else fail("Not connected to superserver") 
       if((testServerPeers \ "client.yaasclient" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to client") else fail("Not connected to client")
       nextTest
@@ -165,7 +165,7 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
   def superserverPeerConnections(): Unit = {
       // Test-SuperServer is connected to client.yaasclient and superserver.yaassuperserver
       println("[TEST] Superserver Peer connections")
-      val testSuperServerPeers = getJson(s"${superServerStatsURL}/diameter/peers")
+      val testSuperServerPeers = getJson(s"${superServerMetricsURL}/diameter/peers")
       if((testSuperServerPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
       nextTest
   }
@@ -416,38 +416,38 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
       println("[TEST] Superserver stats")
 
       // Requests received
-      val jServerRequests = getJson(s"${superServerStatsURL}/radius/stats/radiusServerRequest")
+      val jServerRequests = getJson(s"${superServerMetricsURL}/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 2 drop
-      checkStat(jServerRequests, 4, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
+      checkMetric(jServerRequests, 4, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
       // 1 acct ok, 2 acct drop
-      checkStat(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
+      checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
-      val jServerResponses = getJson(s"${superServerStatsURL}/radius/stats/radiusServerResponse")
+      val jServerResponses = getJson(s"${superServerMetricsURL}/radius/metrics/radiusServerResponse")
       // 1 access accept
-      checkStat(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
+      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
-      checkStat(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "3"), "Access-Reject sent")
+      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "3"), "Access-Reject sent")
       // 1 accounting response
-      checkStat(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
+      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
-      val jServerDrops = getJson(s"${superServerStatsURL}/radius/stats/radiusServerDropped")
+      val jServerDrops = getJson(s"${superServerMetricsURL}/radius/metrics/radiusServerDropped")
       // No packets dropped. Stat not shown 
-      checkStat(jServerDrops, -1, Map(), "Packets dropped")
+      checkMetric(jServerDrops, -1, Map(), "Packets dropped")
       
       // Packets answered by handler
-      val jHandlerResponses = getJson(s"${superServerStatsURL}/radius/stats/radiusHandlerResponse?agg=rs")
+      val jHandlerResponses = getJson(s"${superServerMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
       // 1 access accept
-      checkStat(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
+      checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
-      checkStat(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
+      checkMetric(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
 
       // Packets dropped by handler
-      val jHandlerDrops = getJson(s"${superServerStatsURL}/radius/stats/radiusHandlerDropped?agg=rq")
+      val jHandlerDrops = getJson(s"${superServerMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
       // 2 packet dropped each, since the server will retry to superserver
-      checkStat(jHandlerDrops, 2, Map("rq" -> "1"), "Access-Request dropped")
-      checkStat(jHandlerDrops, 2, Map("rq" -> "4"), "Accounting-Request dropped")
+      checkMetric(jHandlerDrops, 2, Map("rq" -> "1"), "Access-Request dropped")
+      checkMetric(jHandlerDrops, 2, Map("rq" -> "4"), "Accounting-Request dropped")
       
       nextTest
   }
@@ -457,40 +457,40 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
       println("[TEST] Server stats")
       
       // Requests received
-      val jServerRequests = getJson(s"${serverStatsURL}/radius/stats/radiusServerRequest")
+      val jServerRequests = getJson(s"${serverMetricsURL}/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 1 drop
-      checkStat(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
+      checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
       // 1 acct ok, 1 acct drop
-      checkStat(jServerRequests, 2, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
+      checkMetric(jServerRequests, 2, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
-      val jServerResponses = getJson(s"${serverStatsURL}/radius/stats/radiusServerResponse")
+      val jServerResponses = getJson(s"${serverMetricsURL}/radius/metrics/radiusServerResponse")
       // 1 access accept
-      checkStat(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
+      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
-      checkStat(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "3"), "Access-Reject sent")
+      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "3"), "Access-Reject sent")
       // 1 accounting respone
-      checkStat(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
+      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
-      val jServerDrops = getJson(s"${serverStatsURL}/radius/stats/radiusServerDropped")
+      val jServerDrops = getJson(s"${serverMetricsURL}/radius/metrics/radiusServerDropped")
       // No packets dropped. Stat not shown 
-      checkStat(jServerDrops, -1, Map(), "Packets dropped")
+      checkMetric(jServerDrops, -1, Map(), "Packets dropped")
       
       // Packets answered by handler
-      val jHandlerResponses = getJson(s"${serverStatsURL}/radius/stats/radiusHandlerResponse?agg=rs")
+      val jHandlerResponses = getJson(s"${serverMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
       // 1 access accept
-      checkStat(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
+      checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
-      checkStat(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
+      checkMetric(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
       // 1 accounting response
-      checkStat(jHandlerResponses, 1, Map("rs" -> "5"), "Accounting responses")
+      checkMetric(jHandlerResponses, 1, Map("rs" -> "5"), "Accounting responses")
 
       // Packets dropped by handler
-      val jHandlerDrops = getJson(s"${serverStatsURL}/radius/stats/radiusHandlerDropped?agg=rq")
+      val jHandlerDrops = getJson(s"${serverMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
       // Server drops the packets for which it receives no response from non-existing-server
-      checkStat(jHandlerDrops, 1, Map("rq" -> "1"), "Access-Request dropped")
-      checkStat(jHandlerDrops, 1, Map("rq" -> "4"), "Accounting-Request dropped")
+      checkMetric(jHandlerDrops, 1, Map("rq" -> "1"), "Access-Request dropped")
+      checkMetric(jHandlerDrops, 1, Map("rq" -> "4"), "Accounting-Request dropped")
       
       nextTest
   }
@@ -499,30 +499,30 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
       println("[TEST] Client stats")
       
       // 3 requests to the non-existing-server
-      val jClientRequests1 = getJson(s"${clientStatsURL}/radius/stats/radiusClientRequest?agg=rh")
-      checkStat(jClientRequests1, 3, Map("rh" -> "1.1.1.1:1812"), "Requests sent to non existing server")
+      val jClientRequests1 = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh")
+      checkMetric(jClientRequests1, 3, Map("rh" -> "1.1.1.1:1812"), "Requests sent to non existing server")
       
       // 3 access requests, 2 accounting requests to server
-      val jClientRequests2 = getJson(s"${clientStatsURL}/radius/stats/radiusClientRequest?agg=rh,rq")
-      checkStat(jClientRequests2, 3, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Requests sent to server")
-      checkStat(jClientRequests2, 2, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Acounting-Requests sent to server")
+      val jClientRequests2 = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh,rq")
+      checkMetric(jClientRequests2, 3, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Requests sent to server")
+      checkMetric(jClientRequests2, 2, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Acounting-Requests sent to server")
       
       // Responses received
-      val jResponsesReceived = getJson(s"${clientStatsURL}/radius/stats/radiusClientResponse?agg=rs")
-      checkStat(jResponsesReceived, 1, Map("rs" -> "2"), "Access-Accept received from server")
-      checkStat(jResponsesReceived, 1, Map("rs" -> "3"), "Access-Reject received from server")
-      checkStat(jResponsesReceived, 1, Map("rs" -> "5"), "Accouning-Response received from server")
+      val jResponsesReceived = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientResponse?agg=rs")
+      checkMetric(jResponsesReceived, 1, Map("rs" -> "2"), "Access-Accept received from server")
+      checkMetric(jResponsesReceived, 1, Map("rs" -> "3"), "Access-Reject received from server")
+      checkMetric(jResponsesReceived, 1, Map("rs" -> "5"), "Accouning-Response received from server")
       
       // Timeouts
-      val jTimeouts = getJson(s"${clientStatsURL}/radius/stats/radiusClientTimeout?agg=rh,rq")
+      val jTimeouts = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientTimeout?agg=rh,rq")
       // One per each to non-existing-server
-      checkStat(jTimeouts, 3, Map("rq" -> "1", "rh" -> "1.1.1.1:1812"), "Access-Request timeouts from non existing server")
+      checkMetric(jTimeouts, 3, Map("rq" -> "1", "rh" -> "1.1.1.1:1812"), "Access-Request timeouts from non existing server")
       // The one explicitly dropped
-      checkStat(jTimeouts, 1, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Request timeouts from server")
+      checkMetric(jTimeouts, 1, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Request timeouts from server")
       // Just one, in the first try
-      checkStat(jTimeouts, 1, Map("rq" -> "4", "rh" -> "1.1.1.1:1813"), "Accounting-Request timeouts from non existing server")
+      checkMetric(jTimeouts, 1, Map("rq" -> "4", "rh" -> "1.1.1.1:1813"), "Accounting-Request timeouts from non existing server")
       // The one explicitly dropped
-      checkStat(jTimeouts, 1, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Accounting-Request timeouts from server")
+      checkMetric(jTimeouts, 1, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Accounting-Request timeouts from server")
       
       nextTest
   }
@@ -531,29 +531,29 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
       println("[TEST] Superserver stats")
       
       // Requests received
-      val jRequestsReceived = getJson(s"${superServerStatsURL}/diameter/stats/diameterRequestReceived?agg=peer,ap,cm")
+      val jRequestsReceived = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap,cm")
       // 1 AA, 1AC, 1CCR
-      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265"), "NASREQ AAR received")
-      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271"), "NASREQ ACR received")
-      checkStat(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272"), "Gx CCR received")
+      checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265"), "NASREQ AAR received")
+      checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271"), "NASREQ ACR received")
+      checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272"), "Gx CCR received")
 
       // Ansers sent
-      val jAnswerSent = getJson(s"${superServerStatsURL}/diameter/stats/diameterAnswerSent?agg=peer,ap,cm,rc")
+      val jAnswerSent = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterAnswerSent?agg=peer,ap,cm,rc")
       // 1 AA, 1AC
-      checkStat(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265", "rc" -> "2001"), "NASREQ AAA sent")
-      checkStat(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271", "rc" -> "2001"), "NASREQ ACA sent")
-      checkStat(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272", "rc" -> "2001"), "Gx CCA sent")
+      checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265", "rc" -> "2001"), "NASREQ AAA sent")
+      checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271", "rc" -> "2001"), "NASREQ ACA sent")
+      checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272", "rc" -> "2001"), "Gx CCA sent")
       
       // Handled requests
-      val jHandlerServer = getJson(s"${superServerStatsURL}/diameter/stats/diameterHandlerServer?agg=oh,dr,rc")
+      val jHandlerServer = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,dr,rc")
       // 1 AA, 1AC
-      checkStat(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "dr" -> "yaassuperserver", "rc" -> "2001"), "AA/C Handled")
+      checkMetric(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "dr" -> "yaassuperserver", "rc" -> "2001"), "AA/C Handled")
       // 1 CCR
-      checkStat(jHandlerServer, 1, Map("oh" -> "client.yaasclient", "dr" -> "yaassuperserver", "rc" -> "2001"), "Gx CCR Handled")
+      checkMetric(jHandlerServer, 1, Map("oh" -> "client.yaasclient", "dr" -> "yaassuperserver", "rc" -> "2001"), "Gx CCR Handled")
       
-      val jHandlerClient = getJson(s"${superServerStatsURL}/diameter/stats/diameterHandlerClient?agg=oh")
+      val jHandlerClient = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh")
       // 1 AA, 1AC
-      checkStat(jHandlerClient, -1, Map("oh" -> "server.yaasserver"), "AA Handled")
+      checkMetric(jHandlerClient, -1, Map("oh" -> "server.yaasserver"), "AA Handled")
       
       nextTest
   }
@@ -561,39 +561,39 @@ abstract class TestClientBase(statsServer: ActorRef) extends MessageHandler(stat
   def checkServerDiameterStats(): Unit = {
       println("[TEST] Server stats")
       
-      val jRequestsReceived = getJson(s"${serverStatsURL}/diameter/stats/diameterRequestReceived?agg=peer,ap")
+      val jRequestsReceived = getJson(s"${serverMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap")
       // 1 AA, 1AC
-      checkStat(jRequestsReceived, 2, Map("peer" -> "client.yaasclient", "ap" -> "1"), "NASREQ requests received")
+      checkMetric(jRequestsReceived, 2, Map("peer" -> "client.yaasclient", "ap" -> "1"), "NASREQ requests received")
       // 1 Gx CCR
-      checkStat(jRequestsReceived, 1, Map("peer" -> "client.yaasclient", "ap" -> "16777238"), "Gx requests received")
+      checkMetric(jRequestsReceived, 1, Map("peer" -> "client.yaasclient", "ap" -> "16777238"), "Gx requests received")
       
-      val jRequestsSent = getJson(s"${serverStatsURL}/diameter/stats/diameterRequestSent?agg=peer,ap")
+      val jRequestsSent = getJson(s"${serverMetricsURL}/diameter/metrics/diameterRequestSent?agg=peer,ap")
       // 1 AA, 1AC
-      checkStat(jRequestsSent, 2, Map("peer" -> "superserver.yaassuperserver", "ap" -> "1"), "NASREQ requests sent")
+      checkMetric(jRequestsSent, 2, Map("peer" -> "superserver.yaassuperserver", "ap" -> "1"), "NASREQ requests sent")
       // 1 Gx CCR
-      checkStat(jRequestsSent, 1, Map("peer" -> "superserver.yaassuperserver", "ap" -> "16777238"), "Gx requests sent")
+      checkMetric(jRequestsSent, 1, Map("peer" -> "superserver.yaassuperserver", "ap" -> "16777238"), "Gx requests sent")
       
-      val jAnswersReceived = getJson(s"${serverStatsURL}/diameter/stats/diameterAnswerReceived?agg=ap")
+      val jAnswersReceived = getJson(s"${serverMetricsURL}/diameter/metrics/diameterAnswerReceived?agg=ap")
       // 1 AA, 1AC
-      checkStat(jAnswersReceived, 2, Map("ap" -> "1"), "NASREQ answers received")
+      checkMetric(jAnswersReceived, 2, Map("ap" -> "1"), "NASREQ answers received")
       // Gx CCA
-      checkStat(jAnswersReceived, 1, Map("ap" -> "16777238"), "Gx answers received")
+      checkMetric(jAnswersReceived, 1, Map("ap" -> "16777238"), "Gx answers received")
 
-      val jAnswerSent = getJson(s"${serverStatsURL}/diameter/stats/diameterAnswerSent?agg=ap,rc")
+      val jAnswerSent = getJson(s"${serverMetricsURL}/diameter/metrics/diameterAnswerSent?agg=ap,rc")
       // 1 AA, 1AC
-      checkStat(jAnswerSent, 2, Map("ap" -> "1", "rc" -> "2001"), "NASREQ answers sent")
+      checkMetric(jAnswerSent, 2, Map("ap" -> "1", "rc" -> "2001"), "NASREQ answers sent")
       // 1 CCR
-      checkStat(jAnswerSent, 1, Map("ap" -> "16777238", "rc" -> "2001"), "Gx answers sent")
+      checkMetric(jAnswerSent, 1, Map("ap" -> "16777238", "rc" -> "2001"), "Gx answers sent")
       
-      val jHandlerServer = getJson(s"${serverStatsURL}/diameter/stats/diameterHandlerServer?agg=oh,ap")
+      val jHandlerServer = getJson(s"${serverMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,ap")
       // 1 AA, 1AC
-      checkStat(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "ap" -> "1"), "AA Handled")
+      checkMetric(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "ap" -> "1"), "AA Handled")
       // 0 Gx
-      checkStat(jHandlerServer, -1, Map("oh" -> "client.yaasclient", "ap" -> "16777238"), "AA Handled")
+      checkMetric(jHandlerServer, -1, Map("oh" -> "client.yaasclient", "ap" -> "16777238"), "AA Handled")
       
-      val jHandlerClient = getJson(s"${serverStatsURL}/diameter/stats/diameterHandlerClient?agg=oh,ap,rc")
+      val jHandlerClient = getJson(s"${serverMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh,ap,rc")
       // 1 AA, 1AC
-      checkStat(jHandlerClient, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
+      checkMetric(jHandlerClient, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
       
       nextTest
   }

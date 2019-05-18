@@ -124,10 +124,10 @@ class Router() extends Actor with ActorLogging {
   val config = ConfigFactory.load().getConfig("aaa")
   
   // Create stats server
-  val statsServer = context.actorOf(MetricsServer.props)
+  val metricsServer = context.actorOf(MetricsServer.props)
   
   // Create instrumentation server
-  val instrumentationActor = context.actorOf(yaas.instrumentation.RESTProvider.props(statsServer))
+  val instrumentationActor = context.actorOf(yaas.instrumentation.RESTProvider.props(metricsServer))
   
   // Empty initial maps to working objects
   // Diameter
@@ -180,7 +180,7 @@ class Router() extends Actor with ActorLogging {
   
   // Radius client
   val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled) 
-    Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, statsServer), "RadiusClient"))
+    Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, metricsServer), "RadiusClient"))
     else None
   
   // Initialize handlers
@@ -217,7 +217,7 @@ class Router() extends Actor with ActorLogging {
 	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")){
 	          // Create peer actor that will try to connect
 	          log.info(s"Retrying connection to $hostName")
-	          (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName + "-peer"))))
+	          (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), metricsServer), hostName + "-peer"))))
 	        }
 	        else {
 	          // Passive Policy. Just create pointer without Actor. Will be created when a connection arrives
@@ -247,7 +247,7 @@ class Router() extends Actor with ActorLogging {
     val newHandlerMap = conf.map { case (name, clazz) => 
       if(cleanHandlerMap.get(name) == None){
         log.info(s"Creating handler $name")
-        (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], statsServer), name + "-handler"))
+        (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], metricsServer), name + "-handler"))
       }
       // Already created
       else (name, cleanHandlerMap(name))
@@ -314,15 +314,15 @@ class Router() extends Actor with ActorLogging {
   }   
   
   def newRadiusAuthServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort, statsServer), "RadiusAuthServer")
+    context.actorOf(RadiusServer.props(ipAddress, bindPort, metricsServer), "RadiusAuthServer")
   }
   
   def newRadiusAcctServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort, statsServer), "RadiusAcctServer")
+    context.actorOf(RadiusServer.props(ipAddress, bindPort, metricsServer), "RadiusAcctServer")
   }
     
   def newRadiusCoAServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort, statsServer), "RadiusCoAServer")
+    context.actorOf(RadiusServer.props(ipAddress, bindPort, metricsServer), "RadiusCoAServer")
   }
   
 
@@ -341,7 +341,7 @@ class Router() extends Actor with ActorLogging {
         connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
       } else {
         // Create handling actor and send it the connection. The Actor will register itself as peer or die
-        val peerActor = context.actorOf(DiameterPeer.props(None, statsServer))
+        val peerActor = context.actorOf(DiameterPeer.props(None, metricsServer))
         peerActor ! connection
       }
     }))(Keep.left).run()
@@ -381,7 +381,7 @@ class Router() extends Actor with ActorLogging {
 	            handlerActor ! RoutedDiameterMessage(message, context.sender)
 	          case None => 
 	            log.warning("Attempt to route message to a non exising handler {}", handler)
-	            MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
+	            MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	        }
 	      
 	      // Send to Peer
@@ -390,21 +390,21 @@ class Router() extends Actor with ActorLogging {
 	        val candidatePeers = peerHostMap.filter{case (host, peerPtr) => peers.contains(host) && peerPtr.status == PeerStatus.STATUS_READY}
 	        if(candidatePeers.size == 0){
 	          	log.warning("Peer not available among {}", peers)
-	            MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
+	            MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	        } else {
 	          (if(policy == Some("fixed")) candidatePeers.values.head else scala.util.Random.shuffle(candidatePeers.values).head) match {
 	            case DiameterPeerPointer(_, _, Some(actorRef)) => 
 	              actorRef ! RoutedDiameterMessage(message, context.sender)
 	            case _ => 
 	              log.warning("This should never happen {}", peers(0))
-	              MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
+	              MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	          }
 	        }
 	        
 	      // No route
 	      case _ =>
 	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
-	        MetricsOps.pushDiameterReceivedDropped(statsServer, message) 
+	        MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	    }
 	    
     /*
