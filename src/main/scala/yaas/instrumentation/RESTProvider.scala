@@ -79,9 +79,19 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
     }
   }
   
-  val loglevelRoute =
-    pathPrefix("loglevel"){
-      pathPrefix("set"){
+  val configRoute =
+    pathPrefix("config"){
+      pathPrefix("reload"){
+        patch {
+            parameterMap { params =>
+              val parameter = params.getOrElse("fileName", "all")
+              log.info(s"Reload ${parameter}")
+              
+              complete((context.parent ? yaas.server.Router.IXReloadConfig(params.get("fileName"))).mapTo[String])
+            }
+        }
+      } ~
+      pathPrefix("setLogLevel"){
         patch {
           parameterMap { params =>
             val loggerOption = params.get("loggerName")
@@ -179,7 +189,7 @@ class RESTProvider(statsServer: ActorRef) extends Actor with ActorLogging {
   }
 
   if(bindAddress.contains(".")){
-    val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ prometheusRoute ~ loglevelRoute, bindAddress, bindPort)
+    val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ prometheusRoute ~ configRoute, bindAddress, bindPort)
     
     bindFuture.onComplete {
       case Success(binding) =>

@@ -111,10 +111,9 @@ object Router {
   case class PeerDown()
   case class RadiusClientStats(stats: Map[RadiusEndpoint, (Int, Int)])
   
-  case object PeerMapTimer
-  
   // Instrumentation messages
   case object IXGetPeerStatus
+  case class IXReloadConfig(fileName: Option[String])
 }
 
 // Manages Routes, Peers and Handlers
@@ -168,7 +167,7 @@ class Router() extends Actor with ActorLogging {
     
   if(DiameterConfigManager.isDiameterEnabled){
     startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
-    peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
+    peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
     diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
   }
   
@@ -185,10 +184,7 @@ class Router() extends Actor with ActorLogging {
     else None
   
   // Initialize handlers
-  handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig)
-  
-  // Start timer for re-evalutation of peer status
-  context.system.scheduler.scheduleOnce(diameterConfig.peerCheckTimeSeconds seconds, self, PeerMapTimer)
+  handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig, handlerMap)
   
   ////////////////////////////////////////////////////////////////////////
   // Diameter configuration
@@ -197,25 +193,37 @@ class Router() extends Actor with ActorLogging {
 	/**
 	 * Will create the actors for the configured peers and shutdown the ones not configured anymore.
 	 */
-	def updateDiameterPeerMap(conf: Map[String, DiameterPeerConfig]) = {
+	def updateDiameterPeerMap(conf: Map[String, DiameterPeerConfig], currPeerHostMap: Map[String, DiameterPeerPointer]) = {
 	  
+    log.info("Updating Diameter Peers")
+    
 	  // Shutdown unconfigured peers and return clean list  
-	  val cleanPeersHostMap = peerHostMap.flatMap { case (hostName, peerPointer) => 
+	  val cleanPeersHostMap = currPeerHostMap.flatMap { case (hostName, peerPointer) => 
 	    if(conf.get(hostName) == None){
 	      // Stop peer and return empty sequence
-	      // TODO: Do same as in getRadiusServerPointers
+	      log.info(s"Removing peer $hostName")
 	      peerPointer.actorRefOption.map(context.stop(_)); Seq()}
 	    else
 	      // Leave as it is
 	      Seq((hostName, peerPointer))
 	  }
 	  
+    // For each one of the peers in the new configuration map
+    // If 
 	  val newPeerHostMap = conf.map { case (hostName, peerConfig) =>
 	    cleanPeersHostMap.get(hostName) match {
-	      case None | Some(DiameterPeerPointer(_, 0, _)) =>
-	        // Not found or disconnected
-	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")) (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName + "-peer"))))
-	        else (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
+	      case None | Some(DiameterPeerPointer(_, PeerStatus.STATUS_DOWN, _)) =>
+	        // Not found or disconnected --> No Actor associated
+	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")){
+	          // Create peer actor that will try to connect
+	          log.info(s"Retrying connection to $hostName")
+	          (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_STARTING, Some(context.actorOf(DiameterPeer.props(Some(peerConfig), statsServer), hostName + "-peer"))))
+	        }
+	        else {
+	          // Passive Policy. Just create pointer without Actor. Will be created when a connection arrives
+	          log.info(s"Waiting for connection from $hostName")
+	          (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
+	        }
 	      case Some(dpp) =>
 	        (hostName, dpp)
 	    }
@@ -225,15 +233,22 @@ class Router() extends Actor with ActorLogging {
 	  scala.collection.mutable.Map() ++ newPeerHostMap
 	}
   
-  def updateHandlerMap(conf: Map[String, String]) = {
+  def updateHandlerMap(conf: Map[String, String], currHandlerMap: Map[String, ActorRef]) = {
+    log.info("Updating Handlers")
+    
     // Shutdown unconfigured handlers
-    val cleanHandlerMap = handlerMap.flatMap { case (handlerName, handlerActor) =>
-      if(conf.get(handlerName) == None) {context.stop(handlerActor); Seq()} else Seq((handlerName, handlerActor))
+    val cleanHandlerMap = currHandlerMap.flatMap { case (handlerName, handlerActor) =>
+      if(conf.get(handlerName) == None) {
+        log.info(s"Stopping handler $handlerName")
+        context.stop(handlerActor); Seq()} else Seq((handlerName, handlerActor))
     }
     
     // Create new handlers if needed
     val newHandlerMap = conf.map { case (name, clazz) => 
-      if(cleanHandlerMap.get(name) == None) (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], statsServer), name + "-handler"))
+      if(cleanHandlerMap.get(name) == None){
+        log.info(s"Creating handler $name")
+        (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], statsServer), name + "-handler"))
+      }
       // Already created
       else (name, cleanHandlerMap(name))
     }
@@ -242,6 +257,8 @@ class Router() extends Actor with ActorLogging {
   }
 	
 	def updateDiameterRoutes(conf: Seq[DiameterRouteConfig]) = {
+	  log.info("Updating Diameter Routes")
+	  
 	  // Just copy
 	  for {
 	    route <- conf
@@ -262,6 +279,8 @@ class Router() extends Actor with ActorLogging {
   ////////////////////////////////////////////////////////////////////////
   
   def getRadiusServers(newServersConfig: Map[String, RadiusServerConfig]) = {
+    log.info("Updating Radius Servers")
+    
     // clean radius server list
     val cleanRadiusServers = radiusServers.flatMap { case(oldServerName, oldServer) => {
         // Keep only entries for servers with matching names and same configuration
@@ -530,14 +549,6 @@ class Router() extends Actor with ActorLogging {
 	        log.debug("Peer down for Actor {} not found in peer map", sender.path)
 	    }
 	    
-	  case PeerMapTimer if(DiameterConfigManager.isDiameterEnabled) =>
-      peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig)
-      diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
-      handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig)
-      
-	    // Start timer for re-evalutation of peer status
-      context.system.scheduler.scheduleOnce(diameterConfig.peerCheckTimeSeconds seconds, self, PeerMapTimer)
-	    
 	  /* 
 	   * Instrumentation messages
 	   */
@@ -548,5 +559,52 @@ class Router() extends Actor with ActorLogging {
       
       sender ! peerStatus
 
+    case IXReloadConfig(fileName) =>
+      import yaas.config.ConfigManager
+      
+      try {
+        fileName match {
+          case Some(f) => 
+            ConfigManager.reloadConfigObject(f)
+            
+          case None =>
+            ConfigManager.reloadAllConfigObjects
+        }
+        
+        // Reconfigure Diameter
+        if(DiameterConfigManager.isDiameterEnabled){
+          if(fileName.contains("diameterPeers.json") || fileName.isEmpty){
+            // Update the underlying config object and then the router map
+            DiameterConfigManager.updateDiameterPeerConfig(false)
+            peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
+          }
+          if(fileName.contains("diameterRoutes.json") || fileName.isEmpty){
+            DiameterConfigManager.updateDiameterRouteConfig(false)
+            diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
+          }
+        }
+        
+        // Reconfigure Radius
+        if(fileName.contains("radiusServers.json") || fileName.isEmpty){
+          RadiusConfigManager.updateRadiusServers(false)
+          radiusServerGroups = RadiusConfigManager.radiusServerGroups
+          radiusServers = getRadiusServers(RadiusConfigManager.radiusServers)
+        }
+        
+        if(fileName.contains("radiusClients.json") || fileName.isEmpty){
+          RadiusConfigManager.updateRadiusClients(false)
+        }
+        
+        // Reconfigure Handlers
+        if(fileName.contains("handlers.json")){
+          handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig, handlerMap)
+        }
+        
+        sender ! "OK"
+      } 
+      catch {
+        case e: NoSuchElementException => sender ! s"${fileName.getOrElse("all")} not found"
+        case e: java.io.IOException => sender ! akka.actor.Status.Failure(e)
+      }
 	}
 }

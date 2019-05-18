@@ -26,7 +26,7 @@
     	</encoder>
 	</appender>
 
-	<root level="DEBUG">          
+	<root level="INFO">          
     	<appender-ref ref="default-console-appender" />
     	<appender-ref ref="default-file-appender" />
   	</root>
