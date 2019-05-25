@@ -4,5 +4,5 @@
 	"acctBindPort": 1813,
 	"coABindPort": 3799,
 	"clientBasePort": 42000,
-	"numClientPorts": 1
+	"numClientPorts": 10
 }
