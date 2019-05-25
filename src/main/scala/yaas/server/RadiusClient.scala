@@ -153,14 +153,21 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
     }
   }
   
+  /*
+   * Gets the portId to use for the specified destination
+   * Increments port first, in order to force using different origin ports and thus getting a usually better load balancing
+   */
   def nextRadiusPortId(destination: RadiusEndpoint) = {
     // Get item (with default value)
     val radiusPortId = lastRadiusPortIds(destination)
     
-    // Increment and push to map
-    val _id = (radiusPortId.id + 1) % 256
-    val _port = if(_id == 0) radiusPortId.port + 1 else radiusPortId.port
-    val _radiusPortId = RadiusPortId(if(_port == basePort + numPorts) basePort else _port, _id)
+    val _port = radiusPortId.port + 1
+    val _id = if(_port == basePort + numPorts) radiusPortId.id + 1 else radiusPortId.id // Increment if port has carryover
+    val _radiusPortId = RadiusPortId(
+        if(_port == basePort + numPorts) basePort else _port,
+        if(_id == 256) 0 else _id
+        )
+    
     lastRadiusPortIds.put(destination, _radiusPortId)
     
     radiusPortId
