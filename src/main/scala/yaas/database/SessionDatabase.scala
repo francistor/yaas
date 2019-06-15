@@ -173,7 +173,7 @@ object SessionDatabase {
       scalar.start(igniteConfiguration)
     }
     
-    // Make sure cache exist
+    // Make sure cache exists
     if(cache$("SESSIONS") == None) createCache$("SESSIONS", REPLICATED, Seq(classOf[String], classOf[Session]))
   }
   

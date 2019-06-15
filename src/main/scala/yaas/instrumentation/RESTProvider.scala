@@ -146,11 +146,26 @@ class RESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
   class RestRouteProvider extends JsonSupport {
     
     def restRoute = 
+    patch {
+      pathPrefix("diameter"){
+        pathPrefix("metrics/reset"){
+          metricsServer ! MetricsServer.DiameterMetricsReset
+          log.info("Diameters Metrics Reset")
+          complete(200, "OK")
+        }
+      } ~
+      pathPrefix("radius"){
+        pathPrefix("metrics/reset"){
+          metricsServer ! MetricsServer.RadiusMetricsReset
+          log.info("Radius Metrics Reset")
+          complete(200, "OK")
+        }
+      }
+    } ~
+    get {
       pathPrefix("diameter"){
         pathPrefix("peers"){
-          get {
-            complete((context.parent ? IXGetPeerStatus).mapTo[Map[String, MetricsOps.DiameterPeerStatus]])
-          }
+          complete((context.parent ? IXGetPeerStatus).mapTo[Map[String, MetricsOps.DiameterPeerStatus]])
         } ~
         pathPrefix("requestQueues"){
           complete((metricsServer ? GetDiameterPeerRequestQueueGauges).mapTo[Map[String, Int]])
@@ -186,6 +201,7 @@ class RESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
           }
         }
       }
+    }
   }
 
   if(bindAddress.contains(".")){

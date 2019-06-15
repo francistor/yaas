@@ -33,3 +33,6 @@ kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/se
 # Reload configuration
 kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/reload?fileName=diameterPeers.json
 
+# Radius stats
+kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/radius/metrics/radiusClientRequest | jq .
+

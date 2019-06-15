@@ -36,6 +36,8 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   
   log.info("Instantiated Radius/Diameter client application")
   
+  val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).map(req => Integer.parseInt(req)).getOrElse(10000)
+  
   implicit val materializer = ActorMaterializer()
   
   val http = Http(context.system)
@@ -117,6 +119,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     lastTestIdx = lastTestIdx + 1
     if(tests.length > lastTestIdx) tests(lastTestIdx)() else {
       println("FINISHED")
+      System.exit(0)
     }
   }
   
@@ -227,7 +230,9 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
           ok("Password attribute and class received correctly")
           nextTest
         }
-      case Failure(ex) => fail("Response not received")
+      case Failure(ex) => 
+        fail("Response not received")
+        nextTest
     }
   }
   
@@ -246,9 +251,12 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         
         if((response >>++ "Reply-Message") == "The reply message!"){
           ok("Reply message is correct")
-        }
+        } else fail("Response message is incorrect")
         nextTest
-      case Failure(ex) => fail("Response not received")
+        
+      case Failure(ex) => 
+        fail("Response not received")
+        nextTest
     }
   }
   
@@ -261,6 +269,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     sendRadiusGroupRequest("allServers", accessRequest, 1500, 1).onComplete {
       case Success(response) => 
         fail("Received response")
+        nextTest
         
       case Failure(ex) => 
         ok("Response not received")
@@ -291,12 +300,13 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         val session = getJson(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
         if(((session \ "acctSessionId")(0)).extract[String] == acctSessionId){
           ok("Session found")
-          nextTest
         }
         else fail("Session not found")
+        nextTest
 
       case Failure(ex) => 
         fail("Response not received")
+        nextTest
     }
   }
   
@@ -333,6 +343,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         
       case Failure(e) =>
         fail(e.getMessage)
+        nextTest
     }
   }
   
@@ -362,12 +373,13 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         val session = getJson(superServerSessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
         if(((session \ "ipAddress")(0)).extract[String] == ipAddress){
           ok("Session found")
-          nextTest
         }
         else fail("Session not found")
+        nextTest
 
       case Failure(e) =>
         fail(e.getMessage)
+        nextTest
     }
   }
   
@@ -404,10 +416,11 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         // Check answer in JSON format
         val gxResponse: JValue = answer
         if(OctetOps.fromHexToUTF8((gxResponse \ "avps" \ "3GPP-Charging-Rule-Install" \ "3GPP-Charging-Rule-Name").extract[String]) == subscriptionId) ok("Received subscriptionId") else fail("Bad subscriptionId")
-        
         nextTest
+        
       case Failure(e) =>
         fail(e.getMessage)
+        nextTest
     }
   }
    
@@ -628,7 +641,6 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
             ("Acct-Status-Type" -> "Start") <<
             ("Framed-IP-Address" -> intToIPAddress(reqIndex))
             
-            
           sendRadiusGroupRequest(serverGroup, accessRequest, 3000, 1).onComplete {
             case Success(response) =>
               if(response.code == ACCOUNTING_RESPONSE|| (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>++ "User-Password") == password)) loop
@@ -655,12 +667,12 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
           print("\r")
           val totalTime = System.currentTimeMillis() - startTime
           ok(s"$nRequests in ${totalTime} milliseconds, ${1000 * nRequests / totalTime} per second")
-          
-          nextTest
         }
+        nextTest
         
       case Failure(e) =>
         fail(e.getMessage)
+        nextTest
     }
   }
   
@@ -750,12 +762,12 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
           print("\r")
           val totalTime = System.currentTimeMillis() - startTime
           ok(s"$nRequests in ${totalTime} milliseconds, ${1000 * nRequests / totalTime} per second")
-          
-          nextTest
         }
+        nextTest
         
       case Failure(e) =>
         fail(e.getMessage)
+        nextTest
     }
   }
 }
