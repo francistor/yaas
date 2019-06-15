@@ -17,9 +17,9 @@ class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase
       testAA _,
       testAC _,
       testGxRouting _,   
-      checkDiameterPerformance("AA", "@accept", 20000, 10, "AA Warmup") _,
-      checkDiameterPerformance("AA", "@accept", 10000, 10, "AA Free Wheel") _,
-      checkDiameterPerformance("AC", "@accept", 20000, 10, "AC Warmup") _,
-      checkDiameterPerformance("AC", "@accept", 10000, 10, "AC Free Wheel") _
+      checkDiameterPerformance("AA", "@accept", Math.min(5000, nRequests), 10, "AA Warmup") _,
+      checkDiameterPerformance("AA", "@accept", nRequests, 10, "AA Free Wheel") _,
+      checkDiameterPerformance("AC", "@accept", nRequests, 10, "AC Warmup") _,
+      checkDiameterPerformance("AC", "@accept", nRequests, 10, "AC Free Wheel") _
   )
 }

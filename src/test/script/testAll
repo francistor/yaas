@@ -1,5 +1,7 @@
 #!/bin/bash
 
+YAAS_TEST_REQUESTS=10000
+
 _THIS_FILE_DIRNAME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 BIN_DIR=../../../target/universal/stage/bin
 

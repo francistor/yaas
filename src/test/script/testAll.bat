@@ -1,5 +1,7 @@
 @echo off
 
+SET YAAS_TEST_REQUESTS=10000
+
 SET _THIS_FILE_DIRNAME=%~dp0
 SET BIN_DIR=..\..\..\target\universal\stage\bin
 
