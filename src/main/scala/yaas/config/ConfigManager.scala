@@ -171,6 +171,29 @@ object ConfigManager {
 	  for(objectName <- configObjectCache.keySet) configObjectCache(objectName) = readConfigObject(objectName)
 	}	
 	
+	
+	// Helpers to extract from JValue
+	private implicit val formats = DefaultFormats
+	
+	private def nextPath(jValue: JValue, path: List[String]): JValue = {
+	  path match {
+	    case Nil => jValue
+	    case head :: tail => nextPath(jValue \ head, tail)
+	  }
+	}
+	
+  def intFrom(jValue: JValue, path: List[String], default: Int) = { 
+	  nextPath(jValue, path).extract[Option[Int]].getOrElse(default)
+	}
+		
+	def longFrom(jValue: JValue, path: List[String], default: Long) = { 
+	  nextPath(jValue, path).extract[Option[Long]].getOrElse(default)
+	}
+	
+	def strFrom(jValue: JValue, path: List[String], default: String) = {
+	  nextPath(jValue, path).extract[Option[String]].getOrElse(default)
+	}
+	
 	// Helper
 	private def replaceVars(input: String) = {
 	  val varMap = System.getenv.toMap ++ System.getProperties.toMap

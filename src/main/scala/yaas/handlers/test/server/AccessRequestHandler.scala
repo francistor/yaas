@@ -3,8 +3,6 @@ package yaas.handlers.test.server
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 
 import yaas.server._
-import yaas.config.DiameterConfigManager
-import yaas.dictionary.DiameterDictionary
 import yaas.coding._
 import yaas.coding.RadiusPacket._
 import yaas.server.RadiusActorMessages._

@@ -7,6 +7,9 @@ object MetricsServer {
   
   def props() = Props(new MetricsServer)
   
+  case object DiameterMetricsReset
+  case object RadiusMetricsReset
+  
   class DiameterMetricsKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) {
     def getValue(key : String) = {
       key match {
@@ -344,6 +347,31 @@ class MetricsServer extends Actor with ActorLogging {
     
     case RadiusServerRequestQueueSizes(sizes) => radiusServerRequestQueueSizeGauge = for{(endPoint, size) <- sizes} yield (s"${endPoint.ipAddress}:${endPoint.port}", size)
     
+    case DiameterMetricsReset =>
+      diameterRequestReceivedCounter.empty
+      diameterAnswerReceivedCounter.empty
+      diameterRequestTimeoutCounter.empty
+      diameterAnswerSentCounter.empty
+      diameterRequestSentCounter.empty
+      diameterAnswerDiscardedCounter.empty
+      diameterRequestDroppedCounter.empty
+      diameterHandlerServerCounter.empty
+      diameterHandlerClientCounter.empty
+      diameterHandlerClientTimeoutCounter.empty
+      diameterPeerRequestQueueSizeGauge.empty
+      
+    case RadiusMetricsReset =>
+      radiusServerRequestCounter.empty
+      radiusServerDroppedCounter.empty
+      radiusServerResponseCounter.empty
+      radiusClientRequestCounter.empty
+      radiusClientResponseCounter.empty
+      radiusClientTimeoutCounter.empty
+      radiusClientDroppedCounter.empty
+      radiusHandlerResponseCounter.empty
+      radiusHandlerDroppedCounter.empty
+      radiusHandlerTimeoutCounter.empty
+
     /*
      * Statistics query
      */

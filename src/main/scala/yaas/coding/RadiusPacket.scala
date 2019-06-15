@@ -12,6 +12,7 @@ import yaas.util.OctetOps
 import yaas.dictionary._
 
 class RadiusCodingException(val msg: String) extends java.lang.Exception(msg: String)
+class RadiusExtractionException(val msg: String) extends java.lang.Exception(msg: String)
 
 /**
  * Builder of Radius AVP from Bytes.
@@ -137,6 +138,7 @@ abstract class RadiusAVP[+A](val code: Int, val vendorId: Int, val value: A){
 	 * To be implemented in concrete classes
 	 */
 	def stringValue = value.toString
+	def longValue() : Long
 	
 	/**
 	 * Want the stringified AVP be the value, so toString reports only the value
@@ -214,6 +216,8 @@ class UnknownRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radi
 	override def stringValue = {
     OctetOps.octetsToString(value)
 	}
+	
+	override def longValue = throw new RadiusExtractionException("UnknownRadiusAVP cannot be represented as a long")
 }
 
 /**
@@ -232,6 +236,8 @@ class StringRadiusAVP(code: Int, vendorId: Int, value: String) extends RadiusAVP
 	override def stringValue = {
     value
 	}
+	
+  override def longValue = throw new RadiusExtractionException("StringRadiusAVP cannot be represented as a long")
 }
 
 /**
@@ -256,6 +262,8 @@ class OctetsRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends Radiu
 	override def stringValue = {
 	  OctetOps.octetsToString(value)
 	}
+	
+  override def longValue = throw new RadiusExtractionException("OctetsRadiusAVP cannot be represented as a long")
 }
 
 /**
@@ -274,6 +282,10 @@ class IntegerRadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAVP[
 	override def stringValue = {
     value.toString
 	}
+	
+  override def longValue = {
+    value
+  }
 }
 
 /**
@@ -292,6 +304,8 @@ class AddressRadiusAVP(code: Int, vendorId: Int, value: java.net.InetAddress) ex
 	override def stringValue = {
     value.getHostAddress
 	}
+	
+	override def longValue = throw new RadiusExtractionException("AddressRadiusAVP cannot be represented as a long")
 }
 
 /**
@@ -311,6 +325,10 @@ class TimeRadiusAVP(code: Int, vendorId: Int, value: java.util.Date) extends Rad
     val sdf = new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT)
     sdf.format(value)
 	}
+	
+	def longValue = {
+	  value.getTime / 1000
+	}
 }
 
 /**
@@ -329,6 +347,8 @@ class IPv6AddressRadiusAVP(code: Int, vendorId: Int, value: java.net.InetAddress
 	override def stringValue = {
     value.getHostAddress
 	}
+	
+	override def longValue = throw new RadiusExtractionException("IPv6AddressRadiusAVP cannot be represented as a long")
 }
 
 /**
@@ -362,6 +382,8 @@ class IPv6PrefixRadiusAVP(code: Int, vendorId: Int, value: String) extends Radiu
   override def stringValue = {
     value
   }
+  
+  override def longValue = throw new RadiusExtractionException("IPv6AddressRadiusAVP cannot be represented as a long")
 }
 
 // TODO: Check that the List has 8 bytes
@@ -381,6 +403,8 @@ class InterfaceIdRadiusAVP(code: Int, vendorId: Int, value: List[Byte]) extends 
 	override def stringValue = {
 			OctetOps.octetsToString(value)
 	}
+	
+	override def longValue = throw new RadiusExtractionException("IPv6AddressRadiusAVP cannot be represented as a long")
 }
 
 /**
@@ -400,6 +424,10 @@ class Integer64RadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAV
 
 	override def stringValue = {
     value.toString
+	}
+	
+	override def longValue = {
+	  value
 	}
 }
 
@@ -694,12 +722,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Insert AVP in message
+   * Insert AVP in packet
    */ 
   def put(avp: RadiusAVP[Any]) : RadiusPacket = << (avp: RadiusAVP[Any])
   
   /**
-  * Insert AVP in message.
+  * Insert AVP in packet.
   * 
   * Same as <code>put</code>
   */
@@ -708,14 +736,31 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     this
   }
   
+  /**
+   * Insert AVP in packet if not already present
+   */ 
+  def putIfAbsent(avp: RadiusAVP[Any]) : RadiusPacket = << (avp: RadiusAVP[Any])
+  
+  /**
+  * Insert AVP in packet.
+  * 
+  * Same as <code>putIfAbsent</code>
+  */
+  def <<? (avp: RadiusAVP[Any]) : RadiusPacket = {
+    if(avps.find(_.code == avp.code).isEmpty){
+      avps :+= avp
+    }
+    this
+  }
+  
   // Versions with Option. Do nothing if the Option is empty
   /**
-   * Insert AVP in message
+   * Insert AVP in packet
    */ 
   def put(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = << (avpOption: Option[RadiusAVP[Any]])
   
   /**
-  * Insert AVP in message.
+  * Insert AVP in packet.
   * 
   * Same as <code>put</code>
   */
@@ -729,12 +774,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Adds a list of Radius AVPs to the message.
+   * Adds a list of Radius AVPs to the packet.
    */
   def putAll(mavp : List[RadiusAVP[Any]]) : RadiusPacket = << (mavp : List[RadiusAVP[Any]]) 
   
   /**
-   * Adds a list of Diameter AVPs to the message.
+   * Adds a list of Diameter AVPs to the packet.
    * 
    * Same as <code>putAll</code>
    */
@@ -744,12 +789,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Extracts the first AVP with the specified name from message.
+   * Extracts the first AVP with the specified name from packet.
    */
   def get(attributeName: String): Option[RadiusAVP[Any]] = >> (attributeName: String)
   
   /**
-   * Extracts the first AVP with the specified name from message.
+   * Extracts the first AVP with the specified name from packet.
    * 
    * Same as <code>get</code>
    */
@@ -761,12 +806,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Extract all the AVPs with the specified name from message.
+   * Extract all the AVPs with the specified name from packet.
    */
   def getAll(attributeName: String): List[RadiusAVP[Any]] = >>+ (attributeName: String)
   
   /**
-   * Extracts all the AVPs with the specified name from message.
+   * Extracts all the AVPs with the specified name from packet.
    * 
    * Same as <code>getAll</code>
    */
@@ -778,12 +823,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list
+   * Extracts AVP from packet and force conversion to string. If multivalue, returns comma separated list
    */
   def getAsString(attributeName: String): String = >>++ (attributeName: String)
   
   /**
-   * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list
+   * Extracts AVP from packet and force conversion to string. If multivalue, returns comma separated list
    */
   def >>++ (attributeName: String): String = {
     RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
@@ -801,6 +846,35 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
       case None =>
     }
     this
+  }
+  
+  /**
+   * Tries to extract a single attribute with String type, throwing exception if unable
+   */
+  def S(attributeName: String) = {
+    getAll(attributeName) match {
+      case avp :: List(other) =>
+        throw new RadiusExtractionException(s"Multiple $attributeName found")
+        
+      case List(avp) => avp.stringValue
+        
+      case Nil =>
+        throw new RadiusExtractionException(s"attribute $attributeName not found")
+        
+    }
+  }
+  
+  def L(attributeName: String) = {
+    getAll(attributeName) match {
+      case avp :: List(other) =>
+        throw new RadiusExtractionException(s"Multiple $attributeName found")
+        
+      case List(avp) => avp.longValue
+        
+      case Nil =>
+        throw new RadiusExtractionException(s"attribute $attributeName not found")
+        
+    }
   }
   
   /**

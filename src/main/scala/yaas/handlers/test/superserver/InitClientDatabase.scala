@@ -9,7 +9,6 @@ import scalar._
 
 class InitClientDatabase(statsServer: ActorRef) extends MessageHandler(statsServer) {
   
-  
   if(cache$("CLIENTS").isEmpty){
     
     log.info("Creating client database")

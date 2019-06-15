@@ -1,0 +1,8 @@
+{
+	"bab01":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab01"}
+		]
+	}
+}

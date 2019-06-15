@@ -1,9 +1,14 @@
 radius_server_requests
+diameter_server_requests
 
+rate(diameter_server_requests[1m])
 
-# Radius requests for yaas-server, per pod
+# Radius requests for yaas-server, per pod, all request types
 sum(radius_server_requests{service="yaas-server"}) by (pod)
 
-# Radius requests for yaas-server, per pod
+# Radius requests for yaas-server, per pod, all request types and origins
 sum(radius_server_requests{service="yaas-superserver"}) by (pod)
+
+# Rate of all types of requests and origins
+sum(rate(radius_server_requests{service="yaas-server"}[30s])) by (pod)
 
