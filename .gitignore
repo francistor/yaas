@@ -7,3 +7,6 @@
 **/cdr/*
 **/log/*
 /bin/
+**/test/*.html
+**/test/*.xml
+
