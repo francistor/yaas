@@ -246,23 +246,23 @@ class MetricsServer extends Actor with ActorLogging {
   // Peer Counters
   
   // Contain the counter value for each received combination of keys
-  private val diameterRequestReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterAnswerReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterRequestTimeoutCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterAnswerSentCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterRequestSentCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterAnswerDiscardedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterRequestReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterAnswerReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterRequestTimeoutCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterAnswerSentCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterRequestSentCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterAnswerDiscardedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
   
   // Router Metrics
-  private val diameterRequestDroppedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterRequestDroppedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
   
   // Handler Metrics
-  private val diameterHandlerServerCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterHandlerClientCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
-  private val diameterHandlerClientTimeoutCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterHandlerServerCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterHandlerClientCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  private var diameterHandlerClientTimeoutCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
   
   // Queue Metrics
-  private val diameterPeerRequestQueueSizeGauge = scala.collection.mutable.Map[String, Long]()
+  private var diameterPeerRequestQueueSizeGauge = scala.collection.mutable.Map[String, Long]()
   
   /**
    * Get Metrics items aggregated by the specified keys
@@ -277,20 +277,20 @@ class MetricsServer extends Actor with ActorLogging {
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  private val radiusServerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusServerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusServerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusServerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusServerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusServerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-  private val radiusClientRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusClientResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusClientTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusClientDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-  private val radiusHandlerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusHandlerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusHandlerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusHandlerRetransmissionCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private val radiusHandlerTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerRetransmissionCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
   private var radiusServerRequestQueueSizeGauge = Map[String, Int]()
 
@@ -347,30 +347,37 @@ class MetricsServer extends Actor with ActorLogging {
     
     case RadiusServerRequestQueueSizes(sizes) => radiusServerRequestQueueSizeGauge = for{(endPoint, size) <- sizes} yield (s"${endPoint.ipAddress}:${endPoint.port}", size)
     
-    case DiameterMetricsReset =>
-      diameterRequestReceivedCounter.empty
-      diameterAnswerReceivedCounter.empty
-      diameterRequestTimeoutCounter.empty
-      diameterAnswerSentCounter.empty
-      diameterRequestSentCounter.empty
-      diameterAnswerDiscardedCounter.empty
-      diameterRequestDroppedCounter.empty
-      diameterHandlerServerCounter.empty
-      diameterHandlerClientCounter.empty
-      diameterHandlerClientTimeoutCounter.empty
-      diameterPeerRequestQueueSizeGauge.empty
+    case DiameterMetricsReset =>      
+      diameterRequestReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterAnswerReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterRequestTimeoutCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterAnswerSentCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterRequestSentCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterAnswerDiscardedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+
+      diameterRequestDroppedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  
+      diameterHandlerServerCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterHandlerClientCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+      diameterHandlerClientTimeoutCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
+  
+      diameterPeerRequestQueueSizeGauge = scala.collection.mutable.Map[String, Long]()
       
     case RadiusMetricsReset =>
-      radiusServerRequestCounter.empty
-      radiusServerDroppedCounter.empty
-      radiusServerResponseCounter.empty
-      radiusClientRequestCounter.empty
-      radiusClientResponseCounter.empty
-      radiusClientTimeoutCounter.empty
-      radiusClientDroppedCounter.empty
-      radiusHandlerResponseCounter.empty
-      radiusHandlerDroppedCounter.empty
-      radiusHandlerTimeoutCounter.empty
+      radiusServerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusServerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusServerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  
+      radiusClientRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  
+      radiusHandlerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerRetransmissionCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
 
     /*
      * Statistics query
