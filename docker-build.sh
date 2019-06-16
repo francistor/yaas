@@ -10,7 +10,7 @@ sudo docker login --username=francistor
 
 # Build project
 git pull
-sbt clean universal:packageBin
+sbt clean stage universal:packageBin
 
 # Get version
 zipfile=$(ls target/universal/*.zip)

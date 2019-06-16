@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot rpa="false" generated="20190616 21:04:08.722" generator="Robot 3.1.2 (Python 2.7.5 on linux2)">
+<suite source="/home/francisco/Yaas/src/k8s/test/smoke.robot" id="s1" name="Smoke">
+<test id="s1-t1" name="Radius">
+<kw name="Get" library="REST">
+<tags>
+<tag>http</tag>
+</tags>
+<doc>*Sends a GET request to the endpoint.*</doc>
+<arguments>
+<arg>/api/v1/query?query=sum(radius_server_requests\{pod=\'\yaas-server-0'\})</arg>
+</arguments>
+<status status="PASS" endtime="20190616 21:04:10.207" starttime="20190616 21:04:10.069"></status>
+</kw>
+<kw name="String" library="REST">
+<tags>
+<tag>assertions</tag>
+</tags>
+<doc>*Asserts the field as JSON string.*</doc>
+<arguments>
+<arg>$.data.result[0].value[1]</arg>
+<arg>pattern=18...</arg>
+</arguments>
+<status status="PASS" endtime="20190616 21:04:10.359" starttime="20190616 21:04:10.208"></status>
+</kw>
+<doc>Launch Radius server</doc>
+<status status="PASS" endtime="20190616 21:04:10.360" critical="yes" starttime="20190616 21:04:10.067"></status>
+</test>
+<doc>Smoke tests for radius/diameter. Use pip install --upgrade RESTinstance</doc>
+<status status="PASS" endtime="20190616 21:04:10.361" starttime="20190616 21:04:08.726"></status>
+</suite>
+<statistics>
+<total>
+<stat fail="0" pass="1">Critical Tests</stat>
+<stat fail="0" pass="1">All Tests</stat>
+</total>
+<tag>
+</tag>
+<suite>
+<stat fail="0" id="s1" name="Smoke" pass="1">Smoke</stat>
+</suite>
+</statistics>
+<errors>
+</errors>
+</robot>

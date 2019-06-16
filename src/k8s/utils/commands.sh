@@ -18,11 +18,9 @@ kubectl scale --replicas=2 statefulSet/yaas-server
 kubectl scale --replicas=2 statefulSet/yaas-superserver
 
 # Peer status
-
 # Server
 kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/diameter/peers | jq .
 kubectl exec -it kagent -- curl http://yaas-server-1.yaas-server:19000/diameter/peers | jq .
-
 # Superserver
 kubectl exec -it kagent -- curl http://yaas-superserver-0.yaas-superserver:19000/diameter/peers | jq .
 kubectl exec -it kagent -- curl http://yaas-superserver-1.yaas-superserver:19000/diameter/peers | jq .
