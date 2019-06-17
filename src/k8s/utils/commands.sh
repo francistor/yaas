@@ -35,7 +35,7 @@ kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/re
 kubectl exec -it kagent -- curl -X PATCH http://yaas-server-0.yaas-server:19000/radius/metrics/reset
 
 # Radius stats
-kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/radius/metrics/radiusClientRequest | jq .
+kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/radius/metrics/radiusServerRequest | jq .
 
 # Programatic Prometheus query
 curl http://localhost:9090/api/v1/query?query=sum\(radius_server_requests{pod="yaas-server-0"}\) | jq .
