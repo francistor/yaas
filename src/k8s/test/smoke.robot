@@ -34,7 +34,7 @@ Radius
 	Run Process   		kubectl     delete     pod     yaas-server-1
 
 	# Wait for termination of radius client
-	Wait for Process    ${radius_client}
+	Wait for Process    ${radius_client} 
 
     # Wait some time to gather Prometheus statistics (15 secs) or for the redirector process to set up
 	Sleep    20 seconds
