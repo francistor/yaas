@@ -123,6 +123,11 @@ class Router() extends Actor with ActorLogging {
   
   val config = ConfigFactory.load().getConfig("aaa")
   
+  // Start sessions database and IPAM REST server
+	val databaseRole = config.getString("sessionsDatabase.role")
+	if(databaseRole != "none") yaas.database.SessionDatabase.init
+	if(databaseRole == "server") context.actorOf(yaas.database.SessionRESTProvider.props())
+  
   // Create stats server
   val metricsServer = context.actorOf(MetricsServer.props)
   
@@ -607,4 +612,14 @@ class Router() extends Actor with ActorLogging {
         case e: java.io.IOException => sender ! akka.actor.Status.Failure(e)
       }
 	}
+	
+	override def preStart = {
+
+  }
+  
+  // Cleanup
+  override def postStop = {
+    val databaseRole = config.getString("sessionsDatabase.role")
+    if(databaseRole != "none") yaas.database.SessionDatabase.close
+  }
 }

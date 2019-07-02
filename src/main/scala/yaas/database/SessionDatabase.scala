@@ -29,6 +29,21 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 /**
+ * Represents a Radius/Diameter Session as stored in the in-memory sessions database.
+ * jData is stringified JSON
+ * 
+ * Handlers use a JSession object, which is internally converted to Session
+ */
+case class Session(
+    @ScalarCacheQuerySqlField(index = true) acctSessionId: String, 
+    @ScalarCacheQuerySqlField(index = true) ipAddress: String, 
+    @ScalarCacheQuerySqlField(index = true) clientId: String,
+    @ScalarCacheQuerySqlField(index = true) macAddress: String,
+    @ScalarCacheQuerySqlField startTimestampUTC: Long,
+    jData: String
+)
+
+/**
  * Builder for JSession instances from Session instances.
  */
 object JSession {
@@ -81,19 +96,6 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
       ("data" -> jSession.jData)
   }
 ))
-
-/**
- * Represents a Radius/Diameter Session as stored in the in-memory sessions database.
- * jData is stringified JSON
- */
-case class Session(
-    @ScalarCacheQuerySqlField(index = true) acctSessionId: String, 
-    @ScalarCacheQuerySqlField(index = true) ipAddress: String, 
-    @ScalarCacheQuerySqlField(index = true) clientId: String,
-    @ScalarCacheQuerySqlField(index = true) macAddress: String,
-    @ScalarCacheQuerySqlField startTimestampUTC: Long,
-    jData: String
-)
 
 /**
  * PoolSelector --> n Pools n <-- Ranges
@@ -156,9 +158,12 @@ case class Lease(
 )
 
 case class SimpleRange(startIPAddress: Long, endIPAddress: Long, status: Int) {
+  // The Lease algorithm operates on small ranges. This method creates them
   def split(max: Int): List[SimpleRange] = {
     // Cumbersome, but startIPAddress and endIPAddress are inclusive
-    if(size > max) SimpleRange(startIPAddress, startIPAddress + max - 1, status) :: SimpleRange(startIPAddress + max, endIPAddress, status).split(max)
+    if(size > max) SimpleRange(startIPAddress, startIPAddress + max - 1, status) :: 
+      SimpleRange(startIPAddress + max, endIPAddress, status).split(max)
+      
     else List(this)
   }
   
@@ -184,7 +189,7 @@ object SessionDatabase {
   // Configure Ignite
   val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
   
-  // Client mode if so configured
+  // Set client mode if so configured
   val role = config.getString("role")
   if(role.equalsIgnoreCase("client")){
     org.apache.ignite.Ignition.setClientMode(true)
@@ -195,18 +200,21 @@ object SessionDatabase {
   val igniteFileWithInstance = getClass.getResource("/" + instance + "/ignite-yaasdb.xml")
   val igniteFile = getClass.getResource("/ignite-yaasdb.xml")
   
-  // To get rid of percent encoding, use URLDecoder
+  // Tries to find a configuration file for ignite first
+  // Otherwise, takes config from global file
   val ignite = {
     if(igniteFileWithInstance != null){
       val msg = s"Ignite configuration from file ${instance}/ignite-yaasdb.xml"
       log.info(msg)
       println(msg)
+      // To get rid of percent encoding, use URLDecoder
       scalar.start(java.net.URLDecoder.decode(igniteFileWithInstance.getFile(), "ISO-8859-1"))
       
     } else if(igniteFile != null){
       val msg = "Ignite configuration from file ignite-yaasdb.xml"
       log.info(msg)
       println(msg)
+      // To get rid of percent encoding, use URLDecoder
       scalar.start(java.net.URLDecoder.decode(igniteFile.getFile(), "ISO-8859-1"))
       
     } else {
@@ -216,7 +224,6 @@ object SessionDatabase {
   
       val igniteAddresses = config.getString("igniteAddresses")
       val localIgniteAddress = config.getString("localIgniteAddress").split(":")
-      val memoryMegabytes = config.getLong("memoryMegabytes")
       
       val dsConfiguration = new DataStorageConfiguration
       dsConfiguration.setStoragePath(config.getString("storagePath"))
@@ -225,8 +232,8 @@ object SessionDatabase {
       
       val dsRegionConfiguration = new DataRegionConfiguration
       dsRegionConfiguration.setName("custom")
-      dsRegionConfiguration.setInitialSize(memoryMegabytes * 1024L * 1024L)
-      dsRegionConfiguration.setMaxSize(memoryMegabytes * 1024L * 1024L)
+      dsRegionConfiguration.setInitialSize(config.getLong("memoryMegabytes") * 1024L * 1024L)
+      dsRegionConfiguration.setMaxSize(config.getLong("memoryMegabytes") * 1024L * 1024L)
       dsRegionConfiguration.setPersistenceEnabled(config.getBoolean("persistenceEnabled"))
       dsConfiguration.setDefaultDataRegionConfiguration(dsRegionConfiguration)
   

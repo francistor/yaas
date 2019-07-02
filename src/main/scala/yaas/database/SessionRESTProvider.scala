@@ -42,6 +42,7 @@ class SessionRESTProvider extends Actor with ActorLogging with JsonSupport {
   val graceTimeMillis = config.getInt("iam.graceTimeSeconds") * 1000
   implicit val askTimeout : akka.util.Timeout = 3000 millis
   
+  // Synonim for iam Manager object
   val iam = yaas.database.SessionDatabase
   
   def receive = {
