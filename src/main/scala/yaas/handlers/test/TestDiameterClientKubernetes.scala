@@ -9,9 +9,12 @@ class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
   
+  val iamBaseURL = "http://yaas-localhost:30501"
+  val iamSecondaryBaseURL = "http://yaas-localhost:30501"
+  
   // Used. yaas-localhost must be defined in hosts file and point to the local node
   val superServerSessionsURL = "http://yaas-localhost:30501"
-  
+
     // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
       testAA _,

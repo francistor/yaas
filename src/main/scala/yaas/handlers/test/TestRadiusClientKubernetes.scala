@@ -9,7 +9,10 @@ class TestRadiusClientKubernetes(statsServer: ActorRef) extends TestClientBase(s
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
   
-  // Used. yaas-server must be defined in hosts file and point to the local node
+  val iamBaseURL = "http://yaas-localhost:30501"
+  val iamSecondaryBaseURL = "http://yaas-localhost:30501"
+  
+  // Used. yaas-localhost must be defined in hosts file and point to the local node
   val superServerSessionsURL = "http://yaas-localhost:30501"
   
     // _ is needed to promote the method (no arguments) to a function

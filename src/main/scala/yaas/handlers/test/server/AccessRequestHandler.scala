@@ -31,7 +31,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
       )
       
   // Warm-up database connection
-  val clientQuery = sql"""select legacy_client_id from CLIENTS where USERNAME = 'user_1'""".as[String]
+  val clientQuery = sql"""select legacy_client_id from Client where UserName = 'user_1'""".as[String]
   db.run(clientQuery)
   
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
@@ -51,7 +51,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     // Lookup username
     val legacyClientIdFuture = if(userName.contains("clientdb")){
       // Look in the database and get Future
-      val clientQuery = sql"""select legacy_client_id from CLIENTS where USERNAME = $login""".as[String]
+      val clientQuery = sql"""select legacy_client_id from Client where UserName = $login""".as[String]
       db.run(clientQuery)
     } else {
       // Successful Future

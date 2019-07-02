@@ -9,8 +9,24 @@ class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) 
   val superServerMetricsURL = "http://localhost:19003"
   val superServerSessionsURL = "http://localhost:19503"
   
+  val iamBaseURL = "http://localhost:19503/iam"
+  val iamSecondaryBaseURL = "http://localhost:19503/iam"
+  
   // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
+      factorySettings _,
+      createPools _,
+      createPoolSelectors _,
+      createRanges _,
+      deleteRanges _,
+      deletePoolSelectors _,
+      deletePools _, 
+      errorConditions _,
+      fillPool _,
+      reloadLookup _,
+      testLeases _,
+      testBulkLease _,
+      unavailableLease _,
       checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,
       checkConnectedPeer(s"${serverMetricsURL}", "superserver.yaassuperserver") _,

@@ -11,7 +11,9 @@ import yaas.util.OctetOps
 import yaas.coding.RadiusPacket._
 import yaas.coding.RadiusConversions._
 
+import scala.util.Try
 import scala.util.{Success, Failure}
+
 import yaas.server.MessageHandler
 
 import scala.concurrent._
@@ -21,6 +23,7 @@ import akka.stream.ActorMaterializer
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.HttpMethods._
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s._
 import org.json4s.JsonDSL._
@@ -57,11 +60,30 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     java.net.InetAddress.getByAddress(bytes).getHostAddress
   }
   
-  def getJson(url: String) = {
+  def jsonFromGet(url: String) = {
     wait(for {
       r <- http.singleRequest(HttpRequest(uri = url))
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
     } yield j)
+  }
+  
+  def jsonFromPostJson(url: String, json: String) = {
+    wait(for {
+      r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
+      j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
+    } yield j)
+  }
+  
+  def codeFromPostJson(url: String, json: String) = {
+    wait(for {
+      r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
+    } yield r.status.intValue())
+  }
+  
+  def codeFromDelete(url: String) = {
+     wait(for {
+      r <- http.singleRequest(HttpRequest(DELETE, uri = url))
+    } yield r.status.intValue())   
   }
   
   def ok(msg: String = "") = println(s"\t[OK] $msg")
@@ -90,6 +112,8 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   val serverMetricsURL : String
   val superServerMetricsURL : String
   val superServerSessionsURL : String
+  val iamBaseURL : String
+  val iamSecondaryBaseURL : String
   
   // Wait some time before starting the tests.
   // peerCheckTimeSeconds should be configured with about 10 seconds. Starting the tests after
@@ -135,14 +159,14 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   
   def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
       println(s"[TEST] $url connected to $connectedPeer")
-      val peerStatus = getJson(s"${url}/diameter/peers")
+      val peerStatus = jsonFromGet(s"${url}/diameter/peers")
       if((peerStatus \ connectedPeer \ "status").extract[Int] == PeerStatus.STATUS_READY) ok(s"Connected to $connectedPeer") else fail(s"Not connected to $connectedPeer") 
       nextTest
   }
   
   def checkNotConnectedPeer(url: String, notConnectedPeer: String)(): Unit = {
       println(s"[TEST] $url connected to notConnectedPeer")
-      val peerStatus = getJson(s"${url}/diameter/peers")
+      val peerStatus = jsonFromGet(s"${url}/diameter/peers")
       if((peerStatus \ notConnectedPeer \ "status").extract[Int] != PeerStatus.STATUS_READY) ok(s"$notConnectedPeer status is != 2") else fail(s"Connected to $notConnectedPeer") 
       nextTest
   }
@@ -150,7 +174,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   def clientPeerConnections(): Unit = {
       // Test-Client is connected to server.yaasserver, and not connected to non-existing-server.yaasserver
       println("[TEST] Client Peer connections")
-      val testClientPeers = getJson(s"${clientMetricsURL}/diameter/peers")
+      val testClientPeers = jsonFromGet(s"${clientMetricsURL}/diameter/peers")
       if((testClientPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
       if((testClientPeers \ "non-existing-server.yaasserver" \ "status").extract[Int] != PeerStatus.STATUS_READY) ok("non-existing-server status is != 2") else fail("Connected to non-existing-server!") 
       nextTest
@@ -159,7 +183,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   def serverPeerConnections(): Unit = {
       // Test-Server is connected to client.yaasclient and superserver.yaassuperserver
       println("[TEST] Server Peer connections")
-      val testServerPeers = getJson(s"${serverMetricsURL}/diameter/peers")
+      val testServerPeers = jsonFromGet(s"${serverMetricsURL}/diameter/peers")
       if((testServerPeers \ "superserver.yaassuperserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to supersserver") else fail("Not connected to superserver") 
       if((testServerPeers \ "client.yaasclient" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to client") else fail("Not connected to client")
       nextTest
@@ -168,7 +192,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   def superserverPeerConnections(): Unit = {
       // Test-SuperServer is connected to client.yaasclient and superserver.yaassuperserver
       println("[TEST] Superserver Peer connections")
-      val testSuperServerPeers = getJson(s"${superServerMetricsURL}/diameter/peers")
+      val testSuperServerPeers = jsonFromGet(s"${superServerMetricsURL}/diameter/peers")
       if((testSuperServerPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
       nextTest
   }
@@ -297,7 +321,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         ok("Received response")
         
         // Find session
-        val session = getJson(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
+        val session = jsonFromGet(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
         if(((session \ "acctSessionId")(0)).extract[String] == acctSessionId){
           ok("Session found")
         }
@@ -370,7 +394,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
         
         // Find session
-        val session = getJson(superServerSessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
+        val session = jsonFromGet(superServerSessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
         if(((session \ "ipAddress")(0)).extract[String] == ipAddress){
           ok("Session found")
         }
@@ -429,14 +453,14 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       println("[TEST] Superserver stats")
 
       // Requests received
-      val jServerRequests = getJson(s"${superServerMetricsURL}/radius/metrics/radiusServerRequest")
+      val jServerRequests = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 2 drop
       checkMetric(jServerRequests, 4, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
       // 1 acct ok, 2 acct drop
       checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
-      val jServerResponses = getJson(s"${superServerMetricsURL}/radius/metrics/radiusServerResponse")
+      val jServerResponses = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusServerResponse")
       // 1 access accept
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
@@ -445,19 +469,19 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
-      val jServerDrops = getJson(s"${superServerMetricsURL}/radius/metrics/radiusServerDropped")
+      val jServerDrops = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusServerDropped")
       // No packets dropped. Stat not shown 
       checkMetric(jServerDrops, -1, Map(), "Packets dropped")
       
       // Packets answered by handler
-      val jHandlerResponses = getJson(s"${superServerMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
+      val jHandlerResponses = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
       // 1 access accept
       checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
       checkMetric(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
 
       // Packets dropped by handler
-      val jHandlerDrops = getJson(s"${superServerMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
+      val jHandlerDrops = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
       // 2 packet dropped each, since the server will retry to superserver
       checkMetric(jHandlerDrops, 2, Map("rq" -> "1"), "Access-Request dropped")
       checkMetric(jHandlerDrops, 2, Map("rq" -> "4"), "Accounting-Request dropped")
@@ -470,14 +494,14 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       println("[TEST] Server stats")
       
       // Requests received
-      val jServerRequests = getJson(s"${serverMetricsURL}/radius/metrics/radiusServerRequest")
+      val jServerRequests = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 1 drop
       checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
       // 1 acct ok, 1 acct drop
       checkMetric(jServerRequests, 2, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
-      val jServerResponses = getJson(s"${serverMetricsURL}/radius/metrics/radiusServerResponse")
+      val jServerResponses = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusServerResponse")
       // 1 access accept
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
@@ -486,12 +510,12 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
-      val jServerDrops = getJson(s"${serverMetricsURL}/radius/metrics/radiusServerDropped")
+      val jServerDrops = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusServerDropped")
       // No packets dropped. Stat not shown 
       checkMetric(jServerDrops, -1, Map(), "Packets dropped")
       
       // Packets answered by handler
-      val jHandlerResponses = getJson(s"${serverMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
+      val jHandlerResponses = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
       // 1 access accept
       checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
@@ -500,7 +524,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       checkMetric(jHandlerResponses, 1, Map("rs" -> "5"), "Accounting responses")
 
       // Packets dropped by handler
-      val jHandlerDrops = getJson(s"${serverMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
+      val jHandlerDrops = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
       // Server drops the packets for which it receives no response from non-existing-server
       checkMetric(jHandlerDrops, 1, Map("rq" -> "1"), "Access-Request dropped")
       checkMetric(jHandlerDrops, 1, Map("rq" -> "4"), "Accounting-Request dropped")
@@ -512,22 +536,22 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       println("[TEST] Client stats")
       
       // 3 requests to the non-existing-server
-      val jClientRequests1 = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh")
+      val jClientRequests1 = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh")
       checkMetric(jClientRequests1, 3, Map("rh" -> "1.1.1.1:1812"), "Requests sent to non existing server")
       
       // 3 access requests, 2 accounting requests to server
-      val jClientRequests2 = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh,rq")
+      val jClientRequests2 = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh,rq")
       checkMetric(jClientRequests2, 3, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Requests sent to server")
       checkMetric(jClientRequests2, 2, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Acounting-Requests sent to server")
       
       // Responses received
-      val jResponsesReceived = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientResponse?agg=rs")
+      val jResponsesReceived = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientResponse?agg=rs")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "2"), "Access-Accept received from server")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "3"), "Access-Reject received from server")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "5"), "Accouning-Response received from server")
       
       // Timeouts
-      val jTimeouts = getJson(s"${clientMetricsURL}/radius/metrics/radiusClientTimeout?agg=rh,rq")
+      val jTimeouts = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientTimeout?agg=rh,rq")
       // One per each to non-existing-server
       checkMetric(jTimeouts, 3, Map("rq" -> "1", "rh" -> "1.1.1.1:1812"), "Access-Request timeouts from non existing server")
       // The one explicitly dropped
@@ -544,27 +568,27 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       println("[TEST] Superserver stats")
       
       // Requests received
-      val jRequestsReceived = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap,cm")
+      val jRequestsReceived = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap,cm")
       // 1 AA, 1AC, 1CCR
       checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265"), "NASREQ AAR received")
       checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271"), "NASREQ ACR received")
       checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272"), "Gx CCR received")
 
       // Ansers sent
-      val jAnswerSent = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterAnswerSent?agg=peer,ap,cm,rc")
+      val jAnswerSent = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterAnswerSent?agg=peer,ap,cm,rc")
       // 1 AA, 1AC
       checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265", "rc" -> "2001"), "NASREQ AAA sent")
       checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271", "rc" -> "2001"), "NASREQ ACA sent")
       checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272", "rc" -> "2001"), "Gx CCA sent")
       
       // Handled requests
-      val jHandlerServer = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,dr,rc")
+      val jHandlerServer = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,dr,rc")
       // 1 AA, 1AC
       checkMetric(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "dr" -> "yaassuperserver", "rc" -> "2001"), "AA/C Handled")
       // 1 CCR
       checkMetric(jHandlerServer, 1, Map("oh" -> "client.yaasclient", "dr" -> "yaassuperserver", "rc" -> "2001"), "Gx CCR Handled")
       
-      val jHandlerClient = getJson(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh")
+      val jHandlerClient = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh")
       // 1 AA, 1AC
       checkMetric(jHandlerClient, -1, Map("oh" -> "server.yaasserver"), "AA Handled")
       
@@ -574,37 +598,37 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   def checkServerDiameterStats(): Unit = {
       println("[TEST] Server stats")
       
-      val jRequestsReceived = getJson(s"${serverMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap")
+      val jRequestsReceived = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap")
       // 1 AA, 1AC
       checkMetric(jRequestsReceived, 2, Map("peer" -> "client.yaasclient", "ap" -> "1"), "NASREQ requests received")
       // 1 Gx CCR
       checkMetric(jRequestsReceived, 1, Map("peer" -> "client.yaasclient", "ap" -> "16777238"), "Gx requests received")
       
-      val jRequestsSent = getJson(s"${serverMetricsURL}/diameter/metrics/diameterRequestSent?agg=peer,ap")
+      val jRequestsSent = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterRequestSent?agg=peer,ap")
       // 1 AA, 1AC
       checkMetric(jRequestsSent, 2, Map("peer" -> "superserver.yaassuperserver", "ap" -> "1"), "NASREQ requests sent")
       // 1 Gx CCR
       checkMetric(jRequestsSent, 1, Map("peer" -> "superserver.yaassuperserver", "ap" -> "16777238"), "Gx requests sent")
       
-      val jAnswersReceived = getJson(s"${serverMetricsURL}/diameter/metrics/diameterAnswerReceived?agg=ap")
+      val jAnswersReceived = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterAnswerReceived?agg=ap")
       // 1 AA, 1AC
       checkMetric(jAnswersReceived, 2, Map("ap" -> "1"), "NASREQ answers received")
       // Gx CCA
       checkMetric(jAnswersReceived, 1, Map("ap" -> "16777238"), "Gx answers received")
 
-      val jAnswerSent = getJson(s"${serverMetricsURL}/diameter/metrics/diameterAnswerSent?agg=ap,rc")
+      val jAnswerSent = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterAnswerSent?agg=ap,rc")
       // 1 AA, 1AC
       checkMetric(jAnswerSent, 2, Map("ap" -> "1", "rc" -> "2001"), "NASREQ answers sent")
       // 1 CCR
       checkMetric(jAnswerSent, 1, Map("ap" -> "16777238", "rc" -> "2001"), "Gx answers sent")
       
-      val jHandlerServer = getJson(s"${serverMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,ap")
+      val jHandlerServer = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,ap")
       // 1 AA, 1AC
       checkMetric(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "ap" -> "1"), "AA Handled")
       // 0 Gx
       checkMetric(jHandlerServer, -1, Map("oh" -> "client.yaasclient", "ap" -> "16777238"), "AA Handled")
       
-      val jHandlerClient = getJson(s"${serverMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh,ap,rc")
+      val jHandlerClient = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh,ap,rc")
       // 1 AA, 1AC
       checkMetric(jHandlerClient, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
       
@@ -769,5 +793,290 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
         fail(e.getMessage)
         nextTest
     }
+  }
+  
+  
+  ////////////////////////////////////////////////////////////////////////////////////
+  // Helpers for IPAM
+  def createPool(poolId: String) = {
+    val jPool: JValue = ("poolId" -> poolId)
+    val retCode = codeFromPostJson(iamBaseURL + "/pool", compact(jPool))
+    if(retCode == 201) ok(s"$poolId created") else fail(s"Error creating Pool. Got $retCode")
+  }
+  
+  def createPoolSelector(selectorId: String, poolId: String, priority: Int) = {
+    val jPoolSelector: JValue = ("selectorId" -> selectorId) ~ ("poolId" -> poolId) ~ ("priority" -> priority) 
+    val retCode = codeFromPostJson(iamBaseURL + "/poolSelector", compact(jPoolSelector))
+    if(retCode == 201) ok(s"PoolSelector $selectorId,$poolId created") else fail(s"Error creating PoolSelector. Got $retCode")
+  }
+  
+  def createRange(poolId: String, startIPAddress: Int, endIPAddress: Int, status: Int) = {
+    val jRange: JValue = ("poolId" -> poolId) ~ ("startIPAddress" -> startIPAddress) ~ ("endIPAddress" -> endIPAddress) ~ ("status" -> status) 
+    val retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
+    if(retCode == 201) ok(s"Range $poolId,$startIPAddress created") else fail(s"Error creating Range. Got $retCode")
+  }
+  
+  def deletePool(poolId: String) = {
+    val retCode = codeFromDelete(iamBaseURL + "/pool/" + poolId)
+    if(retCode == 202) ok(s"$poolId deleted") else fail(s"Error deleting Pool. Got $retCode")
+  }
+  
+  def deletePoolSelector(selectorId: String, poolId: String) = {
+    val retCode = codeFromDelete(iamBaseURL + "/poolSelector/" + selectorId + "," + poolId)
+    if(retCode == 202) ok(s"$selectorId,$poolId deleted") else fail(s"Error deleting PoolSelector. Got $retCode")
+  }
+  
+  def deleteRange(poolId: String, startIPAddress: Int) = {
+    val retCode = codeFromDelete(iamBaseURL + "/range/" + poolId + "," + startIPAddress)
+    if(retCode == 202) ok(s"$poolId,$startIPAddress deleted") else fail(s"Error deleting Range. Got $retCode")
+  }
+  
+  ////////////////////////////////////////////////////////////////////////////////////
+  
+  def factorySettings () : Unit = {
+    
+    var retCode: Int = 0
+    
+    println("\n[RESET TO FACTORY SETTINGS]")
+    
+    retCode = codeFromPostJson(iamBaseURL + "/factorySettings", "{}")
+    if(retCode == 201) ok("Reset to factory settings") else fail(s"Response code: $retCode")
+    
+    nextTest
+  }
+  
+  /**
+   * 
+   */
+  def createPools(): Unit = {
+    
+    println("\n[CREATE POOLS]")
+    
+    createPool("pool-1-republica")
+    createPool("pool-2-republica")
+    createPool("pool-1-cuyo")
+    createPool("pool-2-cuyo")
+    createPool("small-pool")
+    
+    nextTest
+  }
+  
+  /**
+   * 
+   */
+  def createPoolSelectors() : Unit = {
+    
+    println("\n[CREATE POOLSELECTORS]")
+    
+    createPoolSelector("Republica", "pool-1-republica", 1)
+    createPoolSelector("Republica", "pool-2-republica", 2)
+    createPoolSelector("Cuyo", "pool-1-cuyo", 1)
+    createPoolSelector("Cuyo", "pool-2-cuyo", 2)
+    createPoolSelector("Small", "small-pool", 1)
+    
+    nextTest
+  }
+  
+  def createRanges() : Unit = {
+    
+    println("\n[CREATE RANGES]")
+    
+    createRange("pool-1-republica", 10000, 10999, 1)
+    createRange("pool-1-republica", 11000, 11999, 1)
+    createRange("pool-2-republica", 12000, 12999, 1)
+    createRange("pool-2-republica", 13000, 13999, 1)
+    createRange("pool-1-cuyo", 2000, 2099, 1)
+    createRange("pool-1-cuyo", 2100, 2199, 1)
+    createRange("pool-2-cuyo", 2200, 2299, 1)
+    createRange("pool-2-cuyo", 2300, 2399, 1)
+    createRange("small-pool", 9000, 9002, 1)
+    
+    nextTest
+
+  }
+  
+  def deleteRanges(): Unit = {
+    println("\n[DELETE RANGES]")
+    
+    createRange("pool-2-cuyo", 8000, 8100, 1)
+    deleteRange("pool-2-cuyo", 8000)
+    
+    nextTest
+  }
+  
+  def deletePoolSelectors(): Unit = {
+    println("\n[DELETE POOLSELECTORS]")
+    
+    createPoolSelector("disposable", "pool-2-cuyo", 3)
+    deletePoolSelector("disposable", "pool-2-cuyo")
+    
+    nextTest
+  }
+  
+  def deletePools(): Unit = {
+    println("\n[DELETE POOLS]")
+    
+    createPool("disposable")
+    deletePool("disposable")
+    
+    nextTest
+  }
+  
+  def errorConditions(): Unit = {
+    println("\n[FAILURE CONDITIONS]")
+    
+    // Create range for undefined pools returns error 409
+    var jRange: JValue = ("poolId" -> "undefined-pool") ~ ("startIPAddress" -> 1) ~ ("endIPAddress" -> 2) ~ ("status" -> 1) 
+    var retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
+    if(retCode == 409) ok(s"Range with undefined pool rejected") else fail(s"Range with undefined pool got $retCode")
+    
+    // Create pool selector for undefined pool returns error 409
+    var jPoolSelector: JValue = ("selectorId" -> "myselector") ~ ("poolId" -> "undefined-pool") ~ ("priority" -> 1) 
+    retCode = codeFromPostJson(iamBaseURL + "/poolSelector", compact(jPoolSelector))
+    if(retCode == 409) ok(s"PoolSelector with undefined pool rejected") else fail(s"PoolSelector with undefined pool got $retCode")
+    
+    // Pool already existing returns error 409
+    var jPool: JValue = ("poolId" -> "pool-1-republica")
+    retCode = codeFromPostJson(iamBaseURL + "/pool", compact(jPool))
+    if(retCode == 409) ok(s"Duplicated pool rejected") else fail(s"Duplicated pool got $retCode")
+    
+    // Try to remove pool in use returns error 409
+    retCode = codeFromDelete(iamBaseURL + "/pool" + "/pool-1-republica")
+    if(retCode == 409) ok(s"Deletion of pool in use is rejected") else fail(s"Deletion of pool in use got $retCode")
+    
+    // PoolSelector already existing returns error 409
+    jPoolSelector = ("selectorId" -> "Republica") ~ ("poolId" -> "pool-1-republica") ~ ("priority" -> 1) 
+    retCode = codeFromPostJson(iamBaseURL + "/poolSelector", compact(jPoolSelector))
+    if(retCode == 409) ok(s"Duplicate PoolSelector rejected") else fail(s"Duplicate PoolSelector got $retCode")
+    
+    // Range already existing returns error 409
+    jRange = ("poolId" -> "pool-1-cuyo") ~ ("startIPAddress" -> 2000) ~ ("endIPAddress" -> 2098) ~ ("status" -> 1) 
+    retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
+    if(retCode == 409) ok(s"Duplicate Range rejected") else fail(s"Duplicated Range got $retCode")
+    
+    // Conflicting returns error 409
+    jRange = ("poolId" -> "pool-1-cuyo") ~ ("startIPAddress" -> 10100) ~ ("endIPAddress" -> 10200) ~ ("status" -> 1) 
+    retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
+    if(retCode == 409) ok(s"Overlapping Range rejected") else fail(s"Overlapping Range got $retCode")
+    
+    // Delete unexisting range returns 404
+    retCode = codeFromDelete(iamBaseURL + "/range/nonpool,1")
+    if(retCode == 404) ok(s"Delete non existing range returns not-found") else fail(s"Delete non existing ranges returns $retCode")
+    
+    nextTest
+  }
+  
+  def fillPool(): Unit = {
+    println("\n[INSERTING LEASES IN small-pool]")
+    
+    if(codeFromPostJson(iamBaseURL + "/fillPoolLeases/small-pool", "{}") == 200) ok(s"Pool filled") else fail(s"Error while filling pool") 
+    
+    nextTest
+  }
+  
+  def reloadLookup(): Unit = {
+     jsonFromPostJson(iamBaseURL + "/reloadLookup", "{}")
+     
+     nextTest
+  }
+  
+  def testLeases(): Unit = {
+    println("\n[LEASES]")
+    
+    // Getting addresses from createRange("small-pool", 9000, 9002, 1)
+    
+    // Ask for three IP addresses. Check that the results are 9000, 9001 and 9002
+    val addresses = for {
+      i <- 1 to 3
+      JInt(addr) = jsonFromPostJson(iamBaseURL + "/lease?selectorId=Small&requester=req1", "{}") \ "ipAddress"
+    } yield addr.toInt
+    
+    
+    if(addresses.sorted.sameElements(List(9000, 9001, 9002))) ok("Got addresses 9000, 9001 and 9002") else fail("Got bad addresses")
+
+    // Next request has to return 420
+    var code = codeFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}")
+    if(code == 420) ok("No more IP addresses available") else fail(s"Got $code when leasing address from pool that should be full")
+    
+    // Free one of them
+    code = codeFromPostJson(iamBaseURL + "/release?ipAddress=9001", "{}")
+    if(code == 200) ok("Address released") else fail(s"Address not released. Got $code")
+    
+    // Re-lease it again, after waiting ONE SECOND (grace time should be configured accordingly)
+    Thread.sleep(1100)
+    val JInt(newAddr) = jsonFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}") \ "ipAddress"
+    if(newAddr == 9001) ok("Address leased again") else fail(s"Address NOT leased again. Got $code")
+    
+    // Renew
+    code = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9000&requester=req1", "{}")
+    if(code == 200) ok("Address renewed") else fail(s"Address NOT renewed. Got $code")
+    
+    // Renew with failure
+    code = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9001&requester=fake", "{}")
+    if(code == 404) ok("Renewal disallowed") else fail(s"Renewal with failure got $code")
+    
+    nextTest
+  }
+  
+  def testBulkLease(): Unit = {
+    
+    println("\n[BULK LEASE]")
+    
+    val nAddresses = 4000
+    val nThreads = 10
+    
+    val startTime = System.currentTimeMillis()
+    
+    // Number of requests being performed
+    var i = new java.util.concurrent.atomic.AtomicInteger(0)
+    
+    // To be executed by one thread
+    def requestLoop() = {
+      var total = 0
+      var currIndex = 0
+      while({currIndex = i.getAndIncrement; if(currIndex < nAddresses) true else false})
+      {
+        print("\r" +  currIndex)
+        val base = if(currIndex % 2 == 0) iamBaseURL else iamSecondaryBaseURL
+        Try(jsonFromPostJson(base + "/lease?selectorId=Republica", "{}") \ "ipAddress") match {
+          
+          case Success(JInt(ipAddr)) =>
+            total = total + 1
+            
+          case Success(_) =>
+            // Try again
+            fail("Did not get an IP address. Try again")
+            
+          case Failure(e) =>
+            // Try again
+            fail(e.getMessage)
+        }
+      }
+      total
+    }
+    
+    // Accumulate the results of each requestLoop
+    val requests = List.fill(nThreads)(Future {requestLoop})
+    Future.fold(requests)(0)((acc, res) => (acc + res)).onComplete {
+      case Success(total) => 
+        val elapsedTime = System.currentTimeMillis() - startTime
+        val rate = (nAddresses * 1000) / elapsedTime
+        if(total == nAddresses) ok(s"Got $total leases. Rate: ${rate} leases per second") else fail(s"Got $total instead of $nAddresses")
+        nextTest
+        
+      case Failure(e) => 
+        fail(e.getMessage)
+        nextTest
+    }
+  }
+  
+  def unavailableLease(): Unit = {
+    
+    // Ask for a lease after bulklease has exhausted all IP addresses
+    // Must get 420 code
+    val code = codeFromPostJson(iamBaseURL + "/lease?selectorId=Republica", "{}")
+    if(code == 420) ok("Addreses for selector not available") else fail("Got an address from an exhausted pool")
+        
+    nextTest
   }
 }

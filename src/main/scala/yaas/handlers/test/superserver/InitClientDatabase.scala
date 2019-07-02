@@ -11,19 +11,18 @@ class InitClientDatabase(statsServer: ActorRef) extends MessageHandler(statsServ
   
   if(cache$("CLIENTS").isEmpty){
     
-    log.info("Creating client database")
+    log.info("Creating Clients database")
   
-    // Create table
     val clientCache = ignite$.getOrCreateCache[Nothing, Nothing]("CLIENTS")
-    clientCache.query(new SqlFieldsQuery("CREATE TABLE CLIENTS (USERNAME varchar primary key, LEGACY_CLIENT_ID varchar, PLANNAME varchar)"))
+    clientCache.query(new SqlFieldsQuery("CREATE TABLE \"CLIENTS\".Client (UserName varchar primary key, legacy_client_id varchar, planName varchar)"))
     
     // Populate
     for(i <- 0 to 1000){
-      val q = new SqlFieldsQuery("INSERT INTO CLIENTS (USERNAME, LEGACY_CLIENT_ID, PLANNAME) values (?, ?, ?)")
+      val q = new SqlFieldsQuery("INSERT INTO \"CLIENTS\".Client (UserName, legacy_client_id, planName) values (?, ?, ?)")
       q.setArgs("user_" + i, "legacy_" + i, "plan_" +  i)
       clientCache.query(q)
     }
     
-    log.info("Client database populated")
-  } else log.info("Client database already exists")
+    log.info("Clients database populated")
+  } else log.info("Clients database already exists")
 }

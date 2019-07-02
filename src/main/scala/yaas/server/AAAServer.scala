@@ -39,13 +39,13 @@ object AAAServer extends App {
 	val radiusDictionary = RadiusDictionary
 	
 	// Start ignite database if configured
-	yaas.database.SessionDatabase.init
+	if(config.getString("aaa.sessionsDatabase.role") != "none") yaas.database.SessionDatabase.init
 	
 	// The router will create the peers and handlers
   val actorSystem = ActorSystem("AAA")
 	val routerActor = actorSystem.actorOf(Router.props())
 	
-	// Start database query server
+	// Start sessions database and IPAM REST server
 	val databaseRole = config.getString("aaa.sessionsDatabase.role")
 	if(databaseRole == "server") actorSystem.actorOf(yaas.database.SessionRESTProvider.props())
 }
