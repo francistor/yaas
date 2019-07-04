@@ -111,20 +111,20 @@ object ConfigManager {
               // base + group found in objectName following nameRegex
               val url = base.getOrElse(defaultBase) +  nameRegex.findFirstMatchIn(modObjectName).get.group(1)
               log.info(s"Reading $modObjectName from URL $url")
-              parse(Source.fromURL(url).getLines.
+              Source.fromURL(url).getLines.
                   flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
                   map(replaceVars(_)).
-                  mkString(separator))
+                  mkString(separator)
             }
             else {
               val resName = nameRegex.findFirstMatchIn(modObjectName).get.group(1)
               log.info(s"Reading $modObjectName from resource $resName")
               // Remove comments
-              parse(Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.
+              Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.
                   flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
                   map(replaceVars(_)).
-                  mkString(separator))
-              // Scala 2.12 parse(Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator))
+                  mkString(separator)
+              // Scala 2.12 Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator)
             }
         }
       )
@@ -132,9 +132,10 @@ object ConfigManager {
     
     // Try instance specific first. Then, regular object name
     Try(lookUp(s"$instance/$objectName")).orElse(Try(lookUp(objectName))) match {
-      case Success(Some(j)) =>
-        configObjectCache(objectName) = j
-        j
+      case Success(Some(jString)) =>
+        val parsed = parse(jString)
+        configObjectCache(objectName) = parsed
+        parsed
         
       case _ =>
         throw new java.util.NoSuchElementException(objectName)
@@ -193,6 +194,32 @@ object ConfigManager {
 	def strFrom(jValue: JValue, path: List[String], default: String) = {
 	  nextPath(jValue, path).extract[Option[String]].getOrElse(default)
 	}
+	
+	
+	// And even more help
+	class JDefault(jv: JValue) {
+	  def key(key: String, defaultKey: String) = {
+	    val dValue = jv \ key
+	    dValue match {
+	      case JNothing => jv \ defaultKey
+	      case _ => dValue
+	    }
+	  }
+	  
+	  def jInt(path: String) = {
+	    nextPath(jv, path.split("\\.").toList).extract[Option[Int]]
+	  }
+	  
+	  def jLong(path: String) = {
+	    nextPath(jv, path.split("\\.").toList).extract[Option[Long]]
+	  }
+	  
+    def jStr(path: String) = {
+	    nextPath(jv, path.split("\\.").toList).extract[Option[String]]
+	  }
+	}
+	
+	implicit def fromJValueToJDefault(jv: JValue) = new JDefault(jv)
 	
 	// Helper
 	private def replaceVars(input: String) = {

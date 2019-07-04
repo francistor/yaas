@@ -4,6 +4,7 @@
 	{
 		"1001": "francisco.cardosogil@gmail.com",
 		"9": "Cisco",
+		"4874": "Unisphere",
 		"10415": "3GPP",
 		"21100": "PSA"
 	},
@@ -227,6 +228,22 @@
 				"code": 97,
 				"name": "Framed-IPv6-Prefix",
 				"type": "IPv6Prefix"
+			}
+		],
+		"9":
+		[
+			{
+				"code": 1,
+				"name": "AVPair",
+				"type": "String"
+			}
+		],
+		"4874":
+		[
+			{
+				"code": 31,
+				"name": "Service-Bundle",
+				"type": "String"
 			}
 		],
 		"21100": 

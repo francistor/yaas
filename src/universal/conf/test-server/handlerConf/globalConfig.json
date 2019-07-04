@@ -2,7 +2,7 @@
 	"cdrDir": "/var/tmp",
 	"permissiveService": "permisivo",
 	"rejectService": "reject",
-	"proxyTimeoutMillis": 2,
+	"proxyTimeoutMillis": 2000,
 	"proxyRetries": 1,
 	"radiusAttrs":[],
 	"nonOverridableRadiusAttrs": []

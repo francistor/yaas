@@ -238,11 +238,14 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   
   def testAccessRequestWithAccept(): Unit = {
     println("[TEST] Access Request --> With accept")
-    val userPassword = "The user-password!"
+    val userPassword = "password!_1"
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
       ("User-Name" -> "user_1@clientdb.accept") << 
-      ("User-Password" -> userPassword)
+      ("User-Password" -> userPassword) << 
+      ("NAS-IP-Address" -> "1.1.1.1") <<
+      ("NAS-Port" -> 1) <<
+      ("Acct-Session-Id" -> "Acct-Session-Id-1")
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     // Server echoes password

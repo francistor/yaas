@@ -14,25 +14,13 @@ class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) 
   
   // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
-      factorySettings _,
-      createPools _,
-      createPoolSelectors _,
-      createRanges _,
-      deleteRanges _,
-      deletePoolSelectors _,
-      deletePools _, 
-      errorConditions _,
-      fillPool _,
-      reloadLookup _,
-      testLeases _,
-      testBulkLease _,
-      unavailableLease _,
       checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,
       checkConnectedPeer(s"${serverMetricsURL}", "superserver.yaassuperserver") _,
       checkConnectedPeer(s"${serverMetricsURL}", "client.yaasclient") _,
       checkConnectedPeer(s"${superServerMetricsURL}", "server.yaasserver") _,
       testAccessRequestWithAccept _,
+      stop _,
       testAccessRequestWithReject _, 
       testAccessRequestWithDrop _,
       testAccountingRequest _,
@@ -54,6 +42,19 @@ class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) 
       checkDiameterPerformance("AA", "@accept", Math.min(5000, nRequests), 10, "AA Warmup") _,
       checkDiameterPerformance("AA", "@accept", nRequests, 10, "AA Free Wheel") _,
       checkDiameterPerformance("AC", "@accept", nRequests, 10, "AC Warmup") _,
-      checkDiameterPerformance("AC", "@accept", nRequests, 10, "AC Free Wheel") _
+      checkDiameterPerformance("AC", "@accept", nRequests, 10, "AC Free Wheel") _,
+      factorySettings _,
+      createPools _,
+      createPoolSelectors _,
+      createRanges _,
+      deleteRanges _,
+      deletePoolSelectors _,
+      deletePools _, 
+      errorConditions _,
+      fillPool _,
+      reloadLookup _,
+      testLeases _,
+      testBulkLease _,
+      unavailableLease _
   )
 }

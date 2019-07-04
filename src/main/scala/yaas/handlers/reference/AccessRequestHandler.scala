@@ -55,41 +55,32 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
     /*
-     * Helper functions
+     * Returns the list of radius attributes from the specified object (jValue) for the specified key and 
+     * property (typically, radiusAttrs or nonOverridableRadiusAttrs)
      */
-    def getRadiusAttrs(jValue: JValue, name: Option[String])  = {
-      val nv = name match {
+    def getRadiusAttrs(jValue: JValue, key: Option[String], propName: String)  = {
+      val nv = key match {
         case Some(v) => jValue \ v
         case None => jValue
       }
       
       for {
-        JArray(attrs) <- (nv \ "radiusAttrs")
+        JArray(attrs) <- (nv \ propName)
         JObject(attr) <- attrs
         JField(k, JString(v)) <- attr
       } yield Tuple2RadiusAVP((k, v))
     }
     
-    def getNORadiusAttrs(jValue: JValue, name: Option[String])  = {
-      val nv = name match {
-        case Some(v) => jValue \ v
-        case None => jValue
-      }
-            
-      for {
-        JArray(attrs) <- (nv \ "nonOverridableRadiusAttrs")
-        JObject(attr) <- attrs
-        JField(k, JString(v)) <- attr
-      } yield Tuple2RadiusAVP((k, v))
-    }
+    
     
     /**
      * Read configuration
      */
-    val jGlobalConfig = getConfigObject("globalConfig.json")
-    val jRealmConfig = getConfigObject("realmConfig.json")
-    val jServiceConfig = getConfigObject("serviceConfig.json")
-    val jSpecialUsersConfig = getConfigObject("specialUsersConfig.json")
+    val jGlobalConfig = getConfigObject("refHandlerConfig/globalConfig.json")
+    val jRealmConfig = getConfigObject("refHandlerConfig/realmConfig.json")
+    val jServiceConfig = getConfigObject("refHandlerConfig/serviceConfig.json")
+    val jRadiusClientConfig = getConfigObject("refHandlerConfig/radiusClientConfig.json")
+    val jSpecialUsersConfig = getConfigObject("refHandlerConfig/specialUsersConfig.json")
     
     val request = ctx.requestPacket
     
@@ -103,27 +94,34 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     val permissiveService = (jGlobalConfig \ "permissiveService").extract[Option[String]]
     val rejectService = (jGlobalConfig \ "rejectService").extract[Option[String]]
     
+    // Priorities Client --> Realm --> Global
+    val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
+    
     // Lookup client
-    val jProvisionType = (jRealmConfig \ realm \ "provisionType")
-    val provisionType = if(jProvisionType == JNothing) "database" else jProvisionType.extract[String]
+    val provisionType = jConfig.jStr("provisionType").getOrElse("database")
     val subscriberFuture = provisionType match {
       case "database" =>
-        // userName, password, serviceName, addonServiceName
+        // userName, password, serviceName, addonServiceName, legacyClientId
         // if UserName or password, they have to be verified
-        val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
+        // Stored procedure example: val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
+        val clientQuery = sql"""select UserName, Password, ServiceName, AddonServiceName, LegacyClientId from "CLIENT" where NASIPAddress=$nasIpAddress and NASPort=$nasPort""".as[(Option[String], Option[String], Option[String], Option[String], Option[String])]
         db.run(clientQuery)
 
       case "file" => 
         val subscriberEntry = jSpecialUsersConfig \ userName
-        Future.successful(
+          Future.successful(
+            if(subscriberEntry == JNothing) Vector() else
             Vector((
                 Some(userName), 
                 (subscriberEntry \ "password").extract[Option[String]], 
                 (subscriberEntry \ "serviceName").extract[Option[String]], 
-                None)))
+                None,
+                (subscriberEntry \ "legacyClientId").extract[Option[String]]
+            ))
+          )
                 
       case _ =>
-        throw new Exception("Invalid provisionType")
+        Future.failed(new Exception("Invalid provision type $provisionType"))
     }
     
     
@@ -137,21 +135,20 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
           
           var rejectReason: Option[String] = None
           
-          val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption) = 
+          val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientId) = 
             // Client found
             if(queryResult.length > 0) queryResult(0) 
             else 
             {
               // Client not found.
-              log.warning(s"Client not found $nasIpAddress : $nasPort")
+              log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
               if(permissiveService.isEmpty) rejectReason = Some("Client not provisioned")
               // userName, password, serviceName, addonServiceName
-              (None, None, permissiveService, None)
+              (None, None, permissiveService, None, None)
             }
           
           // Proxy if requested for this realm
-          val jProxyGroup = (jRealmConfig \ realm \ "proxyGroup")
-          val proxyGroup = jProxyGroup.extract[Option[String]]
+          val proxyGroup = jConfig.jStr("proxyGroup")
           val proxyAVPFuture = proxyGroup match {
             case Some(group) => 
               // Remove sensitive information
@@ -161,8 +158,8 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
                 removeAll("NAS-Identifier").
                 removeAll("NAS-Port-Id")
                 
-              val proxyTimeoutMillis = intFrom(jGlobalConfig, List("proxyTimeoutMillis"), 3000)
-              val proxyRetries = intFrom(jGlobalConfig, List("proxyRetries"), 2)
+              val proxyTimeoutMillis = jGlobalConfig.jInt("proxyTimeoutMillis").getOrElse(3000)
+              val proxyRetries = jGlobalConfig.jInt("proxyRetries").getOrElse(1)
               sendRadiusGroupRequest(group, proxyRequest, proxyTimeoutMillis, proxyRetries).map { packet => 
                 if(packet.code == RadiusPacket.ACCESS_REJECT){
                   log.info(s"$userName rejected by proxy server")
@@ -201,29 +198,41 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
               // Decide whether to reject
               val response = rejectReason match {
                 case Some(reason) if(rejectService.isEmpty) =>
+                  // Real reject, since there is no rejectService configured
                   RadiusPacket.responseFailure(request) << ("Reply-Message", reason)
                   
                 case Some(reason) =>
-                  RadiusPacket.response(request) << getRadiusAttrs(jServiceConfig, rejectService)
+                  // Use the rejectService
+                  RadiusPacket.response(request) << getRadiusAttrs(jServiceConfig, rejectService, "radiusAttrs")
                   
                 case None =>
-                  RadiusPacket.response(request) << getRadiusAttrs(jServiceConfig, serviceNameOption)
+                  // Accept. Add proxied attributes and service attributes
+                  val proxyRetainedAttributes = proxyAVPList.filter(avp => 
+                    avp.getName == "User-Password" || 
+                    avp.getName == "Reply-Message"
+                  )
+                  RadiusPacket.response(request) << proxyRetainedAttributes << getRadiusAttrs(jServiceConfig, serviceNameOption, "radiusAttrs")
               }
               
               if(response.code == RadiusPacket.ACCESS_ACCEPT){
+                // Add the rest of the attributes
+                
                 // Get domain attributes
-                val realmAVPList = getRadiusAttrs(jRealmConfig, Some(realm))
-                val noRealmAVPList = getNORadiusAttrs(jRealmConfig, Some(realm))
+                val realmAVPList = getRadiusAttrs(jRealmConfig, Some(realm), "radiusAttrs")
+                val noRealmAVPList = getRadiusAttrs(jRealmConfig, Some(realm), "nonOverridableRadiusAttrs")
                     
                 // Get global attributes
-                val globalAVPList = getRadiusAttrs(jGlobalConfig, Some(realm))
-                val noGlobalAVPList = getNORadiusAttrs(jGlobalConfig, Some(realm)) 
+                val globalAVPList = getRadiusAttrs(jGlobalConfig, Some(realm), "radiusAttrs")
+                val noGlobalAVPList = getRadiusAttrs(jGlobalConfig, Some(realm), "nonOverridableRadiusAttrs")
                 
                 // Insert into packet
                 realmAVPList.foreach(avp => response <<? avp)
                 globalAVPList.foreach(avp => response <<? avp)
                 noRealmAVPList.foreach(avp => response << avp)
                 noGlobalAVPList.foreach(avp => response << avp)
+                
+                // Add class. TODO: Add one class attribute per attribute, and code as A=
+                response << ("Class" -> "$legacyClientId")
               }
               
             sendRadiusResponse(response)

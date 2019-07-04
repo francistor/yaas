@@ -1,0 +1,15 @@
+{
+	"service_1":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab01"}
+		]
+	},
+	
+	"service_2":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab01"}
+		]
+	}
+}

@@ -1,0 +1,11 @@
+{
+	"test@reject":{
+		"password": "mypassword",
+		"serviceName": "betatester"
+	},
+	
+	"test@drop":{
+		"password": "mypassword",
+		"serviceName": "betatester"
+	}
+}
