@@ -27,7 +27,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     
     // Will send a response depending on the realm
     if(userName.contains("reject")){
-      sendRadiusResponse(requestPacket.responseFailure << ("Reply-Message" -> "The reply message!"))
+      sendRadiusResponse(requestPacket.responseFailure << ("Reply-Message" -> "Rejected by superserver!"))
     } 
     else if(userName.contains("drop")){
       // Required for stats

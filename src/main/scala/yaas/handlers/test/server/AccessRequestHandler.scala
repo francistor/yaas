@@ -37,6 +37,10 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
       driver=(dbConf \ "driver").extract[String], 
       executor = slick.util.AsyncExecutor("db-executor", numThreads=nThreads, queueSize=1000)
       )
+      
+  // Warm-up database connection
+  val warmupQuery = sql"""select sysdate from dual""".as[String]
+  db.run(warmupQuery)
   
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
@@ -92,11 +96,16 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     val userNameComponents = userName.split("@")
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
       
-    val permissiveService = (jGlobalConfig \ "permissiveService").extract[Option[String]]
-    val rejectService = (jGlobalConfig \ "rejectService").extract[Option[String]]
     
     // Priorities Client --> Realm --> Global
     val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
+    
+    // Cook some configuration variables
+    val permissiveServiceOption = (jConfig \ "permissiveService").extract[Option[String]]
+    val sendReject = (jConfig \ "sendReject").extract[Option[Boolean]].getOrElse(true)
+    val rejectServiceOption = if(!sendReject) (jConfig \ "rejectService").extract[Option[String]] else None
+    val acceptOnProxyError = (jConfig \ "acceptOnProxyError").extract[Option[Boolean]].getOrElse(false)
+    val authLocalOption = (jConfig \ "authLocal").extract[Option[String]]
     
     // Lookup client
     val provisionType = jConfig.jStr("provisionType").getOrElse("database")
@@ -105,7 +114,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
         // userName, password, serviceName, addonServiceName, legacyClientId
         // if UserName or password, they have to be verified
         // Stored procedure example: val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
-        log.debug("Executing query with $nasIpAddress : $nasPort")
+        log.debug(s"Executing query with $nasIpAddress : $nasPort")
         val clientQuery = sql"""select UserName, Password, ServiceName, AddonServiceName, LegacyClientId from "CLIENT" where NASIPAddress=$nasIpAddress and NASPort=$nasPort""".as[(Option[String], Option[String], Option[String], Option[String], Option[String])]
         db.run(clientQuery)
 
@@ -148,23 +157,56 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
             {
               // Client not found.
               log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
-              if(permissiveService.isEmpty) rejectReason = Some("Client not provisioned")
+              if(permissiveServiceOption.isEmpty) rejectReason = Some("Client not provisioned")
               // userName, password, serviceName, addonServiceName
-              (None, None, permissiveService, None, None)
+              (None, None, permissiveServiceOption, None, None)
             }
           
           log.debug(s"Client: ${legacyClientIdOption.getOrElse("")}), serviceName: ${serviceNameOption.getOrElse("")}, addonServiceName: ${addonServiceNameOption.getOrElse("")}")
           
-          // Check password if provisioned locally
-          passwordOption match {
-            case Some(provisionedPassword) =>
-              if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
-                log.debug("Incorrect password")
-                rejectReason = Some("Incorrect User-Name or User-Password")
+          // Verify password
+          authLocalOption match {
+            case Some("database") =>
+              passwordOption match {
+                case Some(provisionedPassword) =>
+                  if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
+                    log.debug("Incorrect password")
+                    rejectReason = Some("Incorrect User-Name or User-Password")
+                  }
+                  
+                case None => 
+                  // Not provisioned. Do not verify
               }
               
-            case None => 
+            case Some("file") =>
+              val subscriberEntry = jSpecialUsersConfig \ userName
+              if(subscriberEntry == JNothing){
+                log.warning(s"User-Name $userName not found in file")
+                rejectReason = Some(s"User-Name $userName not found in file")
+              } else {
+                subscriberEntry \ "password" match {
+                  case JString(password) =>
+                    if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(password))){
+                      log.debug("Incorrect password")
+                      rejectReason = Some(s"Incorrect Password for $userName")
+                    }
+                    
+                  case _ =>
+                    // Not provisioned. Do not verify
+                }
+              }
+            
+            case _ =>
+              // Do not verify
+            
           }
+          
+          // Override service
+          val oServiceNameOption = jConfig \ "overrideService" match {
+            case JString(overrideServiceName) => Some(overrideServiceName)
+            case _ => serviceNameOption
+          }
+         
 
           // Proxy if requested for this realm
           val proxyGroup = jConfig.jStr("proxyServerGroup")
@@ -194,7 +236,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
               sendRadiusGroupRequest(group, proxyRequest, proxyTimeoutMillis, proxyRetries).map { packet => 
                 if(packet.code == RadiusPacket.ACCESS_REJECT){
                   log.info(s"$userName rejected by proxy server")
-                  rejectReason = Some("Proxy: " + (packet >>+ "Reply-Message"))
+                  rejectReason = Some("Proxy: " + (packet >>++ "Reply-Message"))
                 } else log.debug("received response")
                 
                 // Filter the valid AVPs from proxy
@@ -205,7 +247,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
                       avp.getName == "User-Password"
                   )
               } recover {
-                case e: Exception =>
+                case e: Exception if acceptOnProxyError =>
                   log.error(s"Timeout in ServerGroup $group. Will continue due to permissive proxy policy")
                   // Permissive policy. Return empty list of attributes
                   List[RadiusAVP[Any]]()
@@ -217,17 +259,17 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
               
               // Decide whether to reject
               val response = rejectReason match {
-                case Some(reason) if(rejectService.isEmpty) =>
+                case Some(reason) if(rejectServiceOption.isEmpty) =>
                   // Real reject, since there is no rejectService configured
                   RadiusPacket.responseFailure(request) << ("Reply-Message", reason)
                   
                 case Some(reason) =>
                   // Use the rejectService
-                  RadiusPacket.response(request) << getRadiusAttrs(jServiceConfig, rejectService, "radiusAttrs")
+                  RadiusPacket.response(request) << getRadiusAttrs(jServiceConfig, rejectServiceOption, "radiusAttrs")
                   
                 case None =>
                   // Accept. Add proxied attributes and service attributes
-                  RadiusPacket.response(request) << proxyAVPList << getRadiusAttrs(jServiceConfig, serviceNameOption, "radiusAttrs")
+                  RadiusPacket.response(request) << proxyAVPList << getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs")
               }
               
               if(response.code == RadiusPacket.ACCESS_ACCEPT){
@@ -247,93 +289,15 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
                 noRealmAVPList.foreach(avp => response << avp)
                 noGlobalAVPList.foreach(avp => response << avp)
                 
-                // Add class. TODO: Add one class attribute per attribute, and code as A=
-                legacyClientIdOption.map(lcid => response << ("Class" -> lcid))
+                // Add class. TODO: Add one class attribute per attribute
+                legacyClientIdOption.map(lcid => response << ("Class" -> s"C=$lcid"))
               }
               
             sendRadiusResponse(response)
               
             case Failure(e) =>
-              // Never happens because of the recover (permissive policy if proxy does not answer)
-          }
-    }
-  }
-  
-  override def postStop = {
-    db.close()
-  }
-}
-
-class AccessRequestHandler2(statsServer: ActorRef) extends MessageHandler(statsServer) {
-  
-  log.info("Instantiated AccessRequestHandler")
-  
-  // Get the database configuration
-  val dbConf = yaas.config.ConfigManager.getConfigObject("clientsDatabase.json")
-  val nThreads = (dbConf \ "numThreads").extract[Int]
-  
-  val db = Database.forURL(
-      (dbConf \ "url").extract[String], 
-      driver=(dbConf \ "driver").extract[String], 
-      executor = slick.util.AsyncExecutor("db-executor", numThreads=nThreads, queueSize=1000)
-      )
-      
-  // Warm-up database connection
-  val clientQuery = sql"""select legacy_client_id from Client where UserName = 'user_1'""".as[String]
-  db.run(clientQuery)
-  
-  override def handleRadiusMessage(ctx: RadiusRequestContext) = {
-    // Should always be an access-request anyway
-    ctx.requestPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(ctx)
-    }
-  }
-  
-  def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
-    
-    // Initial action depending on the login
-    val request = ctx.requestPacket
-    val userName = request >>++ "User-Name"
-    val login = userName.split("@")(0)
-    
-    // Lookup username
-    val legacyClientIdFuture = if(userName.contains("clientdb")){
-      // Look in the database and get Future
-      val clientQuery = sql"""select legacy_client_id from Client where UserName = $login""".as[String]
-      db.run(clientQuery)
-    } else {
-      // Successful Future
-      scala.concurrent.Future.successful(Vector("unprovisioned_legacy_client_id"))
-    }
-    
-    legacyClientIdFuture.onComplete {
-        case Success(queryResult) => 
-          // If client not found, drop
-          if(queryResult.length == 0){
-            log.error(s"Client not found $login")
-            dropRadiusPacket
-          }
-          else {
-            // Proxy to upstream server group "superserver" with single server and random policy
-            // Response will depend on the realm (accept by default, @reject or @drop)
-            // Note: Use group "allServers" if needed to force a previous failed request to "not-existing-server"
-            sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete {
-              
-            case Success(response) =>
-              // Add legacy_client_id in the Class attribute
-              response << ("Class" -> queryResult.head)
-              sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
-              
-            case Failure(e) =>
               dropRadiusPacket
-              log.error(e.getMessage)
-            }
           }
-          
-        case Failure(error) => 
-          // Database error
-          dropRadiusPacket
-          log.error(error.getMessage)
     }
   }
   

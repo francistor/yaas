@@ -11,5 +11,17 @@
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Abab01"}
 		]
+	},
+	
+	"permService":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Apermissive"}
+		]
+	},
+	
+	"rejectService":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Areject"}
+		]
 	}
 }

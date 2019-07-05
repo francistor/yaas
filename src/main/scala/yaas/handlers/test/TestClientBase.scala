@@ -236,6 +236,13 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
    * 1 Accounting to be dropped. Retried by the client and the server (timeout server)
    */
   
+  /**
+   * Sends Access-Request to "allServers", the first one of which does not respond, and expects to receive
+   * 	User-Password = password!_1
+   *  Class = legacy_1
+   *  
+   *  The implementing server looks-up in the database using nasport:nasipaddress
+   */
   def testAccessRequestWithAccept(): Unit = {
     println("[TEST] Access Request --> With accept")
     val userPassword = "password!_1"
@@ -252,7 +259,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
       case Success(response) =>
         if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
-        else if(response >>++ "Class" != "legacy_1") fail("Received class is " + (response >>++ "Class"))
+        else if(response >>++ "Class" != "C=legacy_1") fail("Received class is " + (response >>++ "Class"))
         else {
           ok("Password attribute and class received correctly")
           nextTest
@@ -267,7 +274,12 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     println("[TEST] Access Request --> With reject")
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "test@reject")
+      ("User-Name" -> "test@reject") <<
+      ("User-Password" -> "mypassword") <<
+      ("NAS-IP-Address" -> "1.1.1.1") <<
+      ("NAS-Port" -> 1) <<
+      ("Acct-Session-Id" -> "Acct-Session-Id-1")
+      
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
@@ -276,7 +288,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
           ok("Reject received correctly")
         } else fail("Response is not a reject")
         
-        if((response >>++ "Reply-Message") == "The reply message!"){
+        if((response >>++ "Reply-Message") == "Proxy: Rejected by superserver!"){
           ok("Reply message is correct")
         } else fail("Response message is incorrect")
         nextTest
@@ -290,7 +302,11 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   def testAccessRequestWithDrop(): Unit = {
     println("[TEST] Access Request --> With drop")
     val accessRequest= RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "test@drop") 
+      ("User-Name" -> "test@drop") <<
+      ("User-Password" -> "mypassword") <<
+      ("NAS-IP-Address" -> "1.1.1.1") <<
+      ("NAS-Port" -> 1) <<
+      ("Acct-Session-Id" -> "Acct-Session-Id-1")
       
     // Will generate an unsuccessful request to "non-existing-server". Yaasserver will also send it twice to supserserver
     sendRadiusGroupRequest("allServers", accessRequest, 1500, 1).onComplete {
