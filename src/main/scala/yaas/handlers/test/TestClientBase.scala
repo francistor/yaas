@@ -199,11 +199,13 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   
   /*
    * User-Name coding will determine the actions taken by the upstream servers
-   * If domain contains
-   * 	"reject" --> superserver replies with access-reject (auth)
-   *  "drop" --> superserver drops the request (auth and acct)
-   *  "clientdb" --> server looks for the username (without realm) in the client database (auth)
-   *  "sessiondb" --> superserver stores or deletes the session in the session database (acct)
+   *  login-name
+   *  	may contain "accept", "reject" or "drop" to force the corresponding action on the superserver
+   *    may contain "nosession" to avoid storing the session in Ignite
+   *    
+   *  realm
+   *    "database" to do lookup in database
+   *    "file" to do lookup in file
    * 
    * Radius client
    * -------------
@@ -248,7 +250,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     val userPassword = "password!_1"
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "user_1@clientdb.accept") << 
+      ("User-Name" -> "user_1@database") << 
       ("User-Password" -> userPassword) << 
       ("NAS-IP-Address" -> "1.1.1.1") <<
       ("NAS-Port" -> 1) <<
@@ -274,7 +276,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     println("[TEST] Access Request --> With reject")
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "test@reject") <<
+      ("User-Name" -> "reject@file") <<
       ("User-Password" -> "mypassword") <<
       ("NAS-IP-Address" -> "1.1.1.1") <<
       ("NAS-Port" -> 1) <<
@@ -302,7 +304,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   def testAccessRequestWithDrop(): Unit = {
     println("[TEST] Access Request --> With drop")
     val accessRequest= RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "test@drop") <<
+      ("User-Name" -> "drop@file") <<
       ("User-Password" -> "mypassword") <<
       ("NAS-IP-Address" -> "1.1.1.1") <<
       ("NAS-Port" -> 1) <<
@@ -329,10 +331,12 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     val acctSessionId = "radius-session-1"
     
     val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
-      ("User-Name" -> "test@sessiondb") <<
+      ("NAS-IP-Address" -> "1.1.1.1") <<
+      ("NAS-Port" -> 1) <<
+      ("User-Name" -> "test@database") <<
       ("Acct-Session-Id" -> acctSessionId) <<
       ("Framed-IP-Address" -> ipAddress) <<
-      ("Acct-Status-Type" -> "Start") 
+      ("Acct-Status-Type" -> "Start")  
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest("allServers", accountingRequest, 2000, 1).onComplete {
@@ -355,8 +359,17 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   
   def testAccountingRequestWithDrop(): Unit = {
     println("[TEST] Accounting request with drop")
+    
+    val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
+      ("NAS-IP-Address" -> "1.1.1.1") <<
+      ("NAS-Port" -> 1) <<
+      ("User-Name" -> "drop@file") <<
+      ("Acct-Session-Id" -> "dropped-session-id") <<
+      ("Framed-IP-Address" -> "199.0.0.2") <<
+      ("Acct-Status-Type" -> "Start")  
+      
     // Generate another one to be discarded by the superserver. The servers re-sends the request to superserver
-    sendRadiusGroupRequest("testServer", RadiusPacket.request(ACCOUNTING_REQUEST) << ("User-Name" -> "test@drop"), 500, 0).onComplete {
+    sendRadiusGroupRequest("testServer", accountingRequest, 500, 0).onComplete {
       case _ => nextTest
     }
   }
@@ -364,6 +377,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   // Diameter NASREQ application, AA request
   def testAA(): Unit = {
     println("[TEST] AA Requests")
+    
     // Send AA Request with
     // Framed-Interface-Id to be echoed as one "Class" attribute
     // CHAP-Ident to be echoed as another "Class" attribute
@@ -396,7 +410,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     
     val ipAddress = "200.0.0.1"
     val acctSessionId = "diameter-session-1"
-    val userName = "user@sessiondb"
+    val userName = "sessiondb@file"
     
     val request = DiameterMessage.request("NASREQ", "AC")
     request << 
@@ -672,13 +686,16 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
       
       def loop: Unit = {
         val reqIndex = i.getAndIncrement
+        val index = reqIndex % 1000
         print("\r" +  reqIndex)
         if(reqIndex < nRequests){
           // The server will echo the User-Password. We'll test this
-          val password = "test-password!"
+          val password = s"password!_$index"
           val accessRequest = 
-            RadiusPacket.request(requestType) << 
-            ("User-Name" -> ("user_"+ (reqIndex % 1000) + domain)) << 
+            RadiusPacket.request(requestType) <<
+            ("NAS-IP-Address" -> "1.1.1.1") <<
+            ("NAS-Port" -> index) <<
+            ("User-Name" -> ("user_"+ index + domain)) << 
             ("User-Password" -> password) <<
             ("Acct-Session-Id" -> ("session-" + testName + "-" + reqIndex)) <<
             ("Acct-Status-Type" -> "Start") <<

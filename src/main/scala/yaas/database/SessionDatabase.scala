@@ -34,6 +34,8 @@ import org.json4s.jackson.JsonMethods._
  * 
  * Handlers use a JSession object, which is internally converted to Session
  */
+
+// TODO: Should use Options
 case class Session(
     @ScalarCacheQuerySqlField(index = true) acctSessionId: String, 
     @ScalarCacheQuerySqlField(index = true) ipAddress: String, 

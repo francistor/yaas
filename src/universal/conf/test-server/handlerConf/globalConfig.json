@@ -1,9 +1,10 @@
 {
-	"cdrDir": "/var/tmp",
+	"cdrDir": "/var/yaas/cdr",
+	"provisionType": "database",
 	"permissiveService": "permService",
 	"rejectService": "rejectService",
 	"sendReject": true,
-	"proxyTimeoutMillis": 2000,
+	"proxyTimeoutMillis": 500,
 	"proxyRetries": 1,
 	"acceptOnProxyError": false,
 	"radiusAttrs":[],

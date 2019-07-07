@@ -4,9 +4,13 @@
 	{
 		"1001": "francisco.cardosogil@gmail.com",
 		"9": "Cisco",
+		"2011": "Huawei",
+		"2352": "Redback",
 		"4874": "Unisphere",
+		"6527": "Alu",
 		"10415": "3GPP",
-		"21100": "PSA"
+		"21100": "PSA",
+		"90001": "YAAS"
 	},
 	"avp":
 	{
@@ -238,11 +242,40 @@
 				"type": "String"
 			}
 		],
+		"2011":
+		[
+			{
+				"code": 184,
+				"name": "Account-Info",
+				"type": "String"
+			},
+			{
+				"code": 185,
+				"name": "Service-Info",
+				"type": "String"
+			}
+		],
+		"2352":
+		[
+			{
+				"code": 190,
+				"name": "Service-Name",
+				"type": "String"
+			}
+		],
 		"4874":
 		[
 			{
 				"code": 31,
 				"name": "Service-Bundle",
+				"type": "String"
+			}
+		],
+		"6527":
+		[
+			{
+				"code": 151,
+				"name": "Sub-Serv-Activate",
 				"type": "String"
 			}
 		],
@@ -277,6 +310,24 @@
 				"code": 200,
 				"name": "myTimeAttribute",
 				"type": "Time"
+			}
+		],
+		"90001":
+		[
+			{
+				"code": 1,
+				"name": "ClientId",
+				"type": "String"
+			},
+			{
+				"code": 2,
+				"name": "PlanName",
+				"type": "String"
+			},
+			{
+				"code": 3,
+				"name": "ServiceName",
+				"type": "String"
 			}
 		]
 	}

@@ -1,5 +1,5 @@
 {
-	"clientdb.accept":{
+	"database":{
 		"provisionType": "database",
 		"authLocal": "database",
 		"proxyServerGroup": "superServer",
@@ -12,27 +12,9 @@
 		]
 	},
 	
-	"betatester":{
-		"provisionType": "database",
-		"authLocal": "file"
-	},
-	
-	"reject":{
+	"file":{
 		"provisionType": "file",
-		"authLocal": "file",
-		"proxyServerGroup": "superServer",
-		"writeSessionCDR": true,
-		"radiusAttrs":[
-			{"Session-Timeout": 3600}
-		],
-		"nonOverridableRadiusAttrs":[
-			{"Cisco-AVPair": "hello=world"}
-		]
-	},
-	
-	"drop":{
-		"provisionType": "file",
-		"proxyServerGroup": "superServer",
-		"writeSessionCDR": true
+		"authLocal": "none",
+		"proxyServerGroup": "superServer"
 	}
 }

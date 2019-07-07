@@ -77,7 +77,6 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     }
     
     
-    
     /**
      * Read configuration
      */
@@ -96,9 +95,9 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
     val userNameComponents = userName.split("@")
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
       
-    
     // Priorities Client --> Realm --> Global
-    val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
+    val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).
+      merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
     
     // Cook some configuration variables
     val permissiveServiceOption = (jConfig \ "permissiveService").extract[Option[String]]
@@ -131,6 +130,9 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
                 (subscriberEntry \ "legacyClientId").extract[Option[String]]
             ))
           )
+          
+      case "none" =>
+        Future.successful(Vector((None, None, None, None, None)))
                 
       case _ =>
         Future.failed(new Exception("Invalid provision type $provisionType"))
@@ -162,7 +164,7 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
               (None, None, permissiveServiceOption, None, None)
             }
           
-          log.debug(s"Client: ${legacyClientIdOption.getOrElse("")}), serviceName: ${serviceNameOption.getOrElse("")}, addonServiceName: ${addonServiceNameOption.getOrElse("")}")
+          log.debug(s"Client: ${legacyClientIdOption.getOrElse("")}, serviceName: ${serviceNameOption.getOrElse("")}, addonServiceName: ${addonServiceNameOption.getOrElse("")}")
           
           // Verify password
           authLocalOption match {
@@ -170,7 +172,8 @@ class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsSe
               passwordOption match {
                 case Some(provisionedPassword) =>
                   if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
-                    log.debug("Incorrect password")
+                      log.debug("Incorrect password")
+
                     rejectReason = Some("Incorrect User-Name or User-Password")
                   }
                   
