@@ -24,7 +24,7 @@ import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 
 
-class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated AccessRequestHandler")
   

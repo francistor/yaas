@@ -7,7 +7,7 @@ import yaas.coding.DiameterConversions._
 import yaas.server.MessageHandler
 import scala.collection.Seq
 
-class GxHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class GxHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated GxHandler")
   

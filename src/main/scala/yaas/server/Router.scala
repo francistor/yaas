@@ -51,7 +51,7 @@ import com.typesafe.config.ConfigFactory
 
 import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
 import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
-import yaas.config.{HandlerConfigManager, HandlerConfig}
+import yaas.config.{HandlerConfigManager, HandlerConfigEntry}
 import yaas.coding.DiameterMessage
 import yaas.coding.DiameterConversions._
 import yaas.coding.RadiusPacket
@@ -238,7 +238,7 @@ class Router() extends Actor with ActorLogging {
 	  scala.collection.mutable.Map() ++ newPeerHostMap
 	}
   
-  def updateHandlerMap(conf: Map[String, String], currHandlerMap: Map[String, ActorRef]) = {
+  def updateHandlerMap(conf: Map[String, HandlerConfigEntry], currHandlerMap: Map[String, ActorRef]) = {
     log.info("Updating Handlers")
     
     // Shutdown unconfigured handlers
@@ -249,10 +249,10 @@ class Router() extends Actor with ActorLogging {
     }
     
     // Create new handlers if needed
-    val newHandlerMap = conf.map { case (name, clazz) => 
+    val newHandlerMap = conf.map { case (name, hce) => 
       if(cleanHandlerMap.get(name) == None){
         log.info(s"Creating handler $name")
-        (name, context.actorOf(Props(Class.forName(clazz).asInstanceOf[Class[Actor]], metricsServer), name + "-handler"))
+        (name, context.actorOf(Props(Class.forName(hce.clazz).asInstanceOf[Class[Actor]], metricsServer, hce.config), name + "-handler"))
       }
       // Already created
       else (name, cleanHandlerMap(name))
@@ -602,6 +602,7 @@ class Router() extends Actor with ActorLogging {
         
         // Reconfigure Handlers
         if(fileName.contains("handlers.json")){
+          HandlerConfigManager.updateHandlerConfig(false)
           handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig, handlerMap)
         }
         

@@ -37,7 +37,7 @@ object MessageHandler {
 /**
  * Base class for all handlers, including also methods for sending messages
  */
-class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
+class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extends Actor with ActorLogging {
   
   import MessageHandler._
   
@@ -266,4 +266,75 @@ class MessageHandler(statsServer: ActorRef) extends Actor with ActorLogging {
     case RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum) =>
       sendRadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum)
 	}
+  
+  
+  ////////////////////////////////
+  // Javascript integration
+  ////////////////////////////////
+  object YaasJS {
+    
+    import org.json4s._
+    import org.json4s.jackson.JsonMethods._
+    import yaas.coding.RadiusConversions._
+    import yaas.coding.DiameterConversions._
+    
+    import akka.http.scaladsl.Http
+    import akka.http.scaladsl.model._
+    import akka.http.scaladsl.model.HttpMethods._
+    import akka.http.scaladsl.unmarshalling.Unmarshal
+    implicit val materializer = akka.stream.ActorMaterializer()
+    val http = Http(context.system)
+    
+    /**
+     * This function has to be exposed to the Javascript engine
+     * val engine = new ScriptEngineManager().getEngineByName("nashorn");
+     * val y = YaasJS
+  	 * engine.put("YaasJS", y)
+  	 * 
+  	 * callback has the form "function(err, response)"
+     */
+    def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject) = {
+        
+      val jsonPacket = parse(requestPacket)
+      val responseFuture = sendRadiusGroupRequest(serverGroupName, jsonPacket, timeoutMillis, retries)
+      responseFuture.onComplete{
+        case Success(response) =>
+          // Force conversion
+          val jResponse: JValue = response
+          callback.call(null, null, compact(render(jResponse)))
+          
+        case Failure(error) =>
+          callback.call(null, error)
+      }
+    }
+    
+    def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: jdk.nashorn.api.scripting.JSObject) = {
+      val jsonPacket = parse(requestMessage)
+      val responseFuture = sendDiameterRequest(jsonPacket, timeoutMillis)
+      responseFuture.onComplete{
+        case Success(response) =>
+          // Force conversion
+          val jResponse: JValue = response
+          callback.call(null, null, compact(render(jResponse)))
+          
+        case Failure(error) =>
+          callback.call(null, error)
+      }
+    }
+    
+    def httpRequest(url: String, method: String, json: String, callback: jdk.nashorn.api.scripting.JSObject) = {
+      val responseFuture = http.singleRequest(HttpRequest(HttpMethods.getForKey(method).get, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
+      (for {
+        re <- responseFuture
+        r <- Unmarshal(re.entity).to[String]
+      } yield r ) onComplete {
+        case Success(response) =>
+          callback.call(null, null, response)
+          
+        case Failure(error) =>
+          callback.call(null, error)
+      }
+    }
+    
+  }
 }

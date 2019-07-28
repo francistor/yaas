@@ -11,7 +11,7 @@ import yaas.server.MessageHandler
 /**
  * This application is proxied. A new request is generated for the upstream server
  */
-class NASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated NASREQHandler")
   

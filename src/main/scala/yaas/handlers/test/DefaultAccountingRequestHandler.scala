@@ -14,7 +14,7 @@ import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
 
-class DefaultAccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class DefaultAccountingRequestHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated AccountingRequestHandler")
   

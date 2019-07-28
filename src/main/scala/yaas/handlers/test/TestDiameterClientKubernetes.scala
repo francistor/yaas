@@ -3,7 +3,7 @@ package yaas.handlers.test
 import akka.actor.{ActorRef}
 import yaas.coding.RadiusPacket._
 
-class TestDiameterClientKubernetes(statsServer: ActorRef) extends TestClientBase(statsServer) {
+class TestDiameterClientKubernetes(statsServer: ActorRef, configObject: Option[String]) extends TestClientBase(statsServer, configObject) {
   // Not used
   val clientMetricsURL = "http://localhost:19001"
   val serverMetricsURL = "http://localhost:19002"

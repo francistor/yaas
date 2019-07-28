@@ -10,6 +10,7 @@ import yaas.dictionary.DiameterDictionary
 import yaas.util.OctetOps
 import yaas.coding.RadiusPacket._
 import yaas.coding.RadiusConversions._
+import yaas.config.ConfigManager
 
 import scala.util.Try
 import scala.util.{Success, Failure}
@@ -35,14 +36,13 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(metricsServer) with JsonSupport {
+abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[String]) extends MessageHandler(metricsServer, configObject) with JsonSupport {
   
   log.info("Instantiated Radius/Diameter client application")
   
   val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).map(req => Integer.parseInt(req)).getOrElse(10000)
   
   implicit val materializer = ActorMaterializer()
-  
   val http = Http(context.system)
   
   //////////////////////////////////////////////////////////////////////////////
@@ -155,6 +155,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   // Finishes the tests because does not call nextText
   def stop(): Unit = {
     println("Tests stopped")
+    System.exit(0);
   }
   
   def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
@@ -330,13 +331,22 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     val ipAddress = "199.0.0.1"
     val acctSessionId = "radius-session-1"
     
-    val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
-      ("NAS-IP-Address" -> "1.1.1.1") <<
-      ("NAS-Port" -> 1) <<
-      ("User-Name" -> "test@database") <<
-      ("Acct-Session-Id" -> acctSessionId) <<
-      ("Framed-IP-Address" -> ipAddress) <<
-      ("Acct-Status-Type" -> "Start")  
+    val sAccountingRequest = s"""
+      {
+        "code": 4,
+        "avps": {
+          "NAS-IP-Address": "1.1.1.1",
+          "NAS-Port": 1,
+          "User-Name": "test@database",
+          "Acct-Session-Id": "${acctSessionId}",
+          "Framed-IP-Address": "${ipAddress}",
+          "Acct-Status-Type": "Start"
+        }
+      }
+      """
+      
+    val accountingRequest: RadiusPacket = parse(sAccountingRequest)
+
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest("allServers", accountingRequest, 2000, 1).onComplete {
@@ -834,6 +844,7 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
   
   ////////////////////////////////////////////////////////////////////////////////////
   // Helpers for IPAM
+  ////////////////////////////////////////////////////////////////////////////////////
   def createPool(poolId: String) = {
     val jPool: JValue = ("poolId" -> poolId)
     val retCode = codeFromPostJson(iamBaseURL + "/pool", compact(jPool))
@@ -1114,5 +1125,73 @@ abstract class TestClientBase(metricsServer: ActorRef) extends MessageHandler(me
     if(code == 420) ok("Addreses for selector not available") else fail("Got an address from an exhausted pool")
         
     nextTest
+  }
+  
+  
+  ////////////////////////////////////////////////////////////////////////////////////
+  // JScript testing
+  ////////////////////////////////////////////////////////////////////////////////////
+  /*
+  // JS usage example
+
+	// the baseURL object will contain the location of the base script 
+  load(baseURL + "/tests.js");
+  
+  var acctSessionId = "acct-session-id-1";
+  var ipAddress = "199.0.0.1";
+  var request = {
+  	"code": 4,
+  	"avps": {
+  	  "NAS-IP-Address": "1.1.1.1",
+  	  "NAS-Port": 1,
+  	  "User-Name": "test@database",
+  	  "Acct-Session-Id": acctSessionId,
+  	  "Framed-IP-Address": ipAddress,
+  	  "Acct-Status-Type": "Start"
+  	}
+  }
+  
+  Yaas.radiusRequest("allServers", JSON.stringify(request), 2000, 1, function(err, response){
+  	if(err){
+  		print("There was an error.\n" + err.message);
+  	}
+  	else {
+  		print("Response received.\n");
+  		print(response);
+  	}
+  	
+  	Notifier.end();
+  });
+  
+  // Print something, but the test will not be finished until Notifier.end() is called
+  print("Radius request sent\n");
+*/
+
+  def runJS(scriptName: String)(): Unit = {
+    
+    class Notifier {
+      def end = nextTest
+    }
+    
+    import javax.script._
+    
+    // Instantiate
+    val engine = new ScriptEngineManager().getEngineByName("nashorn");
+    
+    // Put objects in scope
+    // Radius/Diameter/HTTP helper
+  	engine.put("Yaas", YaasJS)
+  	
+  	// Base location of the script
+  	val scriptURL = ConfigManager.getObjectURL(scriptName).getPath.toString
+  	engine.put("baseURL", scriptURL.substring(0, scriptURL.indexOf(scriptName)))
+  	
+  	// To signal finalization
+  	// JScript will invoke Notifier.end
+  	engine.put("Notifier", new Notifier)
+  	
+  	// Excecute Javascript
+  	engine.eval(ConfigManager.readObject(scriptName));
+  	
   }
 }

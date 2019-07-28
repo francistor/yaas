@@ -7,7 +7,7 @@ import org.apache.ignite.cache.query.SqlFieldsQuery
 import org.apache.ignite.scalar._
 import scalar._
 
-class InitClientDatabase(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   if(cache$("CLIENTS").isEmpty){
     

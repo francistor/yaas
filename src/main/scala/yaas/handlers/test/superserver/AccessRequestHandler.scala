@@ -8,7 +8,7 @@ import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusConversions._
 import yaas.server.MessageHandler
 
-class AccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated AccessRequestHandler")
   

@@ -18,7 +18,7 @@ import slick.jdbc.JdbcBackend.Database
 // Generic JDBC is deprecated. Use any profile
 import slick.jdbc.SQLiteProfile.api._
 
-class DefaultAccessRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class DefaultAccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated AccessRequestHandler")
   

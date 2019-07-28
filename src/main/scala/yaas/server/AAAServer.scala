@@ -5,6 +5,7 @@ import scala.util.{Try, Success, Failure}
 import com.typesafe.config.ConfigFactory
 
 import yaas.dictionary.{DiameterDictionary, RadiusDictionary}
+import yaas.config.ConfigManager
 
 ////////////////////////////////////////////////////////////////////////
 // Main Diameter Object and application
@@ -32,7 +33,8 @@ object AAAServer extends App {
     }
   }
   
-  val config = ConfigFactory.load()
+  // Publish command line for the benefit of handlers
+  ConfigManager.pushCommandLine(args)
 	
 	// Create dictionary. Just to do initialization of the Singleton
 	val diameterDictionary = DiameterDictionary

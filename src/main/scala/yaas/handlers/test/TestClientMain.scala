@@ -3,17 +3,22 @@ package yaas.handlers.test
 import akka.actor.{ActorRef}
 import yaas.coding.RadiusPacket._
 
-class TestClientMain(statsServer: ActorRef) extends TestClientBase(statsServer) {
+class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extends TestClientBase(statsServer, configObject) {
   val clientMetricsURL = "http://localhost:19001"
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
   val superServerSessionsURL = "http://localhost:19503"
   
+  // Use different URL for full test
   val iamBaseURL = "http://localhost:19503/iam"
   val iamSecondaryBaseURL = "http://localhost:19503/iam"
   
+  // nRequests is 1000 or the value in YAAS_TEST_REQUESTS
+  
   // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
+      runJS(configObject.get) _,
+      stop _,
       checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,
       checkConnectedPeer(s"${serverMetricsURL}", "superserver.yaassuperserver") _,

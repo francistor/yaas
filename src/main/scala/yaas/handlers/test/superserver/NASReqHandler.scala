@@ -8,7 +8,7 @@ import yaas.server.MessageHandler
 import yaas.database._
 import org.json4s.JsonDSL._
 
-class NASReqHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated NASREQ Handler")
   

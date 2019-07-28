@@ -98,11 +98,79 @@ object ConfigManager {
       "handlers.json"
 	*/
   
+  /**
+   * Gets the URL of the specified resource.
+   * 
+   * Looks for the location using the configured SearchRules and tries to read it first from that
+   * base location and then from the "<instance>"/ base location
+   */
+  def getObjectURL(objectName: String) = {
+    def lookUp(modObjectName: String) = {
+      val urlOption = rules.collectFirst(
+        {
+          case SearchRule(nameRegex, locationType, base) if modObjectName.matches(nameRegex.regex) =>
+            if(locationType == "URL"){
+              // base + group found in objectName following nameRegex
+              new URL(base.getOrElse(defaultBase) +  nameRegex.findFirstMatchIn(modObjectName).get.group(1))
+            }
+            else {
+              val resName = nameRegex.findFirstMatchIn(modObjectName).get.group(1)
+              getClass.getResource("/" + resName)
+            }
+        }
+      )
+      
+      urlOption match {
+        // Try to read it
+        case Some(url) =>  
+          Source.fromURL(url)
+          url
+          
+        case None =>
+          throw new java.util.NoSuchElementException(objectName)
+      }
+    }
+    
+    // Try instance specific first. Then, regular object name
+    Try(lookUp(s"$instance/$objectName")).orElse(Try(lookUp(objectName))) match {
+      case Success(url) => url
+        
+      case _ =>
+        throw new java.util.NoSuchElementException(objectName)
+    }
+  }
+  
+  /**
+   * Gets the configuration object as a string
+   */
+  def readObject(objectName: String): String = {
+    val url = getObjectURL(objectName)
+    Source.fromURL(url).
+      getLines.
+      flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
+      map(replaceVars(_)).
+      mkString(separator)
+  }
+  
+  /**
+   * Gets the configuration object as a JSON object and caches it
+   */
+  def readConfigObject(objectName: String): JValue = {
+    val parsed = parse(readObject(objectName))
+    configObjectCache(objectName) = parsed
+    parsed
+  }
+  
   /*
    * Retrieves the specified configured object name
    */
-  private def readConfigObject(objectName: String): JValue = { 	
-    
+  private def readConfigObject2(objectName: String): JValue = { 	
+	  val parsed = parse(readObject2(objectName))
+    configObjectCache(objectName) = parsed
+    parsed
+  }
+  
+  def readObject2(objectName: String): String = {
     def lookUp(modObjectName: String) = {
       rules.collectFirst(
         {
@@ -132,10 +200,8 @@ object ConfigManager {
     
     // Try instance specific first. Then, regular object name
     Try(lookUp(s"$instance/$objectName")).orElse(Try(lookUp(objectName))) match {
-      case Success(Some(jString)) =>
-        val parsed = parse(jString)
-        configObjectCache(objectName) = parsed
-        parsed
+      case Success(Some(string)) =>
+        string
         
       case _ =>
         throw new java.util.NoSuchElementException(objectName)
@@ -172,8 +238,31 @@ object ConfigManager {
 	  for(objectName <- configObjectCache.keySet) configObjectCache(objectName) = readConfigObject(objectName)
 	}	
 	
+	/**
+	 * Helpers for Handlers
+	 */
+	var commandLine: Array[String] = Array()
 	
-	// Helpers to extract from JValue
+	def pushCommandLine(commandLine: Array[String]) = {
+	  this.commandLine = commandLine
+	}
+	
+	def popCommandLine = commandLine
+	
+	def baseURL: String = {
+	  defaultBase
+	}
+	
+	
+	/** Helpers to extract from JValue
+	 *  
+	 *  To be used in handlers. Given a JValue, if importing ConfigManager._, we can use
+	 *  
+	 *  jValue.jInt("mydomain.subKey", "key") to get an Int, or
+	 *  jValue.key("mydomain.subKey", "DEFAULT") to get a full json object
+	 *  
+	 *  
+	 */
 	private implicit val formats = DefaultFormats
 	
 	private def nextPath(jValue: JValue, path: List[String]): JValue = {

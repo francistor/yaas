@@ -7,7 +7,7 @@ import yaas.coding.DiameterConversions._
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
-class CCHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class CCHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated CCHandler")
   

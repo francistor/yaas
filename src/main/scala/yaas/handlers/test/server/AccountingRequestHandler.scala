@@ -17,7 +17,7 @@ import yaas.server.MessageHandler
 import org.json4s.JsonDSL._
 
 
-class AccountingRequestHandler(statsServer: ActorRef) extends MessageHandler(statsServer) {
+class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated AccountingRequestHandler")
 

@@ -1027,7 +1027,20 @@ object RadiusConversions {
     dictItem.radiusType match {
       case RadiusTypes.OCTETS => new OctetsRadiusAVP(code, vendorId, OctetOps.stringToOctets(attrValue.extract[String]))
       case RadiusTypes.STRING => new StringRadiusAVP(code, vendorId, attrValue.extract[String])
-      case RadiusTypes.INTEGER => new IntegerRadiusAVP(code, vendorId, attrValue.extract[Int])
+      case RadiusTypes.INTEGER =>
+        attrValue match {
+          case JString(v) =>
+            // Try to get as enum (first option) or convert from string (second option)
+            val longValue = (for {
+              values <- dictItem.enumValues
+              value <- values.get(v)
+              longValue = value.toLong
+            } yield longValue).getOrElse(v.toLong)
+            new IntegerRadiusAVP(code, vendorId, longValue)
+            
+          case _ => new IntegerRadiusAVP(code, vendorId, attrValue.extract[Int])
+        }
+        
       case RadiusTypes.TIME => new TimeRadiusAVP(code, vendorId, new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT).parse(attrValue.extract[String]))
       case RadiusTypes.ADDRESS => new AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
       case RadiusTypes.IPV6ADDR => new IPv6AddressRadiusAVP(code, vendorId, java.net.InetAddress.getByName(attrValue.extract[String]))
@@ -1044,7 +1057,21 @@ object RadiusConversions {
     avp match {
       case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
       case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
-      case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
+      case avp: IntegerRadiusAVP => 
+        // Try to convert to String if there is an enum map and the value is found
+        val dictItem = RadiusDictionary.avpMapByName(avp.getName)
+        val mayBeString = (for {
+          sValues <- dictItem.enumNames
+          sValue <- sValues.get(avp.value.toInt)
+        } yield sValue)
+        
+        mayBeString match {
+          case Some(stringValue) => 
+            JField(avp.getName, stringValue)
+            
+          case _ => 
+            JField(avp.getName, JInt(avp.value))
+        }
       case avp: TimeRadiusAVP => JField(avp.getName, JString(new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT).format(avp.value)))
       case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
@@ -1094,20 +1121,7 @@ object RadiusConversions {
     case rp : RadiusPacket =>
       val javps = for {
         avp <- rp.avps.toList
-      } yield
-        avp match { // TODO: Replace with RadiusAVPToJField
-          case avp: OctetsRadiusAVP  => JField(avp.getName, JString(OctetOps.octetsToString(avp.value)))
-          case avp: StringRadiusAVP => JField(avp.getName, JString(avp.value))
-          case avp: IntegerRadiusAVP => JField(avp.getName, JInt(avp.value))
-          case avp: TimeRadiusAVP =>
-            val sdf = new java.text.SimpleDateFormat(RadiusAVP.DATE_FORMAT)
-            JField(avp.getName, JString(sdf.format(avp.value)))
-          case avp: AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
-          case avp: IPv6AddressRadiusAVP => JField(avp.getName, JString(avp.toString))
-          case avp: IPv6PrefixRadiusAVP => JField(avp.getName, JString(avp.toString))
-          case avp: InterfaceIdRadiusAVP => JField(avp.getName, JString(avp.toString))
-          case avp: Integer64RadiusAVP => JField(avp.getName, JInt(avp.value))
-        }
+      } yield RadiusAVPToJField(avp)
 
       ("code" -> rp.code) ~
       ("id" -> rp.identifier) ~ 
