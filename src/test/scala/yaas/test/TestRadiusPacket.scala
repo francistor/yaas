@@ -129,18 +129,23 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
       {
         "code": 4,
         "avps": {
-          "NAS-Port": 1,
-          "User-Name": "test@database",
-          "Acct-Session-Id": "acctSessionId-1",
-          "Framed-IP-Address": "1.1.1.1",
-          "Acct-Status-Type": "Start"
+          "NAS-Port": [1],
+          "User-Name": ["test@database"],
+          "Acct-Session-Id": ["acctSessionId-1"],
+          "Framed-IP-Address": ["1.1.1.1"],
+          "Acct-Status-Type": ["Start"],
+          "Class": ["C=1"],
+          "Class": ["S=bab01"]
         }
       }
       """
     val packet: RadiusPacket = parse(sRadiusPacket)
     val jPacket: JValue = packet
+    /**
     (jPacket \ "avps" \ "NAS-Port").extract[Int] mustEqual 1
     (jPacket \ "avps" \ "Acct-Status-Type").extract[String] mustEqual "Start"
+    * 
+    */
     
     
   }

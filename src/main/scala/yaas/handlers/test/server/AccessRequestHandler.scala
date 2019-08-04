@@ -72,8 +72,8 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
       for {
         JArray(attrs) <- (nv \ propName)
         JObject(attr) <- attrs
-        JField(k, JString(v)) <- attr
-      } yield Tuple2RadiusAVP((k, v))
+        JField(k, v) <- attr
+      } yield TupleJson2RadiusAVP((k, v))
     }
     
     
@@ -105,6 +105,9 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
     val rejectServiceOption = if(!sendReject) (jConfig \ "rejectService").extract[Option[String]] else None
     val acceptOnProxyError = (jConfig \ "acceptOnProxyError").extract[Option[Boolean]].getOrElse(false)
     val authLocalOption = (jConfig \ "authLocal").extract[Option[String]]
+    
+    if(log.isDebugEnabled) log.debug("Global configuration: {}\npermissiveServiceOption: {}, sendReject: {}", pretty(jConfig), permissiveServiceOption, sendReject)
+    if(log.isDebugEnabled) log.debug("rejectServiceOption: {}, acceptOnProxyError: {}, authLocalOption: {}", rejectServiceOption, acceptOnProxyError, authLocalOption)
     
     // Lookup client
     val provisionType = jConfig.jStr("provisionType").getOrElse("database")
@@ -155,9 +158,9 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
             if(queryResult.length > 0){
               queryResult(0) 
             }
+            // Client not found
             else 
             {
-              // Client not found.
               log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
               if(permissiveServiceOption.isEmpty) rejectReason = Some("Client not provisioned")
               // userName, password, serviceName, addonServiceName
@@ -172,8 +175,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
               passwordOption match {
                 case Some(provisionedPassword) =>
                   if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
-                      log.debug("Incorrect password")
-
+                    log.debug("Incorrect password")
                     rejectReason = Some("Incorrect User-Name or User-Password")
                   }
                   
@@ -210,7 +212,6 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
             case _ => serviceNameOption
           }
          
-
           // Proxy if requested for this realm
           val proxyGroup = jConfig.jStr("proxyServerGroup")
           val proxyAVPFuture = proxyGroup match {
@@ -268,11 +269,18 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                   
                 case Some(reason) =>
                   // Use the rejectService
-                  RadiusPacket.response(request) << getRadiusAttrs(jServiceConfig, rejectServiceOption, "radiusAttrs")
+                  RadiusPacket.response(request) << 
+                    getRadiusAttrs(jServiceConfig, rejectServiceOption, "radiusAttrs") <<
+                    ("Class" -> s"S=${rejectServiceOption.get}") <<
+                    ("Class" -> s"R=1")
+                    
                   
                 case None =>
                   // Accept. Add proxied attributes and service attributes
-                  RadiusPacket.response(request) << proxyAVPList << getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs")
+                  RadiusPacket.response(request) << 
+                    proxyAVPList << 
+                    getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs") <<
+                    ("Class" -> s"S=${oServiceNameOption.get}")
               }
               
               if(response.code == RadiusPacket.ACCESS_ACCEPT){

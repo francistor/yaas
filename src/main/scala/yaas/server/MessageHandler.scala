@@ -295,8 +295,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
      */
     def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject) = {
         
-      val jsonPacket = parse(requestPacket)
-      val responseFuture = sendRadiusGroupRequest(serverGroupName, jsonPacket, timeoutMillis, retries)
+      val responseFuture = sendRadiusGroupRequest(serverGroupName, parse(requestPacket), timeoutMillis, retries)
       responseFuture.onComplete{
         case Success(response) =>
           // Force conversion
@@ -309,8 +308,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     }
     
     def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: jdk.nashorn.api.scripting.JSObject) = {
-      val jsonPacket = parse(requestMessage)
-      val responseFuture = sendDiameterRequest(jsonPacket, timeoutMillis)
+      val responseFuture = sendDiameterRequest(parse(requestMessage), timeoutMillis)
       responseFuture.onComplete{
         case Success(response) =>
           // Force conversion
@@ -335,6 +333,5 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
           callback.call(null, error)
       }
     }
-    
   }
 }

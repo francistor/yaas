@@ -335,12 +335,12 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       {
         "code": 4,
         "avps": {
-          "NAS-IP-Address": "1.1.1.1",
-          "NAS-Port": 1,
-          "User-Name": "test@database",
-          "Acct-Session-Id": "${acctSessionId}",
-          "Framed-IP-Address": "${ipAddress}",
-          "Acct-Status-Type": "Start"
+          "NAS-IP-Address": ["1.1.1.1"],
+          "NAS-Port": [1],
+          "User-Name": ["test@database"],
+          "Acct-Session-Id": ["${acctSessionId}"],
+          "Framed-IP-Address": ["${ipAddress}"],
+          "Acct-Status-Type": ["Start"]
         }
       }
       """

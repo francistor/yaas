@@ -1,1 +1,3 @@
-load(baseURL + "/testEngine.js");
+// baseURL is the location of this script
+
+load(baseURL + "/testBasic.js");

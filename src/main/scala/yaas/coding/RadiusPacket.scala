@@ -10,7 +10,6 @@ import org.json4s.jackson.JsonMethods._
 import yaas.util.UByteString
 import yaas.util.OctetOps
 import yaas.dictionary._
-
 class RadiusCodingException(val msg: String) extends java.lang.Exception(msg: String)
 class RadiusExtractionException(val msg: String) extends java.lang.Exception(msg: String)
 
@@ -739,7 +738,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   /**
    * Insert AVP in packet if not already present
    */ 
-  def putIfAbsent(avp: RadiusAVP[Any]) : RadiusPacket = << (avp: RadiusAVP[Any])
+  def putIfAbsent(avp: RadiusAVP[Any]) : RadiusPacket = <<? (avp: RadiusAVP[Any])
   
   /**
   * Insert AVP in packet.
@@ -920,12 +919,20 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    * Two Radius packets are equal if have the same code, identifier, authenticator and avps
    */
   override def equals(other: Any): Boolean = {
+    
+    // Helper for sorting AVPs
+    def avpSorter(a: RadiusAVP[Any], b: RadiusAVP[Any]) = {
+      if(a.code != b.code) a.code < b.code
+      else a.stringValue < b.stringValue
+    }
+    
     other match {
       case x: RadiusPacket =>
+        // Need to sort the avps in order to compare
         if( x.code != code || 
             x.identifier != identifier || 
             !x.authenticator.sameElements(authenticator) ||
-            !x.avps.sameElements(avps)) false else true
+            !x.avps.sortWith(avpSorter).sameElements(avps.sortWith(avpSorter))) false else true
       case _ => 
         false
     }
@@ -1091,7 +1098,6 @@ object RadiusConversions {
    *  authenticator: <authenticator>,
    *  avps: {
    *  	attrName1: <attrValue>
-   *    attrName2: [<attrValueA>, <attrValueB>]
    *    ...
    *  }
    * }
@@ -1103,10 +1109,13 @@ object RadiusConversions {
   class RadiusPacketSerializer extends CustomSerializer[RadiusPacket](implicit jsonFormats => (
   {
     case jv: JValue =>
+      
       val avps = for {
         JObject(javps) <- (jv \ "avps")
-        avp <- javps
-      } yield TupleJson2RadiusAVP(avp)
+        JField(k, varr) <- javps
+        JArray(vList) <- varr
+        v <- vList
+      } yield TupleJson2RadiusAVP((k, v))
       
       new RadiusPacket(
          (jv \ "code").extract[Int],
@@ -1119,14 +1128,19 @@ object RadiusConversions {
   },
   {
     case rp : RadiusPacket =>
+      
       val javps = for {
         avp <- rp.avps.toList
       } yield RadiusAVPToJField(avp)
+      
+      // List[(String, JValue)] -> Map[String, List[(String, JValue)] -> Map[String, JArray[JValue]]
+      // Group by attribute name and map the values to JArrays
+      val javpsArr = javps.groupBy(javp => javp._1).mapValues(listKeyVal => JArray(listKeyVal.map(v => v._2))).toList
 
       ("code" -> rp.code) ~
       ("id" -> rp.identifier) ~ 
       ("authenticator" -> OctetOps.octetsToString(rp.authenticator.toList)) ~
-      ("avps" -> JObject(javps))
+      ("avps" -> JObject(javpsArr))
   }
   ))
   
@@ -1144,5 +1158,6 @@ object RadiusConversions {
     jv.extract[RadiusPacket]
   }
 }
+
 
 
