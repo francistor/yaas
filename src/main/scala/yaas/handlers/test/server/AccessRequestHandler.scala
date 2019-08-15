@@ -73,7 +73,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
         JArray(attrs) <- (nv \ propName)
         JObject(attr) <- attrs
         JField(k, v) <- attr
-      } yield TupleJson2RadiusAVP((k, v))
+      } yield JField2RadiusAVP((k, v))
     }
     
     
@@ -98,15 +98,23 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
     // Priorities Client --> Realm --> Global
     val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).
       merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
+      
+    if(false){
+      log.debug("jGlobalConfig: {}\\n", pretty(jGlobalConfig))
+      log.debug("jRealmConfig: {}\\n", pretty(jRealmConfig))
+      log.debug("jRadiusClientConfig: {}\\n", pretty(jRadiusClientConfig))
+      log.debug("jConfig: {}\\n", pretty(jConfig))
+    }
     
     // Cook some configuration variables
+    val blockedServiceOption = (jConfig \ "blockedService").extract[Option[String]]
     val permissiveServiceOption = (jConfig \ "permissiveService").extract[Option[String]]
     val sendReject = (jConfig \ "sendReject").extract[Option[Boolean]].getOrElse(true)
     val rejectServiceOption = if(!sendReject) (jConfig \ "rejectService").extract[Option[String]] else None
     val acceptOnProxyError = (jConfig \ "acceptOnProxyError").extract[Option[Boolean]].getOrElse(false)
     val authLocalOption = (jConfig \ "authLocal").extract[Option[String]]
     
-    if(log.isDebugEnabled) log.debug("Global configuration: {}\npermissiveServiceOption: {}, sendReject: {}", pretty(jConfig), permissiveServiceOption, sendReject)
+    if(log.isDebugEnabled) log.debug("permissiveServiceOption: {}, sendReject: {}", permissiveServiceOption, sendReject)
     if(log.isDebugEnabled) log.debug("rejectServiceOption: {}, acceptOnProxyError: {}, authLocalOption: {}", rejectServiceOption, acceptOnProxyError, authLocalOption)
     
     // Lookup client
@@ -114,10 +122,10 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
     val subscriberFuture = provisionType match {
       case "database" =>
         // userName, password, serviceName, addonServiceName, legacyClientId
-        // if UserName or password, they have to be verified
+        // if UserName and password, they have to be verified
         // Stored procedure example: val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
         log.debug(s"Executing query with $nasIpAddress : $nasPort")
-        val clientQuery = sql"""select UserName, Password, ServiceName, AddonServiceName, LegacyClientId from "CLIENT" where NASIPAddress=$nasIpAddress and NASPort=$nasPort""".as[(Option[String], Option[String], Option[String], Option[String], Option[String])]
+        val clientQuery = sql"""select UserName, Password, ServiceName, AddonServiceName, LegacyClientId, Status from "CLIENT" where NASIPAddress=$nasIpAddress and NASPort=$nasPort""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Int)]
         db.run(clientQuery)
 
       case "file" => 
@@ -130,12 +138,13 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                 (subscriberEntry \ "password").extract[Option[String]], 
                 (subscriberEntry \ "serviceName").extract[Option[String]], 
                 None,
-                (subscriberEntry \ "legacyClientId").extract[Option[String]]
+                (subscriberEntry \ "legacyClientId").extract[Option[String]],
+                0
             ))
           )
           
       case "none" =>
-        Future.successful(Vector((None, None, None, None, None)))
+        Future.successful(Vector((None, None, None, None, None, 0)))
                 
       case _ =>
         Future.failed(new Exception("Invalid provision type $provisionType"))
@@ -153,7 +162,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
           
           var rejectReason: Option[String] = None
           
-          val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption) = 
+          val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status) = 
             // Client found
             if(queryResult.length > 0){
               queryResult(0) 
@@ -164,10 +173,10 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
               log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
               if(permissiveServiceOption.isEmpty) rejectReason = Some("Client not provisioned")
               // userName, password, serviceName, addonServiceName
-              (None, None, permissiveServiceOption, None, None)
+              (None, None, permissiveServiceOption, None, None, 0)
             }
           
-          log.debug(s"Client: ${legacyClientIdOption.getOrElse("")}, serviceName: ${serviceNameOption.getOrElse("")}, addonServiceName: ${addonServiceNameOption.getOrElse("")}")
+          if(log.isDebugEnabled) log.debug(s"Client: ${legacyClientIdOption.getOrElse("")}, serviceName: ${serviceNameOption.getOrElse("")}, addonServiceName: ${addonServiceNameOption.getOrElse("")}")
           
           // Verify password
           authLocalOption match {
@@ -248,7 +257,8 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                       avp.getName == "Class" || 
                       avp.getName == "Framed-IP-Address" || 
                       avp.getName == "Reply-Message" || 
-                      avp.getName == "User-Password"
+                      avp.getName == "User-Password" ||
+                      avp.getName == "Framed-Protocol"
                   )
               } recover {
                 case e: Exception if acceptOnProxyError =>
@@ -276,11 +286,38 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                     
                   
                 case None =>
+                  val serviceAVPList = getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs")
+                  if(log.isDebugEnabled){
+                    log.debug("Adding proxy attributes: {}", proxyAVPList.map(_.pretty).mkString)
+                    log.debug("Adding service attributes: {}", serviceAVPList.map(_.pretty).mkString)
+                  }
+                  
                   // Accept. Add proxied attributes and service attributes
-                  RadiusPacket.response(request) << 
+                  val radiusResponse = RadiusPacket.response(request) << 
                     proxyAVPList << 
-                    getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs") <<
+                    serviceAVPList <<
                     ("Class" -> s"S=${oServiceNameOption.get}")
+                  
+                  // Add addon service attributes. May be blocked, or else the configured one (e.g. advertising)
+                  if(status == 2){
+                    val blockedServiceAttributes = getRadiusAttrs(jServiceConfig, blockedServiceOption, "radiusAttrs")
+                    if(log.isDebugEnabled) log.debug("Adding blocked service attributes: {}", blockedServiceAttributes.map(_.pretty).mkString)
+                    radiusResponse << blockedServiceAttributes
+                  }
+                  else {
+                    addonServiceNameOption match {
+                      case Some(addOnServiceName) =>
+                        val addonServiceAttributes = getRadiusAttrs(jServiceConfig, addonServiceNameOption, "radiusAttrs")
+                        val noAddonServiceAttributes = getRadiusAttrs(jServiceConfig, addonServiceNameOption, "nonOverridableRadiusAttrs")
+                        if(log.isDebugEnabled) log.debug("Adding addon service attributes: {}", addonServiceAttributes.map(_.pretty).mkString)
+                        if(log.isDebugEnabled) log.debug("Adding non overridable addon service attributes: {}", noAddonServiceAttributes.map(_.pretty).mkString)
+                        
+                        radiusResponse :<< addonServiceAttributes << noAddonServiceAttributes
+                      case None =>
+                    }
+                  }
+                  
+                  radiusResponse
               }
               
               if(response.code == RadiusPacket.ACCESS_ACCEPT){
@@ -289,18 +326,22 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                 // Get domain attributes
                 val realmAVPList = getRadiusAttrs(jRealmConfig, Some(realm), "radiusAttrs")
                 val noRealmAVPList = getRadiusAttrs(jRealmConfig, Some(realm), "nonOverridableRadiusAttrs")
-                    
+                
                 // Get global attributes
-                val globalAVPList = getRadiusAttrs(jGlobalConfig, Some(realm), "radiusAttrs")
-                val noGlobalAVPList = getRadiusAttrs(jGlobalConfig, Some(realm), "nonOverridableRadiusAttrs")
+                val globalAVPList = getRadiusAttrs(jGlobalConfig, None, "radiusAttrs")
+                val noGlobalAVPList = getRadiusAttrs(jGlobalConfig, None, "nonOverridableRadiusAttrs")
+                
+                if(log.isDebugEnabled){
+                  log.debug("Adding realm attributes: {}", realmAVPList.map(_.pretty).mkString)
+                  log.debug("Adding non overridable realm attributes: {}", noRealmAVPList.map(_.pretty).mkString)
+                  log.debug("Adding global attributes: {}", globalAVPList.map(_.pretty).mkString)
+                  log.debug("Adding non overridable global attributes: {}", noGlobalAVPList.map(_.pretty).mkString)
+                }
                 
                 // Insert into packet
-                realmAVPList.foreach(avp => response <<? avp)
-                globalAVPList.foreach(avp => response <<? avp)
-                noRealmAVPList.foreach(avp => response << avp)
-                noGlobalAVPList.foreach(avp => response << avp)
+                response <<? realmAVPList <<? globalAVPList << noRealmAVPList << noGlobalAVPList
                 
-                // Add class. TODO: Add one class attribute per attribute
+                // Add another class attribute
                 legacyClientIdOption.map(lcid => response << ("Class" -> s"C=$lcid"))
               }
               

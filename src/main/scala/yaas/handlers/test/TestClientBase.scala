@@ -248,25 +248,33 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    */
   def testAccessRequestWithAccept(): Unit = {
     println("[TEST] Access Request --> With accept")
-    val userPassword = "password!_1"
+    val userPassword = "password!_0"
+    val lcId = "legacy_0"
+    val serviceName = "service_0"
+    
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
       ("User-Name" -> "user_1@database") << 
       ("User-Password" -> userPassword) << 
       ("NAS-IP-Address" -> "1.1.1.1") <<
-      ("NAS-Port" -> 1) <<
-      ("Acct-Session-Id" -> "Acct-Session-Id-1")
+      ("NAS-Port" -> 0) <<
+      ("Acct-Session-Id" -> "radius-session-0")
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     // Server echoes password
     sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
       case Success(response) =>
-        if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
-        else if(response >>++ "Class" != "C=legacy_1") fail("Received class is " + (response >>++ "Class"))
+        // Class
+        val classAttributes = (response >>+ "Class").map(avp => avp.stringValue)
+        if(classAttributes.contains(s"C=$lcId")) ok(s"C=$lcId found") else fail(s"Class C=$lcId not found")
+        if(classAttributes.contains(s"S=$serviceName")) ok(s"S=$serviceName found") else fail(s"Class S=$serviceName not found")
+        // Echoed password
+        if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) 
+          fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
         else {
           ok("Password attribute and class received correctly")
-          nextTest
         }
+        nextTest
       case Failure(ex) => 
         fail("Response not received")
         nextTest
@@ -280,8 +288,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       ("User-Name" -> "reject@file") <<
       ("User-Password" -> "mypassword") <<
       ("NAS-IP-Address" -> "1.1.1.1") <<
-      ("NAS-Port" -> 1) <<
-      ("Acct-Session-Id" -> "Acct-Session-Id-1")
+      ("NAS-Port" -> 0) <<
+      ("Acct-Session-Id" -> "radius-session-reject")
       
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
@@ -308,8 +316,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       ("User-Name" -> "drop@file") <<
       ("User-Password" -> "mypassword") <<
       ("NAS-IP-Address" -> "1.1.1.1") <<
-      ("NAS-Port" -> 1) <<
-      ("Acct-Session-Id" -> "Acct-Session-Id-1")
+      ("NAS-Port" -> 0) <<
+      ("Acct-Session-Id" -> "radius-session-drop")
       
     // Will generate an unsuccessful request to "non-existing-server". Yaasserver will also send it twice to supserserver
     sendRadiusGroupRequest("allServers", accessRequest, 1500, 1).onComplete {
@@ -329,14 +337,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     println("[TEST] Accounting request")
     
     val ipAddress = "199.0.0.1"
-    val acctSessionId = "radius-session-1"
+    val acctSessionId = "radius-session-0"
     
     val sAccountingRequest = s"""
       {
         "code": 4,
         "avps": {
           "NAS-IP-Address": ["1.1.1.1"],
-          "NAS-Port": [1],
+          "NAS-Port": [0],
           "User-Name": ["test@database"],
           "Acct-Session-Id": ["${acctSessionId}"],
           "Framed-IP-Address": ["${ipAddress}"],
@@ -372,7 +380,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     
     val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
       ("NAS-IP-Address" -> "1.1.1.1") <<
-      ("NAS-Port" -> 1) <<
+      ("NAS-Port" -> 9999) <<
       ("User-Name" -> "drop@file") <<
       ("Acct-Session-Id" -> "dropped-session-id") <<
       ("Framed-IP-Address" -> "199.0.0.2") <<

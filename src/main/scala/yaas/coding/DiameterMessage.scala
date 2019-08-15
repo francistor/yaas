@@ -955,13 +955,7 @@ case class DiameterMessageKey(originHost: String, originRealm: String, destinati
 /**
  * Represents a Diameter Message.
  * 
- * Methods to manipulate AVP
- * 	<code>put()</code> or <code><<</code>: Appends an attribute. Polimorphic, with one version accepting an Option. Accepts also a List of attributes
- * 	<code>putGrouped()</code> or <code><<<</code>: Appends a grouped attribute. Polimorphic, with one version accepting an Option.
- *  <code>get()</code> or <code>>></code>: Retrieves the first attribute with that name
- *  <code>getGroup()</code> or <code>>>></code>: Retrieves the first grouped attribute with that name
- *  <code>getAll()</code> or <code>>>+</code>: Retrieves the list of attributes with that name
- *  <code>removeAll()</code>: Removes all the attributes with that name
+ * Includes methods to add and extract AVP, and some other to generate derived messages (copy, proxy, and response)
  */
 class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHopId: Int, val endToEndId: Int, var avps: List[DiameterAVP[Any]], val isRequest: Boolean, val isProxyable: Boolean = true, val isError: Boolean = false, val isRetransmission: Boolean = false) {
   
@@ -1017,14 +1011,46 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     builder.result.patch(1, UByteString.putUnsigned24(new ByteStringBuilder(), result.length).result, 3)
   }
   
+  
+  /**
+   * Generates a new request with all attributes copied except for the header ones (Origin-Host/Realm and Destination-Host/Realm).
+   * Origin-Host/Realm are automatically refilled with the node configuration
+   */
+  def proxyRequest = {
+    val diameterConfig = DiameterConfigManager.diameterConfig
+    
+    val requestMessage = new DiameterMessage(applicationId, commandCode,  
+      IDGenerator.nextHopByHopId, IDGenerator.nextEndToEndId, avps, true, isProxyable, false, false).
+      removeAll("Origin-Host").
+      removeAll("Origin-Realm").
+      removeAll("Destination-Host").
+      removeAll("Destination-Realm")
+    
+    requestMessage << ("Origin-Host" -> diameterConfig.diameterHost)
+    requestMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
+    
+    requestMessage
+  }
+  
+  /**
+   * Generates an empty answer to this message
+   */
+  def answer = DiameterMessage.answer(this)
+  
+   /**
+   * Generates a copy of this message, except for EndtoEndId and HopByHopId.
+   */
+  def copy = DiameterMessage.copy(this)
+  
+  
   // Synonyms
   /**
-   * Insert AVP in message.
+   * Adds an AVP to the message.
    */ 
   def put(avp: DiameterAVP[Any]) : DiameterMessage = << (avp: DiameterAVP[Any])
   
   /**
-   * Insert AVP in message.
+   * Adds an AVP to message.
    * 
    * Same as <code>put</code>.
    */
@@ -1032,35 +1058,16 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     avps = avps :+ avp
     this
   }
-
-  // Synonyms
-  /**
-   * Insert Grouped AVP.
-   * 
-   * Same as << and <code>put</code>. Used only for simetry
-   */
-  def putGrouped(avp: GroupedAVP): DiameterMessage = <<< (avp: GroupedAVP)
-  
-   /**
-   * Insert Grouped AVP.
-   * 
-   * Same as << and <code>put</code>. Used only for simetry
-   */
-  def <<< (avp: GroupedAVP) : DiameterMessage = {
-    avps = avps :+ avp
-    this
-  }
-
   
   // Versions with option. Does nothing if avpOption is None
   // Synonyms
    /**
-   * Insert AVP in message, doing nothing if the parameter is empty.
+   * Adds an AVP in message, doing nothing if the parameter is empty.
    */ 
   def put(avp: Option[DiameterAVP[Any]]) : DiameterMessage = << (avp: Option[DiameterAVP[Any]])
   
    /**
-   * Insert AVP in message, doing nothing if the parameter is empty.
+   * Adds an AVP in message, doing nothing if the parameter is empty.
    * 
    * Same as <code>put(Option[DiameterAVP])</code>
    */ 
@@ -1072,17 +1079,37 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     }
     this
   }
+  
+    // Synonyms
+  /**
+   * Adds a Grouped AVP to the message.
+   * 
+   * Same as << and <code>put</code>. Used only for simetry
+   */
+  def putGrouped(avp: GroupedAVP): DiameterMessage = <<< (avp: GroupedAVP)
+  
+   /**
+   * Adds a Grouped AVP to the message.
+   * 
+   * Same as << and <code>put</code>. Used only for simetry
+   */
+  def <<< (avp: GroupedAVP) : DiameterMessage = {
+    avps = avps :+ avp
+    this
+  }
 
   // Synonyms
   /**
-   * Adds grouped AVP to message.
+   * Adds a grouped AVP to the message.
+   * 
+   * Simple <code>put</code> may also be used,
    */
   def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <<< (avp: Option[GroupedAVP])
   
    /**
-   * Adds grouped AVP to message.
+   * Adds a grouped AVP to message.
    * 
-   * Same as <<<
+   * Simple <code><<</code> may also be used.
    */
   def <<< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
     avpOption match {
@@ -1098,7 +1125,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Adds a list of Diameter AVPs to the message.
    */
-  def putAll(mavp : List[DiameterAVP[Any]]) : DiameterMessage = << (mavp : List[DiameterAVP[Any]]) 
+  def put(mavp : List[DiameterAVP[Any]]) : DiameterMessage = << (mavp : List[DiameterAVP[Any]]) 
   
   /**
    * Adds a list of Diameter AVPs to the message.
@@ -1157,12 +1184,13 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   // Synonyms
   
   /**
-   * Obtains the DiameterAVP from the full name using dot notation
+   * Extracts the DiameterAVP from the full name using dot notation
    */
   def getDeep(attributeName: String) = >>* (attributeName: String)
   
+  
   /**
-   * Obtains the DiameterAVP from the full name using dot notation
+   * Extracts the DiameterAVP from the full name using dot notation
    */
   def >>* (attributeName: String) = {
      def getNextAVP(names: List[String], avpOption: Option[DiameterAVP[Any]]): Option[DiameterAVP[Any]] = {
@@ -1258,25 +1286,6 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     DiameterDictionary.appMapByCode.get(applicationId).map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
   }
   
-  /**
-   * Generates a new request with all attributes copied except for the header ones (Origin-Host/Realm and Destination-Host/Realm).
-   * Origin-Host/Realm are automatically refilled with the node configuration
-   */
-  def proxyRequest = {
-    val diameterConfig = DiameterConfigManager.diameterConfig
-    
-    val requestMessage = new DiameterMessage(applicationId, commandCode,  
-      IDGenerator.nextHopByHopId, IDGenerator.nextEndToEndId, avps, true, isProxyable, false, false).
-      removeAll("Origin-Host").
-      removeAll("Origin-Realm").
-      removeAll("Destination-Host").
-      removeAll("Destination-Realm")
-    
-    requestMessage << ("Origin-Host" -> diameterConfig.diameterHost)
-    requestMessage << ("Origin-Realm" -> diameterConfig.diameterRealm) 
-    
-    requestMessage
-  }
   
   /**
    * To print the DiameterMessage CDR contents to file.
@@ -1319,11 +1328,6 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
       case _ => false
     }
   }
-  
-  /**
-   * Generates a copy of this message, except for EndtoEndId and HopByHopId.
-   */
-  def copy = DiameterMessage.copy(this)
 }
 
 /**

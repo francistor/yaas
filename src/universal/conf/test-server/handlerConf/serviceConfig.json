@@ -1,4 +1,14 @@
 {
+	"addon_1":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Session-Timeout": "300"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Unisphere-Service-Bundle": "Aaddon_1"}
+		]
+	},
+	
 	"service_0":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
@@ -37,5 +47,24 @@
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Areject"}
 		]
+	},
+	
+	"pcautiv":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Apcautiv"}
+		]
+	},
+	
+	"acs":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Aacs"}
+		]
+	},
+	
+	"betatester":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abetatester"}
+		]
 	}
+	
 }

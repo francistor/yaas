@@ -21,8 +21,9 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
         UserName varchar,
         Password varchar,
         LegacyClientId varchar not null, 
-        serviceName varchar,
-        addonServiceName varchar,
+        Status int,
+        ServiceName varchar,
+        AddonServiceName varchar,
         primary key (NASIPAddress, NASPort)
       )
       """))
@@ -31,8 +32,8 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
     for(i <- 0 to 1000){
       val q = new SqlFieldsQuery("""
         INSERT INTO "CLIENTS".Client 
-        (NASIPAddress, NASPort, UserName, Password, LegacyClientId, serviceName, addonServiceName) values 
-        (?, ?, ?, ?, ?, ?, ?)
+        (NASIPAddress, NASPort, UserName, Password, LegacyClientId, Status, ServiceName, AddonServiceName) values 
+        (?, ?, ?, ?, ?, ?, ?, ?)
         """)
   
       q.setArgs(
@@ -41,6 +42,7 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
           s"user_$i@clientdb.accept": java.lang.String, 
           s"password!_$i": java.lang.String,
           "legacy_" + i: java.lang.String, 
+          (if((i % 11) == 0) 2 else 0): java.lang.Integer, 
           "service_" + (i % 4): java.lang.String,
           if(i % 4 == 0) "addon_1" else null
           )

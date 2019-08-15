@@ -175,4 +175,29 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     
     deserializedDiameterMessage mustEqual diameterMessage
   }
+  
+  "DiameterMessage conversion to and from JSON" in {
+    
+    val subscriptionId = "subscriptionId-0"
+    
+    val gxRequest: DiameterMessage = 
+      ("applicationId" -> "Gx") ~
+      ("commandCode" -> "Credit-Control") ~
+      ("isRequest" -> true) ~
+      ("avps" ->
+        ("Origin-Host" -> "client.yaasclient") ~
+        ("Origin-Realm" -> "yaasclient") ~
+        ("Destination-Realm" -> "yaassuperserver") ~
+        ("Subscription-Id" ->
+          ("Subscription-Id-Type" -> "EndUserIMSI") ~
+          ("Subscription-Id-Data" -> subscriptionId)
+        ) ~
+        ("Framed-IP-Address" -> "1.2.3.4") ~
+        ("Session-Id" -> "This-is-the-session-id")
+      )
+      
+    val jsonMessage: JValue = gxRequest
+    
+    (jsonMessage \ "avps" \ "Subscription-Id" \ "Subscription-Id-Data").extract[String] mustEqual subscriptionId
+  }
 }

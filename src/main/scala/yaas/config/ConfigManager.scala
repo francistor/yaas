@@ -160,53 +160,6 @@ object ConfigManager {
     configObjectCache(objectName) = parsed
     parsed
   }
-  
-  /*
-   * Retrieves the specified configured object name
-   */
-  private def readConfigObject2(objectName: String): JValue = { 	
-	  val parsed = parse(readObject2(objectName))
-    configObjectCache(objectName) = parsed
-    parsed
-  }
-  
-  def readObject2(objectName: String): String = {
-    def lookUp(modObjectName: String) = {
-      rules.collectFirst(
-        {
-          case SearchRule(nameRegex, locationType, base) if modObjectName.matches(nameRegex.regex) =>
-            if(locationType == "URL"){
-              // base + group found in objectName following nameRegex
-              val url = base.getOrElse(defaultBase) +  nameRegex.findFirstMatchIn(modObjectName).get.group(1)
-              log.info(s"Reading $modObjectName from URL $url")
-              Source.fromURL(url).getLines.
-                  flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
-                  map(replaceVars(_)).
-                  mkString(separator)
-            }
-            else {
-              val resName = nameRegex.findFirstMatchIn(modObjectName).get.group(1)
-              log.info(s"Reading $modObjectName from resource $resName")
-              // Remove comments
-              Source.fromInputStream(getClass.getResourceAsStream("/" + resName)).getLines.
-                  flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
-                  map(replaceVars(_)).
-                  mkString(separator)
-              // Scala 2.12 Source.fromResource(resName).getLines.flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).mkString(separator)
-            }
-        }
-      )
-    }
-    
-    // Try instance specific first. Then, regular object name
-    Try(lookUp(s"$instance/$objectName")).orElse(Try(lookUp(objectName))) match {
-      case Success(Some(string)) =>
-        string
-        
-      case _ =>
-        throw new java.util.NoSuchElementException(objectName)
-    }
-  }
 
   /**
    * To be used by the applications to get the configuration object.

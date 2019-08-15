@@ -34,7 +34,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
       dropRadiusPacket
     } 
     else {
-      sendRadiusResponse(requestPacket.response() << ("User-Password" -> password))
+      sendRadiusResponse(requestPacket.response() << ("User-Password" -> password) << ("Framed-Protocol" -> "PPP"))
     }
   }
 }

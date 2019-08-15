@@ -721,12 +721,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Insert AVP in packet
+   * Adds AVP to packet
    */ 
   def put(avp: RadiusAVP[Any]) : RadiusPacket = << (avp: RadiusAVP[Any])
   
   /**
-  * Insert AVP in packet.
+  * Adds AVP to packet.
   * 
   * Same as <code>put</code>
   */
@@ -735,31 +735,15 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     this
   }
   
-  /**
-   * Insert AVP in packet if not already present
-   */ 
-  def putIfAbsent(avp: RadiusAVP[Any]) : RadiusPacket = <<? (avp: RadiusAVP[Any])
-  
-  /**
-  * Insert AVP in packet.
-  * 
-  * Same as <code>putIfAbsent</code>
-  */
-  def <<? (avp: RadiusAVP[Any]) : RadiusPacket = {
-    if(avps.find(_.code == avp.code).isEmpty){
-      avps :+= avp
-    }
-    this
-  }
   
   // Versions with Option. Do nothing if the Option is empty
   /**
-   * Insert AVP in packet
+   * Adds AVP to packet
    */ 
   def put(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = << (avpOption: Option[RadiusAVP[Any]])
   
   /**
-  * Insert AVP in packet.
+  * Adds AVP to packet.
   * 
   * Same as <code>put</code>
   */
@@ -778,7 +762,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   def putAll(mavp : List[RadiusAVP[Any]]) : RadiusPacket = << (mavp : List[RadiusAVP[Any]]) 
   
   /**
-   * Adds a list of Diameter AVPs to the packet.
+   * Adds a list of Radius AVPs to the packet.
    * 
    * Same as <code>putAll</code>
    */
@@ -786,6 +770,109 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     avps = avps ++ mavp
     this
   }
+  
+  /**
+   * Adds AVP to packet if not already present
+   */ 
+  def putIfAbsent(avp: RadiusAVP[Any]) : RadiusPacket = <<? (avp: RadiusAVP[Any])
+  
+  /**
+  * Adds AVP to packet if not already present.
+  * 
+  * Same as <code>putIfAbsent</code>
+  */
+  def <<? (avp: RadiusAVP[Any]) : RadiusPacket = {
+    if(avps.find(_.code == avp.code).isEmpty){
+      avps :+= avp
+    }
+    this
+  }
+  
+  /**
+   *Adds AVP to packet if not already present
+   */ 
+  def putIfAbsent(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = <<? (avpOption: Option[RadiusAVP[Any]])
+  
+  /**
+  * Adds AVP to packet.
+  * 
+  * Same as <code>putIfAbsent</code>
+  */
+  def <<? (avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = {
+    avpOption.map(avp => {
+      if(avps.find(thisAVP => thisAVP.code == avp.code && thisAVP.vendorId == avp.vendorId).isEmpty){
+        avps :+= avp
+      }
+    })
+    this
+  }
+  
+  /**
+   * Adds a list of Radius AVPs to the packet, if not already present.
+   */
+  def putAllIfAbsent(avpList : List[RadiusAVP[Any]]) : RadiusPacket = <<? (avpList : List[RadiusAVP[Any]]) 
+  
+  /**
+   * Adds a list of Diameter AVPs to the packet, if not already present.
+   * 
+   * Same as <code>putAll</code>
+   */
+  def <<? (avpList : List[RadiusAVP[Any]]) : RadiusPacket = {
+    avpList.map(avp => this <<? avp)
+    this
+  }
+  
+  /**
+   * Adds AVP to packet, replacing the existing value
+   */ 
+  def putOrReplace(avp: RadiusAVP[Any]) : RadiusPacket = :<< (avp: RadiusAVP[Any])
+  
+  /**
+  * Add AVP to packet if not already present.
+  * 
+  * Same as <code>putOrReplace</code>
+  */
+  def :<< (avp: RadiusAVP[Any]) : RadiusPacket = {
+    this.removeAll(avp.code, avp.vendorId)
+    avps :+= avp
+    this
+  }
+  
+   /**
+   * Adds AVP to packet, replacing the existing value. If the contents of the Options are empty, does nothing.
+   */ 
+  def putOrReplace(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = :<< (avpOption: Option[RadiusAVP[Any]])
+  
+  /**
+  * Adds AVP to packet, replacing the existing value. If the contents of the Options are empty, does nothing.
+  * 
+  * Same as <code>putOrReplace</code>
+  */
+  def :<< (avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = {
+    avpOption.map(avp => {
+      this.putOrReplace(avp)
+    })
+    this
+  }
+  
+  /**
+   * Adds AVP list to packet, replacing the existing value
+   */ 
+  def putOrReplaceAll(avpList: List[RadiusAVP[Any]]) : RadiusPacket = :<< (avpList: List[RadiusAVP[Any]])
+  
+  /**
+  * Adds AVP list to packet if not already present.
+  * 
+  * Same as <code>putOrReplace</code>
+  */
+  def :<< (avpList: List[RadiusAVP[Any]]) : RadiusPacket = {
+    avpList.map(avp => {
+      this.removeAll(avp.code, avp.vendorId)
+      avps :+= avp
+    })
+    this
+  }
+ 
   
   /**
    * Extracts the first AVP with the specified name from packet.
@@ -822,12 +909,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   }
   
   /**
-   * Extracts AVP from packet and force conversion to string. If multivalue, returns comma separated list
+   * Extracts all AVP with the specified name from packet and force conversion to string. If multivalue, returns comma separated list
    */
   def getAsString(attributeName: String): String = >>++ (attributeName: String)
   
   /**
-   * Extracts AVP from packet and force conversion to string. If multivalue, returns comma separated list
+   * Extracts all AVP with the specified name from packet and force conversion to string. If multivalue, returns comma separated list
    */
   def >>++ (attributeName: String): String = {
     RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
@@ -840,15 +927,30 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    * Deletes all the attributes with the specified name from the packet.
    */
   def removeAll(attributeName: String): RadiusPacket = {
-    val a = RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
-      case Some(code) => avps = avps.filter(avp => avp.code != code)
+    val dictItemOption = RadiusDictionary.avpMapByName.get(attributeName)
+    dictItemOption match {
+      case Some(dictItem) => 
+        avps = avps.filter(avp => (avp.code != dictItem.code || avp.vendorId != dictItem.vendorId))
       case None =>
     }
     this
   }
   
   /**
-   * Tries to extract a single attribute with String type, throwing exception if unable
+   * Deletes all the attributes with the specified code from the packet.
+   */
+  def removeAll(code: Int, vendorId: Int): RadiusPacket = {
+    val dictItemOption = RadiusDictionary.avpMapByCode.get((vendorId, code))
+    dictItemOption match {
+      case Some(dictItem) => 
+        avps = avps.filter(avp => (avp.code != dictItem.code || avp.vendorId != dictItem.vendorId))
+      case None =>
+    }
+    this
+  }
+  
+  /**
+   * Tries to extract a single attribute with String type, throwing exception if unable.
    */
   def S(attributeName: String) = {
     getAll(attributeName) match {
@@ -863,6 +965,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     }
   }
   
+   /**
+   * Tries to extract a single attribute with Long type, throwing exception if unable.
+   */
   def L(attributeName: String) = {
     getAll(attributeName) match {
       case avp :: List(other) =>
@@ -1017,13 +1122,13 @@ object RadiusConversions {
       case RadiusTypes.INTEGER64 => new Integer64RadiusAVP(code, vendorId, attrValue.toLong)
     }
   }
-
+  
   /**
    * Helper for custom RadiusPacket Serializer.
    * 
    * Useful for handling types correctly
    */
-  def TupleJson2RadiusAVP(tuple: (String, JValue)): RadiusAVP[Any] = {
+  def JField2RadiusAVP(tuple: JField): RadiusAVP[Any] = {
     val (attrName, attrValue) = tuple
     
     val dictItem = RadiusDictionary.avpMapByName(attrName)
@@ -1115,7 +1220,7 @@ object RadiusConversions {
         JField(k, varr) <- javps
         JArray(vList) <- varr
         v <- vList
-      } yield TupleJson2RadiusAVP((k, v))
+      } yield JField2RadiusAVP((k, v))
       
       new RadiusPacket(
          (jv \ "code").extract[Int],

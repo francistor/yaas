@@ -5,5 +5,9 @@
 	
 	"drop@file":{
 		"password": "mypassword"
+	},
+	
+	"betatester@betatester": {
+		"password": "mypassword"
 	}
 }

@@ -3,10 +3,13 @@
 	"provisionType": "database",
 	"permissiveService": "permService",
 	"rejectService": "rejectService",
+	"blockedService": "pcautiv",
 	"sendReject": true,
 	"proxyTimeoutMillis": 500,
 	"proxyRetries": 1,
 	"acceptOnProxyError": false,
-	"radiusAttrs":[],
+	"radiusAttrs":[
+		{"Session-Timeout": 3600}
+	],
 	"nonOverridableRadiusAttrs": []
 }

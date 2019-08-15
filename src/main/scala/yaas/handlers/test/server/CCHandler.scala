@@ -40,7 +40,7 @@ class CCHandler(statsServer: ActorRef, configObject: Option[String]) extends Mes
     sendDiameterRequest(serverRequest, 1000).onComplete {
       case Success(upstreamAnswer) =>
         
-        val answer = DiameterMessage.answer(ctx.diameterRequest) << 
+        val answer = ctx.diameterRequest.answer << 
         ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) <<
         upstreamAnswer.get("User-Name") <<
         upstreamAnswer.get("Granted-Service-Unit")
