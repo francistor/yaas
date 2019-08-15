@@ -13,7 +13,7 @@ as "connection" in the case of Radius) may multiplex requests and responses comm
 avoiding wait times between request and response. This multiplex feature over the same connection
 is implemented in http2, and probably Diameter and Radius will become slowly out of favor.
 
-Yaas is built in with scala and Akka.
+Yaas is built in scala and Akka.
 
 Yaas starts up as a process with multiple "Handlers", each one being an Akka Actor, which may be
 registered to receive certain types of Diameter/Radius messages and also send Diameter/Radius
@@ -242,7 +242,9 @@ to those, with a balancing policy that may be `fixed` or `random`.
 ]
 ```
 
-### Comon files: handlers.json
+### Common files
+
+#### handlers.json
 
 This file defines the handler (Actor class deriving from MessageHandler) to be used.
 
