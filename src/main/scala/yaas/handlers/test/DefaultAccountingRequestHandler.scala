@@ -19,7 +19,8 @@ class DefaultAccountingRequestHandler(statsServer: ActorRef, configObject: Optio
   log.info("Instantiated AccountingRequestHandler")
   
   val writer = new yaas.cdr.CDRFileWriter("cdr", "accounting_request_%d{yyyyMMdd-HHmm}.txt")
-  //val format = RadiusSerialFormat.newCSVFormat(List("User-Name", "Acct-Session-Id"))
+  // May use another format using 
+  // val format = RadiusSerialFormat.newCSVFormat(List("User-Name", "Acct-Session-Id"))
   val format = RadiusSerialFormat.newLivingstoneFormat(List())
   
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {

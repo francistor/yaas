@@ -1,0 +1,42 @@
+#################################
+# Diameter
+#################################
+startDiameter Method-Type=ReadWrite Method-On-Success=doDiameterReturn
+	ReadWrite-Map = <<
+		$reply.Granted-Service-Unit := "CC-Time = 3600";
+		$reply.User-Name := $request.Subscription-Id.Subscription-Id-Data;
+	>>
+	
+doDiameterReturn Method-Type = Return
+	Return-Disposition = "SUCCESS"
+	Return-LogLevel = "INFO"
+	Return-LogMessage = "Accepting Diameter Request"
+	
+#################################
+# RadiusAuth
+#################################
+startRadiusAuth Method-Type=ReadWrite
+	ReadWrite-Map = <<
+		if $request.User-Name -> \contains("drop") then
+			return discard;
+		elsif $request.User-Name -> \contains("reject") then
+			$reply.Reply-Message := "The reply message!";
+			return reject;
+		else
+			$reply.password := $request.password;
+			return success;
+		endif;
+	>>
+	
+#################################
+# RadiusAcct
+#################################
+startRadiusAcct Method-Type=ReadWrite 
+	ReadWrite-Map = <<
+		if $request.User-Name -> \contains("drop") then
+			return discard;
+		else
+			return success;
+		endif;
+	>>
+	

@@ -1,2 +1,0 @@
-User-Name = "test@accept" 
-User-Password = "This is the password !" 

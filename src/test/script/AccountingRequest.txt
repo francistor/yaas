@@ -1,2 +1,0 @@
-User-Name = "thisIsTheUser@name" 
-NAS-IP-Address = "4.3.2.1" 

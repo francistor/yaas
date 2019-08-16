@@ -25,6 +25,19 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
       checkRadiusPerformance(ACCESS_REQUEST, "@file", Math.min(5000, nRequests), 10, "Radius Warmup") _,
       checkRadiusPerformance(ACCESS_REQUEST, "@file", nRequests, 10, "Free Wheel") _,
       checkRadiusPerformance(ACCESS_REQUEST, "@database", nRequests, 10, "Database Lookup") _,
-      checkRadiusPerformance(ACCOUNTING_REQUEST, "@file", nRequests, 10, "Session storage") _
+      checkRadiusPerformance(ACCOUNTING_REQUEST, "@file", nRequests, 10, "Session storage") _,
+      factorySettings _,
+      createPools _,
+      createPoolSelectors _,
+      createRanges _,
+      deleteRanges _,
+      deletePoolSelectors _,
+      deletePools _, 
+      errorConditions _,
+      fillPool _,
+      reloadLookup _,
+      testLeases _,
+      testBulkLease _,
+      unavailableLease _
   )
 }

@@ -1,4 +1,4 @@
-package yaas.handlers.test.server
+package yaas.handlers.test
 
 import akka.actor.{ActorSystem, Actor, ActorRef, Props}
 import yaas.server._
@@ -7,7 +7,7 @@ import yaas.coding.DiameterConversions._
 import scala.util.{Success, Failure}
 import yaas.server.MessageHandler
 
-class CCHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
+class DefaultCCHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated CCHandler")
   

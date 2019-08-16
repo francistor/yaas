@@ -4,9 +4,6 @@
 	// Handle Credit-Control locally
 	{"realm": "yaasserver", "applicationId": "Credit-Control", "handler": "TestServerCCHandler"},
 	
-	// Handle NASREQ locally
-	{"realm": "yaasserver", "applicationId": "NASREQ", "handler": "TestServerNASReqHandler"},
-	
 	// Send to superserver
 	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"}
 ]

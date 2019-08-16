@@ -1,0 +1,268 @@
+
+##########################################################
+##                                                      ##
+##        Puertos de escucha del protocolo RADIUS       ##
+##                                                      ##
+##########################################################
+
+Radius-Acct-Address = "*:11813"
+Radius-Auth-Address = "*:11812"
+
+##########################################################
+##                                                      ##
+##               Puertos de administracion              ##
+##                                                      ##
+##########################################################
+
+Radius-Telnetd-Address = "*:9023"
+
+##########################################################
+##                                                      ##
+##               Configuracion de seguridad             ##
+##                                                      ##
+##########################################################
+
+TACACSPLUS-Address = "0"
+Radius-Httpd-Address = "0"
+Radius-Httpsd-Address = "0"
+SSH-Server-Listen-Address = "0"
+Registry-Port = "0"
+SSLRegistry-Port = "0"
+Database-Address = "0"
+Derby-Address = "0"
+Snmp-Address = "1161"
+Provision-Enabled = FALSE
+Radius-Dynamic-Auth-Address = "*:13799"
+Command-Address = "127.0.0.1:9024"
+
+Check-Duplicates = TRUE
+Check-Authenticators = Auto
+
+#Diameter-Address = "0"
+# En la v8 la propiedad anterior es sustituida por "Diameter-TCP-Address".
+# Es necesario sustituirla para que no se levanten los servicios Diameter.
+Diameter-TCP-Address = "127.0.0.1:3869"
+
+# SctpAgent properties.
+# Necesarios en la v7 para evitar que se levanten los servicios Diameter sobre SCTP.
+# Sin embargo, quedan obsoletos en la v8, donde por defecto está desactivado.
+SctpAgent-Diameter-Address = "0"
+SctpAgent-Outbound-Address = "0"
+SctpAgent-Inbound-Address = "0"
+
+##########################################################
+##                                                      ##
+##                                                      ##
+##########################################################
+
+# Timeout por defecto Clientes
+Client-Timeout = "10000"
+
+Delimiter-Precedence = "@"
+
+RadiusClients-Filename = radius_clients
+File-ClientMethods = client_properties
+
+MethodDispatch-Filename = method_dispatch
+
+# Incrementar hasta 90 si es necesario
+Engine-Threads = "20"
+
+##########################################################
+##      Parametros para pruebas                         ##
+##                                                      ##
+##########################################################
+
+# Modificar a FALSE para debug
+Reveal-Hidden-Attributes = TRUE
+
+##########################################################
+##                                                      ##
+##               Configuracion de USSv2                 ##
+##                                                      ##
+##########################################################
+
+#Uss2-Availability-Timeout="60s"
+Uss2-Node-Timeout = "60s"
+Uss2-Heartbeat-Time = "10s"
+Uss2-Heartbeat-Skip = "3"
+Uss2-Bucket-Load-Factor = "10"
+Uss2-Idle-Ack-Rate = "10"
+Uss2-Merge-Pool-Size = "4"
+Uss2-Replicator-Pool-Size = "4"
+
+# Modificar a el valor adecuado. Tipicamente, el nombre DNS
+# de la maquina
+Origin-Host = "8950AAA"
+
+##########################################################
+##      Datos originales                                ##
+##      de la instalacion                               ##
+##########################################################
+
+Policy-Set-Installed = expert
+provisioningInstalled = FALSE
+Auto-CheckItem = FALSE
+Auto-CheckPassword = FALSE
+Radius-Httpd-RootDir = "..\\html\\"
+Server-Certificate-File = "server.pem"
+Trusted-Certificates-File = "trusted.pem"
+Engine-Method-Limit = "250"
+Engine-Total-Limit = "0"
+Engine-Queue-Limit = "0"
+Engine-Active-Limit = "0"
+Engine-State-Limit = "0"
+Auto-CheckLeftovers = FALSE
+Auto-CheckMinSessionTimeout = FALSE
+Auto-Remove-Check-Items = TRUE
+Challenge-Loop-Limit = "32"
+Default-Challenge-Timeout = "3m"
+Default-Challenge-Timeout-Linger = "15s"
+Default-Continue-Timeout = "10m"
+Default-Continue-Timeout-Linger = "15s"
+Server-Properties-Writable = FALSE
+Client-Properties-Writable = FALSE
+Watch-Resolution = "1ms"
+Client-Dictionary = "#default"
+Background-Timeout = "5m"
+Session-Time-From-Time-Of-Day = FALSE
+Local-Address = "*"
+Minimum-Session-Timeout = "0s"
+Disconnect-Request-Map = "${NAS-IP-Address} := ${request.NAS-IP-Address};\r\n${NAS-Identifier} := ${request.NAS-Identifier};\r\n${NAS-IPv6-Address} := ${request.NAS-IPv6-Address};\r\n${User-Name} := ${request.User-Name};\r\n${NAS-Port} := ${request.NAS-Port};\r\n${Framed-IP-Address} := ${request.Framed-IP-Address};\r\n${Called-Station-Id} := ${request.Called-Station-Id};\r\n${Calling-Station-Id} := ${request.Calling-Station-Id};\r\n${Acct-Session-Id} := ${request.Acct-Session-Id};\r\n${Acct-Multi-Session-Id} := ${request.Acct-Multi-Session-Id};\r\n${NAS-Port-Type} := ${request.NAS-Port-Type};\r\n${NAS-Port-Id} := ${request.NAS-Port-Id};\r\n${Originating-Line-Info} := ${request.Originating-Line-Info};\r\n${Framed-Interface-Id} := ${request.Framed-Interface-Id};\r\n${Framed-IPv6-Prefix} := ${request.Framed-IPv6-Prefix};"
+Suffix-Delimiters = "@"
+Radius-Receiver-Threads = "1"
+Radius-Packetsize-Max = "4096"
+Radius-Recv-Buffer-Size = "256k"
+Radius-Send-Buffer-Size = "256k"
+Radius-Reject-Busy-Auth = FALSE
+Discard-On-Error = TRUE
+Radius-Response-Cache = TRUE
+Radius-Response-Cache-Timeout = "10s"
+Radius-Response-Cache-Polling-Interval = "5s"
+Radius-CharSet = "8859_1"
+Radius-Remove-Trailing-Nul = TRUE
+Radius-Append-Trailing-Nul = FALSE
+Strict-Encode-Attributes = FALSE
+Cache-NAS-Routes = TRUE
+NAS-Routes-Cache-Name = NAS_Routes
+Radius-Recv-Error-Ratio = "0.0"
+Radius-Send-Error-Ratio = "0.0"
+SSH-Server-Idle-Timeout = "10m"
+SSH-Server-Ciphers = "aes128-ctr\r\naes192-ctr\r\naes256-ctr\r\narcfour256\r\narcfour128\r\naes128-cbc\r\n3des-cbc\r\nblowfish-cbc\r\naes192-cbc\r\naes256-cbc"
+SSH-Server-KexAlgorithms = "ecdh-sha2-nistp521\r\necdh-sha2-nistp384\r\necdh-sha2-nistp256\r\ndiffie-hellman-group-exchange-sha256\r\ndiffie-hellman-group-exchange-sha1\r\ndiffie-hellman-group14-sha1\r\ndiffie-hellman-group1-sha1"
+SSH-Server-MACs = "hmac-md5\r\nhmac-sha1\r\nhmac-sha2-256\r\nhmac-sha2-512\r\nhmac-sha1-96\r\nhmac-md5-96"
+SSH-Server-Signatures = "ecdsa-sha2-nistp256\r\necdsa-sha2-nistp384\r\necdsa-sha2-nistp521\r\nssh-rsa\r\nssh-dss"
+Http-Ssl-Enabled-Protocols = "TLSv1,TLSv1.1,TLSv1.2"
+Http-Cipher-List = TLS_RSA_WITH_AES_128_CBC_SHA
+Derby-Severity = Warning
+Derby-LogLevel = Debug
+Derby-Trace = FALSE
+Derby-SystemHome = derby
+Derby-Replication-Delay = "10s"
+Provision-JdbcDriver = "org.apache.derby.jdbc.ClientDriver"
+Provision-JdbcUrl = "jdbc:derby://localhost:1527/provision"
+Diameter-SCTP-Address = "*:3868"
+TLS = FALSE
+SCTP = FALSE
+Diameter-TCP-No-Delay = FALSE
+Diameter-TCP-Recv-Buffer-Size = "256k"
+Diameter-TCP-Send-Buffer-Size = "256k"
+Diameter-Sctp-Max-Input-Streams = "10"
+Diameter-Sctp-Max-Output-Streams = "10"
+Diameter-Sctp-Recv-Buffer-Size = "256k"
+Diameter-Sctp-Send-Buffer-Size = "256k"
+Diameter-Sctp-No-Delay = FALSE
+Diameter-Strict-Encode-Attributes = TRUE
+Diameter-Strict-Encode-Command-Format = Full
+Diameter-Strict-Decode-Command-Format = Full
+Diameter-Strict-Decode-Attribute-Format = Off
+Diameter-Fallback-Encode-Mandatory-Bit = TRUE
+Diameter-Strict-Transport = TRUE
+Diameter-Discard-Busy = FALSE
+Diameter-Disable-Disconnect-On-Shutdown = FALSE
+Diameter-Advertise-Peer-Applications-Only = FALSE
+Diameter-Admin-Down-CEA-Result-Code = "DIAMETER-UNABLE-TO-COMPLY"
+Peer-Socket-Timeout = "15s"
+Device-Watchdog-Rate = "30s"
+Peer-Idle-Timeout = "5m"
+Diameter-PerPeer-Timeout = "3s"
+Diameter-Timeout = "10s"
+Peer-Idle-Holdoff = "20s"
+Min-Accepted-Redirect-Cache-Time = "10s"
+Default-Advertised-Redirect-Cache-Time = "5m"
+Diameter-Less-Specific-Route-Fallback = TRUE
+Max-Redirect-Traversal-Depth = "10"
+Diameter-Max-Route-Attempts = "20"
+Diameter-Force-Inbound-Local = FALSE
+TACACSPLUS-TCP-No-Delay = FALSE
+TACACSPLUS-TCP-Keep-Alive = TRUE
+TACACSPLUS-TCP-Recv-Buffer-Size = "256k"
+TACACSPLUS-TCP-Send-Buffer-Size = "256k"
+Certificate-Expiration-Check-Interval = "1d"
+Certificate-Expiration-Window = "30d"
+Log-By-Item = TRUE
+Log-Queue-Threshold = "65536"
+Log-Queue-Action = Block
+GC-Duration-Warn-Threshold = "5m"
+Lag-Warn-Threshold = "1s"
+Snmp-Read-Community = public
+SNMPv1-Access-Enabled = TRUE
+SNMPv2c-Access-Enabled = TRUE
+SNMPv3-Access-Enabled = TRUE
+LDAP-Data-Address = "0"
+LDAP-Thread-Pool-Size = "4"
+Ldap-Refuse-Slow-Search = FALSE
+LDAP-TCP-No-Delay = FALSE
+LDAP-TCP-Keep-Alive = TRUE
+LDAP-TCP-Recv-Buffer-Size = "256k"
+LDAP-TCP-Send-Buffer-Size = "256k"
+Ldap-Data-Queue-Limit = "64"
+LDAP-Work-Address = "0"
+LDAP-Work-Secure-Address = "0"
+Collector-Rollup-Time = "02:00"
+Http-Client-Max-Total-Connections = "1000"
+Http-Client-Default-Max-Connections-Per-Host = "64"
+Http-Client-Connection-Timeout = "5000ms"
+Http-Client-Linger = "-1"
+Http-Client-TCP-No-Delay = TRUE
+Http-Client-Stale-Check = TRUE
+Http-Client-Connection-Manager-Timeout = "5000ms"
+Http-Client-Method-Retries = "0"
+Http-Client-Trusted-Certificates-File = "trusted.pem"
+Http-Client-Ssl-Enabled-Protocols = "TLSv1,TLSv1.1,TLSv1.2"
+StateServer-AcctStartTimeout = "45s"
+StateServer-SessionTimeout = "-1ms"
+StateServer-InactiveTimeout = "5m"
+StateServer-PackEntries = FALSE
+Secure-HAUSS = FALSE
+StateServer-ReplicationRole = none
+StateServer-RmiTimeout = "15s"
+StateServer-DiscoveryRetryTime = "5s"
+StateServer-DiscoveryDelayTime = "15s"
+StateServer-DiscoveryRetries = "5"
+StateServer-PrimaryHoldOffTime = "30s"
+StateServer-MinUpdateThreads = "5"
+StateServer-MaxUpdateThreads = "5"
+StateServer-MaxUpdatePush = "2000"
+StateServer-MaxSecondaryFetch = "2000"
+StateServer-MinFlowEntries = "5000"
+StateServer-EntriesPerMs = "50"
+Uss2-Availability-Timeout = "3m"
+Uss2-Replication-Timeout-Linger = "30s"
+Uss2-IO-Buffer-Size = "256k"
+Uss2-Drain-Timeout = "1m"
+Uss2-Reconciliation-Throttle-Threshold = "10000"
+Uss2-Replication-Throttle-Threshold = "50000"
+Uss2-Abort-Limit = "4000000"
+Broker-Usage-Interval = "10s"
+USS2-Work-Limit = "4096"
+USS2-TCP-No-Delay = FALSE
+USS2-Tcp-Recv-Buffer-Size = "256k"
+USS2-Tcp-Send-Buffer-Size = "256k"
+ConfigServer-AdminAddress = "127.0.0.1:9020"
+ConfigServer-CommandAddress = "127.0.0.1:9019"
+ConfigServer-SshAddress = "*:9021"
+ConfigServer-RegistryPort = "9097"
+ConfigServer-SSLRegistryPort = "9098"
+ConfigServer-Log-Location = "config.log"
+ConfigServer-Log-Level = Info
