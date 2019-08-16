@@ -17,8 +17,6 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   
   // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
-      runJS(configObject.get) _,
-      stop _,
       checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,
       checkConnectedPeer(s"${serverMetricsURL}", "superserver.yaassuperserver") _,
@@ -39,6 +37,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       sleep _,
       checkSuperserverDiameterStats _,
       checkServerDiameterStats _,
+      runJS(configObject.get) _,
       checkRadiusPerformance(ACCESS_REQUEST, "@file", Math.min(5000, nRequests), 10, "Radius Warmup") _,
       checkRadiusPerformance(ACCESS_REQUEST, "@file", nRequests, 10, "Free Wheel") _,
       checkRadiusPerformance(ACCESS_REQUEST, "@database", nRequests, 10, "Database Lookup") _,

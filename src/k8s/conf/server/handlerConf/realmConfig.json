@@ -1,0 +1,53 @@
+{
+	"database":{
+		"provisionType": "database",
+		"authLocal": "database",
+		"proxyServerGroup": "superServer",
+		"writeSessionCDR": true,
+		"radiusAttrs":[
+			{"Service-Type": "Framed"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Cisco-AVPair": "hello=world"}
+		]
+	},
+	
+	"databasenr":{
+		"sendReject": false,
+		"provisionType": "database",
+		"authLocal": "database",
+		"proxyServerGroup": "superServer",
+		"writeSessionCDR": true,
+		"radiusAttrs":[
+			{"Service-Type": "Framed"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Cisco-AVPair": "hello=world"}
+		]
+	},
+	
+	"file":{
+		"provisionType": "file",
+		"authLocal": "none",
+		"proxyServerGroup": "superServer"
+	},
+	
+	"acs":{
+		"provisionType": "database",
+		"authLocal": "none",
+		"proxyServerGroup": "superServer",
+		"overrideService": "acs",
+		"radiusAttrs":[
+			{"Service-Type": "Outbound"}
+		]
+	},
+	
+	"betatester":{
+		"provisionType": "database",
+		"authLocal": "file",
+		"overrideService": "betatester",
+		"radiusAttrs":[
+			{"Session-Timeout": "1200"}
+		]
+	}
+}

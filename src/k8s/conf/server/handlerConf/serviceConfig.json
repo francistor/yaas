@@ -1,0 +1,70 @@
+{
+	"addon_1":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Session-Timeout": "300"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Unisphere-Service-Bundle": "Aaddon_1"}
+		]
+	},
+	
+	"service_0":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab00"}
+		]
+	},
+	
+	"service_1":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab01"}
+		]
+	},
+	
+	"service_2":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab02"}
+		]
+	},
+	
+	"service_3":{
+		"writeServiceCDR": true,
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abab03"}
+		]
+	},
+	
+	"permService":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Apermissive"}
+		]
+	},
+	
+	"rejectService":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Areject"}
+		]
+	},
+	
+	"pcautiv":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Apcautiv"}
+		]
+	},
+	
+	"acs":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Aacs"}
+		]
+	},
+	
+	"betatester":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Abetatester"}
+		]
+	}
+	
+}

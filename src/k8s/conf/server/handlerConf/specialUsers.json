@@ -1,0 +1,13 @@
+{
+	"reject@file":{
+		"password": "mypassword"
+	},
+	
+	"drop@file":{
+		"password": "mypassword"
+	},
+	
+	"betatester@betatester": {
+		"password": "mypassword"
+	}
+}
