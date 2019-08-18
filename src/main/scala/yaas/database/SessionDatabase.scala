@@ -491,39 +491,45 @@ object SessionDatabase {
 	          
 	          // For each bucket address chunk, try to reserve one address  
 	          for(range <- chunkedRangeList){
+	            if(log.isDebugEnabled()) log.debug(s"Getting leases from ${range.startIPAddress} to ${range.endIPAddress}")
 	            val rangeLeases = leasesCache.sql("Select * from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ? order by ipAddress",
 	               range.startIPAddress, range.endIPAddress).getAll().map(entry => entry.getValue)
-	            val rangeSize = range.size
+	            val rangeSize = range.size.toInt
 	            
 	            // Build a list of leases in which all the items are filled (inserting "None" where the Lease does not yet exist)
 	            var expectedIPAddr = range.startIPAddress
-	            // TODO: Optimize this. If rangeLeases.size is rangeSize, no need to fill
-	            val filledLeases = rangeLeases.flatMap(lease => {
+	            // If rangeLeases.size is rangeSize, no need to fill, just change format
+	            val filledLeases = 
+	              if(rangeLeases.size == rangeSize) rangeLeases.map(lease => Some(lease)).toList
+	              else rangeLeases.flatMap(lease => {
 	              // Returns the current item prepended by a number of empty elements equal to the offset between the element ip address and the var expectedIPAddr
 	              val rv = List.fill[Option[Lease]]((lease.ipAddress - expectedIPAddr).toInt)(None) :+ Some(lease)
 	              expectedIPAddr = lease.ipAddress + 1
 	              rv
 	            }) ++ List.fill[Option[Lease]]((range.endIPAddress - expectedIPAddr + 1).toInt)(None)
 
-	            // Find available lease
-	            val baseOffset = scala.util.Random.nextInt(rangeSize.toInt)
-	            for(i <- 0 to rangeSize.toInt - 1){
-	              val idx = (i + baseOffset) % rangeSize.toInt
+	            // Find available lease, starting at a random position
+	            val baseOffset = scala.util.Random.nextInt(rangeSize)
+	            if(log.isDebugEnabled) log.debug(s"Looking up free IP address starting at $baseOffset out of $rangeSize)")
+	            for(i <- 0 to rangeSize - 1){
+	              val idx = (i + baseOffset) % rangeSize
 	              filledLeases.get(idx) match {
 	             
 	                case None =>
 	                  // Address not yet in database. Push new one
 	                  val proposedLease = Lease(range.startIPAddress + idx, new java.util.Date(now + leaseTimeMillis), 0, requester)
+	                  if(log.isDebugEnabled) log.debug(s"Try to put a new Lease for ${proposedLease.ipAddress}")
 	                  if(leasesCache.putIfAbsent(range.startIPAddress + idx, proposedLease)){
 	                    myLease = Some(proposedLease)
 	                    break
-	                  }
+	                  } else log.info(s"Lease creation not performed. Another client may have taken the candidate IP address ${proposedLease.ipAddress}")
 	                  
 	                case Some(lease) =>
 	                    // Consider for leasing only addresses expired more than grace time ago
 		                  if(lease.endLeaseTimestamp.getTime + graceTimeMillis < now){
 			                  // Try to update lease
 			                  val proposedLease = Lease(range.startIPAddress + idx, new java.util.Date(now + leaseTimeMillis), lease.version + 1, requester)
+			                  if(log.isDebugEnabled) log.debug(s"Try to put update lease for for ${proposedLease.ipAddress}")
 			                  val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTimestamp = ?, version = ?, assignedTo = ? where ipAddress = ? and version = ?")
 			                    .setArgs(
 			                        proposedLease.endLeaseTimestamp: java.util.Date, 
@@ -536,17 +542,25 @@ object SessionDatabase {
 			                  if(updates == 1){
 			                    myLease = Some(proposedLease)
 			                    break
-			                  } else log.info("Lease update not performed. Another client may have taken the candidate IP address")
+			                  } else log.info(s"Lease update not performed. Another client may have taken the candidate IP address ${proposedLease.ipAddress}")
 	                    }
 	              }
 	            }
 	          }
 	        }
         } // breakable
-
-        myLease
+        
+        myLease match {
+          case Some(lease) =>
+            if(log.isDebugEnabled) log.debug(s"Assigned ${lease.ipAddress} to ${lease.assignedTo}")
+          case None =>
+            log.warn(s"Could not assign an IP Address to $requester")
+        }
+        
+        myLease 
         
       case None =>
+        log.error(s"$selectorId not found")
         None
     }
   }
@@ -562,7 +576,9 @@ object SessionDatabase {
             nowDate: java.util.Date, 
             ipAddress: java.lang.Long
          )
-      leasesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long] == 1
+      val updated = leasesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long]
+      if(updated != 1) log.warn(s"Could not release $ipAddress")
+      updated == 1
   }
   
   def renew(ipAddress: Long, requester: String, leaseTimeMillis: Long) = {
@@ -575,7 +591,9 @@ object SessionDatabase {
           requester: java.lang.String
        )
        
-      leasesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long] == 1
+      val updated = leasesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long]
+      if(updated != 1) log.warn(s"Could not renew $ipAddress")
+      updated == 1
   }
   
   // For testing only. Creates a set of old leases filling all the ranges in the specified pool

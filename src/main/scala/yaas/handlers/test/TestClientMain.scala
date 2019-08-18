@@ -11,11 +11,12 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   
   // Use different URL for full test
   val iamBaseURL = "http://localhost:19503/iam"
-  val iamSecondaryBaseURL = "http://localhost:19503/iam"
+  val iamSecondaryBaseURL = "http://localhost:19504/iam"
   
   // nRequests is 1000 or the value in YAAS_TEST_REQUESTS
   
   // _ is needed to promote the method (no arguments) to a function
+  
   val tests = IndexedSeq[() => Unit](
       checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,

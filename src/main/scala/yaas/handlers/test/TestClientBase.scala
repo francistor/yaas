@@ -74,6 +74,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     } yield j)
   }
   
+  def jsonFromPostJsonWithErrorTrace(url: String, json: String) = {
+    wait(for {
+      r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
+      dummy = if(r.status.intValue() != 200) println(s"$url got ${r.status}")
+      j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
+    } yield j)
+  }
+  
   def codeFromPostJson(url: String, json: String) = {
     wait(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
@@ -705,7 +713,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       def loop: Unit = {
         val reqIndex = i.getAndIncrement
         val index = reqIndex % 1000
-        print("\r" +  reqIndex)
+        print(s"\r${reqIndex} ")
         if(reqIndex < nRequests){
           // The server will echo the User-Password. We'll test this
           val password = s"password!_$index"
@@ -1031,6 +1039,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   def reloadLookup(): Unit = {
      jsonFromPostJson(iamBaseURL + "/reloadLookup", "{}")
+     jsonFromPostJson(iamSecondaryBaseURL + "/reloadLookup", "{}")
      
      nextTest
   }
@@ -1091,9 +1100,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       var currIndex = 0
       while({currIndex = i.getAndIncrement; if(currIndex < nAddresses) true else false})
       {
-        print("\r" +  currIndex)
+        print(s"\r${currIndex} ")
         val base = if(currIndex % 2 == 0) iamBaseURL else iamSecondaryBaseURL
-        Try(jsonFromPostJson(base + "/lease?selectorId=Republica", "{}") \ "ipAddress") match {
+        Try(jsonFromPostJsonWithErrorTrace(base + "/lease?selectorId=Republica", "{}") \ "ipAddress") match {
           
           case Success(JInt(ipAddr)) =>
             total = total + 1

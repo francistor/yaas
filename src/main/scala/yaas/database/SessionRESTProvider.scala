@@ -194,7 +194,10 @@ class SessionRESTProvider extends Actor with ActorLogging with JsonSupport {
     			            complete(420, "No IP address available")
     			        }
   			        } 
-  			        else complete(404, s"Selector [$selectorId] not found")
+  			        else{
+  			          log.warning(s"Selector [$selectorId] not found")
+  			          complete(404, s"Selector [$selectorId] not found")
+  			        }
   			    }
   		    }
   		  } ~ 

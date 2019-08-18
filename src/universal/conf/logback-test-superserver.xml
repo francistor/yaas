@@ -31,7 +31,7 @@
     	<appender-ref ref="file-appender" />
   	</root>
   	
-  	<logger name="yaas" level="DEBUG" additivity="false">
+  	<logger name="yaas" level="INFO" additivity="false">
     	<appender-ref ref="file-appender" />
   	</logger>
   	
