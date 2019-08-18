@@ -696,7 +696,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   def checkRadiusPerformance(requestType: Int, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
-    println(s"[Test] RADIUS Performance. $testName")
+    println(s"[TEST] RADIUS Performance. $testName")
     
     val serverGroup = "testServer"
     
@@ -764,7 +764,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   def checkDiameterPerformance(requestType: String, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
-    println(s"[Test] Diameter Performance. $testName")
+    println(s"[TEST] Diameter Performance. $testName")
     
     val startTime = System.currentTimeMillis()
     

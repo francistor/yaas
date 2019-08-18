@@ -40,3 +40,9 @@ kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/radius/me
 # Programatic Prometheus query
 curl http://localhost:9090/api/v1/query?query=sum\(radius_server_requests{pod="yaas-server-0"}\) | jq .
 
+# GKE radius client
+aaaserver -Dinstance=radius -Dconfig.file=c:\code\yaasws\yaas\src\k8s\conf\client-gke\aaa-default.conf -Dlogback.configurationFile=c:\code\yaasws\yaas\src\k8s\conf\client-gke\logback-default.xml
+
+# GKE diameter client
+aaaserver -Dinstance=diameter -Dconfig.file=c:\code\yaasws\yaas\src\k8s\conf\client-gke\aaa-default.conf -Dlogback.configurationFile=c:\code\yaasws\yaas\src\k8s\conf\client-gke\logback-default.xml
+
