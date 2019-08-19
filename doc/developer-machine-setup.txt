@@ -1,0 +1,23 @@
+# Set http_proxy and https_proxy if necesary
+
+
+# Update system
+sudo -E yum -y update
+
+# Install java
+sudo -E yum install -y java-1.8.0-openjdk
+
+# Install sbt
+curl https://bintray.com/sbt/rpm/rpm | sudo tee /etc/yum.repos.d/bintray-sbt-rpm.repo
+sudo -E yum -y install sbt
+
+# Install Docker
+sudo -E yum install -y yum-utils device-mapper-persistent-data lvm2
+sudo -E yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo -E yum install -y docker-ce docker-ce-cli containerd.io
+
+# Install git
+sudo -E yum install git
+
+# Git
+git clone https://github.com/francistor/Yaas.git

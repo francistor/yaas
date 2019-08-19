@@ -1,0 +1,23 @@
+gcloud container clusters create yaas-cluster
+gcloud container clusters get-credentials yaas-cluster
+
+REM firewall rules
+gcloud compute firewall-rules create radius-auth --allow udp:30101
+gcloud compute firewall-rules create radius-acct --allow udp:30102
+gcloud compute firewall-rules create diameter-0 --allow tcp:30200
+gcloud compute firewall-rules create diameter-1 --allow tcp:30201
+gcloud compute firewall-rules create sessions --allow tcp:30501
+
+
+REM Deploy the descriptors
+
+kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\db-service.xml
+kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\db.xml
+kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\superserver-services.xml
+kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\superserver.xml
+kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\server-services.xml
+kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\server.xml
+
+REM kube-prometheus
+REM remove the os: linux tags and the resources: tags specifying memory
+kubectl apply -f manifests/
