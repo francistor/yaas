@@ -25,13 +25,17 @@ gcloud compute firewall-rules create sessions --allow tcp:30501
 
 
 REM Deploy the descriptors
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server-services.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server.yml
 
-kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\db-service.xml
-kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\db.xml
-kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\superserver-services.xml
-kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\superserver.xml
-kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\server-services.xml
-kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\server.xml
+REM set target host
+kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=34.90.228.131
+kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml
+kubectl logs -f radiusclient
 
 REM kube-prometheus
 REM remove the os: linux tags and the resources: tags specifying memory and cpu

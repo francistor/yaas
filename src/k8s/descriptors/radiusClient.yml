@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: radiusClient
+  name: radiusclient
   namespace: default
 spec:
   initContainers:
@@ -15,14 +15,16 @@ spec:
   containers:
   - name: yaas
     image: francistor/yaas:0.1
-    env: 
-    	- name: YAAS_TEST_SERVER
-    	- value: $(YAAS_TEST_SERVER)
     command: ["./aaaserver", "-Dinstance=radius", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8s/conf/client/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8s/conf/client/logback-default.xml"]
     volumeMounts:
       - name: configuration
         mountPath: /aaaserver/conf 
     env:
+      - name: YAAS_TEST_SERVER
+        valueFrom:
+          configMapKeyRef:
+            name: yaas-test-config
+            key: YAAS_TEST_SERVER
       - name: POD_NAME
         valueFrom:
           fieldRef:
