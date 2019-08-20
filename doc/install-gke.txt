@@ -1,5 +1,20 @@
+
+gcloud config set project sandbox-project
+
+REM configure gcloud settings 
+gcloud config set proxy/type http
+gcloud config set proxy/address proxy.indra.es
+gcloud config set proxy/port 8080
+gcloud config set proxy/username frodriguezg
+gcloud config set proxy/password _Brillaba11
+
+REM Create cluster
 gcloud container clusters create yaas-cluster
 gcloud container clusters get-credentials yaas-cluster
+
+REM And this is needed for kubectl
+set http_proxy=http://frodriguezg:_Brillaba11@172.22.232.100:8080
+set https_proxy=http://frodriguezg:_Brillaba11@172.22.232.100:8080
 
 REM firewall rules
 gcloud compute firewall-rules create radius-auth --allow udp:30101
@@ -19,5 +34,11 @@ kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\server-services.xml
 kubectl apply -f c:\code\yaas\yaasws\src\k8s\descriptors\server.xml
 
 REM kube-prometheus
-REM remove the os: linux tags and the resources: tags specifying memory
-kubectl apply -f manifests/
+REM remove the os: linux tags and the resources: tags specifying memory and cpu
+kubectl apply -f c:\tmp\kube-prometheus\manifests\
+
+REM See prometheus dashboard
+kubectl --namespace monitoring port-forward svc/prometheus-k8s 9090
+
+REM Delete cluster
+gcloud container clusters delete yaas-cluster

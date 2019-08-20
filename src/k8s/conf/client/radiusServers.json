@@ -3,7 +3,7 @@
 	[
 		{
         "name": "yaas-server",
-        "IPAddress": "yaas-localhost",
+        "IPAddress": "${YAAS_TEST_SERVER:yaas-test-server}",
         "secret": "secret",
         "ports": {
           "auth": 30101,

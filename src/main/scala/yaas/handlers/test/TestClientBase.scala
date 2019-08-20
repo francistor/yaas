@@ -40,7 +40,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   log.info("Instantiated Radius/Diameter client application")
   
-  val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).map(req => Integer.parseInt(req)).getOrElse(10000)
+  val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).orElse(Option(System.getProperty("YAAS_TEST_REQUESTS"))).map(req => Integer.parseInt(req)).getOrElse(10000)
   
   implicit val materializer = ActorMaterializer()
   val http = Http(context.system)

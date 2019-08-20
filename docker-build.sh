@@ -6,7 +6,7 @@
 
 # Better at the beginning
 echo "DockerHub password"
-sudo docker login --username=francistor
+sudo -E docker login --username=francistor
 
 # Build project
 git pull

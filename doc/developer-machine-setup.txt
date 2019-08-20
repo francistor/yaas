@@ -1,5 +1,5 @@
-# Set http_proxy and https_proxy if necesary
-
+export http_proxy=http://frodriguezg:_Brillaba11@172.22.232.100:8080
+export https_proxy=http://frodriguezg:_Brillaba11@172.22.232.100:8080
 
 # Update system
 sudo -E yum -y update
@@ -15,9 +15,29 @@ sudo -E yum -y install sbt
 sudo -E yum install -y yum-utils device-mapper-persistent-data lvm2
 sudo -E yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 sudo -E yum install -y docker-ce docker-ce-cli containerd.io
+sudo systemctl enable docker
+sudo mkdir /etc/systemd/system/docker.service.d/
+
+# As superuser
+cat <<EOF > /etc/systemd/system/docker.service.d/http-proxy.conf
+[Service]
+Environment="HTTPS_PROXY=http://frodriguezg:_Brillaba11@172.22.232.100:8080"
+Environment="HTTP_PROXY=http://frodriguezg:_Brillaba11@172.22.232.100:8080"
+EOF
+
+# As normal user
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
 
 # Install git
 sudo -E yum install git
 
 # Git
 git clone https://github.com/francistor/Yaas.git
+git config --global http.proxy http://frodriguezg:_Brillaba11@172.22.232.100:8080
+git config --global https.proxy http://frodriguezg:_Brillaba11@172.22.232.100:8080
+
+# Unzip
+sudo -E yum install -y unzip
+

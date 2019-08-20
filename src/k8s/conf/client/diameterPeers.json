@@ -1,7 +1,7 @@
 [
 	{
         "diameterHost": "yaas-server-0.yaasserver",
-        "IPAddress": "yaas-localhost",
+        "IPAddress": "${YAAS_TEST_SERVER:yaas-test-server}",
         "port": 30200,
 		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 300000,

@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory
  * ]<br>
  * </code>
  * 
- * The contents of the configuration files may include replacements for environment of system variables ${}
+ * The contents of the configuration files may include replacements for environment of system variables '\\${key:defaultValue}'
  * 
  */
 object ConfigManager {
@@ -265,8 +265,17 @@ object ConfigManager {
 	
 	// Helper
 	private def replaceVars(input: String) = {
+	  // Replacer is made of the environment and the system properties
 	  val varMap = System.getenv.toMap ++ System.getProperties.toMap
-	  val r1 = var1Regex.replaceSomeIn(input, m => varMap.get(m.group(1)))
-	  var2Regex.replaceSomeIn(r1, m => varMap.get(m.group(1)))
+	  val r1 = var1Regex.replaceSomeIn(input, m => {
+	    val keyAndDefault = m.group(1).split(":").toList
+	    // Try to use the value for the key or the defaultValue if not found
+	    varMap.get(keyAndDefault.head).orElse(Some(keyAndDefault.last))
+	    })
+	  var2Regex.replaceSomeIn(r1, m => {
+	    val keyAndDefault = m.group(1).split(":").toList
+	    // Try to use the value for the key or the defaultValue if not found
+	    varMap.get(keyAndDefault.head).orElse(Some(keyAndDefault.last))
+	    })
 	}
 }

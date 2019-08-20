@@ -9,11 +9,12 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
   
-  // Used. yaas-localhost must be defined in hosts file and point to the local node
-  val superServerSessionsURL = "http://yaas-host-1:30501"
+  // Used
+  val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
   
-  val iamBaseURL = "http://yaas-host-1:30501/iam"
-  val iamSecondaryBaseURL = "http://yaas-host-1:30501/iam"
+  val superServerSessionsURL = s"http://${yaas_test_server}:30501"
+  val iamBaseURL = s"http://${yaas_test_server}:30501/iam"
+  val iamSecondaryBaseURL = s"http://${yaas_test_server}:30501/iam"
   
     // _ is needed to promote the method (no arguments) to a function
   val tests = IndexedSeq[() => Unit](
