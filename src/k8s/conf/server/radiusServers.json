@@ -64,7 +64,7 @@
       },
       {
       	"name": "yaas-superserver-group",
-      	"servers": ["yaas-superserver-0, yaas-superserver-1"],
+      	"servers": ["yaas-superserver-0", "yaas-superserver-1"],
       	"policy": "random"
       }
 	]

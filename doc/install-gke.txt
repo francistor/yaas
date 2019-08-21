@@ -51,5 +51,8 @@ REM See prometheus dashboard
 kubectl --namespace monitoring port-forward svc/prometheus-k8s 9090
 REM sum(radius_server_requests{service="yaas-server"}) by (pod)
 
+
+kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/setLogLevel?loggerName=yaas&level=DEBUG
+
 REM Delete cluster
 gcloud container clusters delete yaas-cluster
