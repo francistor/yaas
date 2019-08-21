@@ -1,37 +1,40 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: radiusClient
+  name: diameterclient
   namespace: default
 spec:
-  initContainers:
-  - name: git
-    image: alpine/git:1.0.7
-    command: ["/bin/sh", "-c"]
-    args: ["git clone https://github.com/francistor/Yaas.git || (cd Yaas; git reset --hard; git pull)"]
-    volumeMounts:
-      - name: configuration
-        mountPath: /git
-  containers:
-  - name: yaas
-    image: francistor/yaas:0.1
-    command: ["./aaaserver", "-Dinstance=diameter", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8s/conf/client/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8s/conf/client/logback-default.xml"]
-    volumeMounts:
-      - name: configuration
-        mountPath: /aaaserver/conf 
-    env:
-     - name: YAAS_TEST_SERVER
-        valueFrom:
-          configMapKeyRef:
-            name: yaas-test-config
-            key: YAAS_TEST_SERVER
-      - name: POD_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-    securityContext:
-      runAsUser: 1000
-    imagePullPolicy: Always
-  volumes:
-    - name: configuration
-      emptyDir: {}
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+      - name: git
+        image: alpine/git:1.0.7
+        command: ["/bin/sh", "-c"]
+        args: ["git clone https://github.com/francistor/Yaas.git || (cd Yaas; git reset --hard; git pull)"]
+        volumeMounts:
+          - name: configuration
+            mountPath: /git
+      containers:
+      - name: yaas
+        image: francistor/yaas:0.1
+        command: ["./aaaserver", "-Dinstance=diameter", "-Dconfig.file=/aaaserver/conf/Yaas/src/k8s/conf/client/aaa-default.conf", "-Dlogback.configurationFile=/aaaserver/conf/Yaas/src/k8s/conf/client/logback-default.xml"]
+        volumeMounts:
+          - name: configuration
+            mountPath: /aaaserver/conf 
+        env:
+          - name: YAAS_TEST_SERVER
+            valueFrom:
+              configMapKeyRef:
+                name: yaas-test-config
+                key: YAAS_TEST_SERVER
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        securityContext:
+          runAsUser: 1000
+        imagePullPolicy: Always
+      volumes:
+        - name: configuration
+          emptyDir: {}
