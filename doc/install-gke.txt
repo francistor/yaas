@@ -33,7 +33,6 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.ym
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server.yml
-kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\serviceMonitor.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
 REM set target host
@@ -44,6 +43,9 @@ kubectl logs -f radiusclient
 REM kube-prometheus
 REM remove the os: linux tags and the resources: tags specifying memory and cpu
 kubectl apply -f c:\tmp\kube-prometheus\manifests\
+
+REM monitor YAAS
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\serviceMonitor.yml
 
 REM See prometheus dashboard
 kubectl --namespace monitoring port-forward svc/prometheus-k8s 9090
