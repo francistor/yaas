@@ -30,7 +30,7 @@
       },
       {
         "name": "yaas-superserver-1",
-        "IPAddress": "yaas-superserver-0.yaas-superserver",
+        "IPAddress": "yaas-superserver-1.yaas-superserver",
         "secret": "secret",
         "ports": {
           "auth": 1812,

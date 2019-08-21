@@ -114,6 +114,9 @@ object Router {
   // Instrumentation messages
   case object IXGetPeerStatus
   case class IXReloadConfig(fileName: Option[String])
+  
+  // Housekeeping
+  case object PeerCheck
 }
 
 // Manages Routes, Peers and Handlers
@@ -122,6 +125,8 @@ class Router() extends Actor with ActorLogging {
   import Router._
   
   val config = ConfigFactory.load().getConfig("aaa")
+  
+  val peerCheckTimeSeconds = config.getInt("diameter.peerCheckTimeSeconds")
   
   // Start sessions database and IPAM REST server
 	val databaseRole = config.getString("sessionsDatabase.role")
@@ -214,7 +219,6 @@ class Router() extends Actor with ActorLogging {
 	  }
 	  
     // For each one of the peers in the new configuration map
-    // If 
 	  val newPeerHostMap = conf.map { case (hostName, peerConfig) =>
 	    cleanPeersHostMap.get(hostName) match {
 	      case None | Some(DiameterPeerPointer(_, PeerStatus.STATUS_DOWN, _)) =>
@@ -226,7 +230,7 @@ class Router() extends Actor with ActorLogging {
 	        }
 	        else {
 	          // Passive Policy. Just create pointer without Actor. Will be created when a connection arrives
-	          log.info(s"Waiting for connection from $hostName")
+	          log.debug(s"Waiting for connection from $hostName")
 	          (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
 	        }
 	      case Some(dpp) =>
@@ -612,10 +616,19 @@ class Router() extends Actor with ActorLogging {
         case e: NoSuchElementException => sender ! s"${fileName.getOrElse("all")} not found"
         case e: java.io.IOException => sender ! akka.actor.Status.Failure(e)
       }
+      
+    case PeerCheck =>
+      // Check peer status. Will use last peer table if not updated by a reload
+      if(DiameterConfigManager.isDiameterEnabled){
+        log.debug("Peer status checking")
+        peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
+        context.system.scheduler.scheduleOnce(peerCheckTimeSeconds seconds, self, PeerCheck)
+      }
 	}
 	
 	override def preStart = {
-
+	  // Start peer check timer
+    context.system.scheduler.scheduleOnce(peerCheckTimeSeconds seconds, self, PeerCheck)
   }
   
   // Cleanup
