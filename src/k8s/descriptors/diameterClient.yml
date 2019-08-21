@@ -23,6 +23,10 @@ spec:
           - name: configuration
             mountPath: /aaaserver/conf 
         env:
+          - name: YAAS_TEST_REQUESTS
+            value: "10000"
+          - name: YAAS_TEST_LOOP
+            value: "false"
           - name: YAAS_TEST_SERVER
             valueFrom:
               configMapKeyRef:

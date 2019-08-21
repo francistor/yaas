@@ -37,7 +37,12 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
 REM set target host
 kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=35.204.163.173
+
+REM RADIUS TEST
 kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml
+kubectl logs -f radiusclient
+REM DIAMETER TEST
+kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\diameterClient.yml
 kubectl logs -f radiusclient
 
 REM kube-prometheus
@@ -53,6 +58,8 @@ REM sum(radius_server_requests{service="yaas-server"}) by (pod)
 
 REM See grafana dashboard
 kubectl --namespace monitoring port-forward svc/grafana 3000
+
+
 
 
 REM Delete cluster
