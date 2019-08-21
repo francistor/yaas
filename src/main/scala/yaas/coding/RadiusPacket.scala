@@ -641,7 +641,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     // code: 1 byte
     // identifier: 1 byte
     // length: 2: 2 byte
-    // authtenticator: 16 octets
+    // authenticator: 16 octets
     
     val builder = new ByteStringBuilder()
     

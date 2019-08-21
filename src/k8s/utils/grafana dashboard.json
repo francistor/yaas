@@ -56,14 +56,14 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(diameter_requests_received{service=\"yaas-server\"}[1m])) by (pod)",
+          "expr": "sum(rate(diameter_requests_received{service=\"yaas-server\"}[30s])) by (pod)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "server {{pod}}",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(diameter_requests_received{service=\"yaas-superserver\"}[1m])) by (pod)",
+          "expr": "sum(rate(diameter_requests_received{service=\"yaas-superserver\"}[30s])) by (pod)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "super-server {{pod}}",
@@ -149,7 +149,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(radius_server_requests{service=\"yaas-server\"}[1m])) by (pod)",
+          "expr": "sum(rate(radius_server_requests{service=\"yaas-server\"}[30s])) by (pod)",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 1,
@@ -157,7 +157,7 @@
           "refId": "A"
         },
         {
-          "expr": "sum(rate(radius_server_requests{service=\"yaas-superserver\"}[1m])) by (pod)",
+          "expr": "sum(rate(radius_server_requests{service=\"yaas-superserver\"}[30s])) by (pod)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "super-server {{pod}}",
@@ -245,5 +245,5 @@
   "timezone": "",
   "title": "Yaas",
   "uid": "kRk4ZCdZz",
-  "version": 6
+  "version": 8
 }

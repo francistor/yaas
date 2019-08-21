@@ -499,7 +499,7 @@ class Router() extends Actor with ActorLogging {
 
 	        val nServers = servers.length
 	        if(nServers > 0) {
-            val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (radiusPacket.authenticator(0).toInt % nServers) else 0)) % nServers
+            val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (radiusId % nServers).toInt else 0)) % nServers
             val radiusServer = radiusServers(servers(serverIndex))
             // Name is converted to address here
             radiusClientActor.get ! RadiusClientRequest(radiusPacket, 
