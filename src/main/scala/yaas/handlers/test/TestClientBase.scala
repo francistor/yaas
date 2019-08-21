@@ -123,6 +123,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   val iamBaseURL : String
   val iamSecondaryBaseURL : String
   
+  val includingNeRadiusGroup : String
+  val allServersRadiusGroup : String
+  
   // Wait some time before starting the tests.
   // peerCheckTimeSeconds should be configured with about 10 seconds. Starting the tests after
   // 15 seconds will give some time to retry connections that will have initially failed due 
@@ -215,27 +218,6 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    *  realm
    *    "database" to do lookup in database
    *    "file" to do lookup in file
-   * 
-   * Radius client
-   * -------------
-   * 
-   * 	group: all-servers
-   * 		non-existing-server
-   * 		test-server
-   * 
-   *  group: test-server
-   *  	test-server
-   *  
-   *  Radius server
-   *  -------------
-   *  
-   *  group: all-servers
-   *  	non-existing-server
-   *  	test-superserver
-   *  
-   *  group: test-superserver
-   *  	test-superserver
-   * 
    */
   
   /*
@@ -248,7 +230,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    */
   
   /**
-   * Sends Access-Request to "allServers", the first one of which does not respond, and expects to receive
+   *  Sends Access-Request to "yaas-server-ne-group", the first one of which does not respond, and expects to receive
    * 	User-Password = password!_1
    *  Class = legacy_1
    *  
@@ -270,7 +252,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     // Server echoes password
-    sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
+    sendRadiusGroupRequest(includingNeRadiusGroup, accessRequest, 1000, 1).onComplete {
       case Success(response) =>
         // Class
         val classAttributes = (response >>+ "Class").map(avp => avp.stringValue)
@@ -301,7 +283,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
-    sendRadiusGroupRequest("allServers", accessRequest, 1000, 1).onComplete {
+    sendRadiusGroupRequest(includingNeRadiusGroup, accessRequest, 1000, 1).onComplete {
       case Success(response) => 
         if(response.code == RadiusPacket.ACCESS_REJECT){
           ok("Reject received correctly")
@@ -328,7 +310,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       ("Acct-Session-Id" -> "radius-session-drop")
       
     // Will generate an unsuccessful request to "non-existing-server". Yaasserver will also send it twice to supserserver
-    sendRadiusGroupRequest("allServers", accessRequest, 1500, 1).onComplete {
+    sendRadiusGroupRequest(includingNeRadiusGroup, accessRequest, 1500, 1).onComplete {
       case Success(response) => 
         fail("Received response")
         nextTest
@@ -365,7 +347,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
 
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
-    sendRadiusGroupRequest("allServers", accountingRequest, 2000, 1).onComplete {
+    sendRadiusGroupRequest(includingNeRadiusGroup, accountingRequest, 2000, 1).onComplete {
       case Success(response) => 
         ok("Received response")
         
@@ -395,7 +377,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       ("Acct-Status-Type" -> "Start")  
       
     // Generate another one to be discarded by the superserver. The servers re-sends the request to superserver
-    sendRadiusGroupRequest("testServer", accountingRequest, 500, 0).onComplete {
+    sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 500, 0).onComplete {
       case _ => nextTest
     }
   }
@@ -694,11 +676,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       nextTest
   }
   
-  def checkRadiusPerformance(requestType: Int, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
+  def checkRadiusPerformance(serverGroup: String, requestType: Int, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
     println(s"[TEST] RADIUS Performance. $testName")
-    
-    val serverGroup = "testServer"
     
     val startTime = System.currentTimeMillis()
     
@@ -1168,7 +1148,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   	}
   }
   
-  Yaas.radiusRequest("allServers", JSON.stringify(request), 2000, 1, function(err, response){
+  Yaas.radiusRequest(allServersRadiusGroup, JSON.stringify(request), 2000, 1, function(err, response){
   	if(err){
   		print("There was an error.\n" + err.message);
   	}

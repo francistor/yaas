@@ -12,6 +12,11 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
   
   log.info("Instantiated NASREQ Handler")
   
+  val nCPUOperations = Option(System.getenv("YAAS_CPU_OPERATIONS"))
+    .orElse(Option(System.getProperty("YAAS_CPU_OPERATIONS")))
+    .map(req => Integer.parseInt(req)).getOrElse(0)
+
+  
   override def handleDiameterMessage(ctx: DiameterRequestContext) = {
     
     ctx.diameterRequest.command match {
@@ -31,6 +36,9 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
     
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << ("Class", framedInterfaceId) << ("Class", chapIdent)
+    
+    // Fake CPU load
+    if(nCPUOperations > 0) for(i <- 0 to nCPUOperations) Math.atan(Math.random())
     
     sendDiameterAnswer(answer)
   }
@@ -60,6 +68,10 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
     
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS)
+    
+    // Fake CPU Load
+    if(nCPUOperations > 0) for(i <- 0 to nCPUOperations) Math.atan(Math.random())
+    
     sendDiameterAnswer(answer)
   }
 }

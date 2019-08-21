@@ -2,7 +2,7 @@
 	"servers" : 
 	[
 		{
-        "name": "test-superserver",
+        "name": "yaas-superserver",
         "IPAddress": "localhost",
         "secret": "secret",
         "ports": {
@@ -29,14 +29,14 @@
 	"serverGroups" :
 	[
 	  {
-        "name": "allServers",
-        "servers": ["non-existing-server", "test-superserver"],
+        "name": "yaas-server-ne-group",
+        "servers": ["non-existing-server", "yaas-superserver"],
         # policy may be "fixed", "random", "fixed-withclear", "random-withclear"
         "policy": "fixed"
       },
       {
-      	"name": "superServer",
-      	"servers": ["test-superserver"],
+      	"name": "yaas-superserver-group",
+      	"servers": ["yaas-superserver"],
       	"policy": "random"
       }
 	]

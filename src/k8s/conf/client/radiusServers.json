@@ -13,17 +13,30 @@
         },
         "errorLimit": 3,
         "quarantineTimeMillis": 60000
+      },
+      {
+        "name": "non-existing-server",
+        "IPAddress": "1.1.1.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799,
+          "dm": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
       }
 	],
 	"serverGroups" :
 	[
 	  {
-        "name": "allServers",
-        "servers": ["yaas-server"],
+        "name": "yaas-server-ne-group",
+        "servers": ["non-existing-server", "yaas-server"],
         "policy": "fixed"
       },
       {
-        "name": "testServer",
+        "name": "yaas-server-group",
         "servers": ["yaas-server"],
         "policy": "fixed"
       }

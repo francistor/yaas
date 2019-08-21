@@ -2,7 +2,7 @@
 	"servers" : 
 	[
 		{
-        "name": "test-server",
+        "name": "yaas-server",
         "IPAddress": "127.0.0.1",
         "secret": "secret",
         "ports": {
@@ -31,13 +31,13 @@
 	"serverGroups" :
 	[
 	  {
-        "name": "allServers",
-        "servers": ["non-existing-server", "test-server"],
+        "name": "yaas-server-ne-group",
+        "servers": ["non-existing-server", "yaas-server"],
         "policy": "fixed"
       },
       {
-        "name": "testServer",
-        "servers": ["test-server"],
+        "name": "yaas-server-group",
+        "servers": ["yaas-server"],
         "policy": "fixed"
       }
 	]

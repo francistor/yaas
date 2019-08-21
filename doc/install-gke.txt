@@ -23,6 +23,8 @@ gcloud compute firewall-rules create diameter-0 --allow tcp:30200
 gcloud compute firewall-rules create diameter-1 --allow tcp:30201
 gcloud compute firewall-rules create sessions --allow tcp:30501
 
+# Remove implicit limit to 100m
+kubectl delete limitrange limits
 
 REM Deploy the descriptors
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml
@@ -31,9 +33,11 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.ym
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\serviceMonitor.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
 REM set target host
-kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=34.90.228.131
+kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=35.204.163.173
 kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml
 kubectl logs -f radiusclient
 
@@ -43,6 +47,7 @@ kubectl apply -f c:\tmp\kube-prometheus\manifests\
 
 REM See prometheus dashboard
 kubectl --namespace monitoring port-forward svc/prometheus-k8s 9090
+REM sum(radius_server_requests{service="yaas-server"}) by (pod)
 
 REM Delete cluster
 gcloud container clusters delete yaas-cluster

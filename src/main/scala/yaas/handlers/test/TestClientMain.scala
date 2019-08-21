@@ -9,6 +9,9 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   val superServerMetricsURL = "http://localhost:19003"
   val superServerSessionsURL = "http://localhost:19503"
   
+  val includingNeRadiusGroup = "yaas-server-ne-group"
+  val allServersRadiusGroup = "yaas-server-group"
+  
   // Use different URL for full test
   val iamBaseURL = "http://localhost:19503/iam"
   val iamSecondaryBaseURL = "http://localhost:19504/iam"
@@ -39,10 +42,10 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       checkSuperserverDiameterStats _,
       checkServerDiameterStats _,
       runJS(configObject.get) _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@file", Math.min(5000, nRequests), 10, "Radius Warmup") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@file", nRequests, 10, "Free Wheel") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@database", nRequests, 10, "Database Lookup") _,
-      checkRadiusPerformance(ACCOUNTING_REQUEST, "@file", nRequests, 10, "Session storage") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "@none", Math.min(5000, nRequests), 10, "Radius Warmup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "@none", nRequests, 10, "Free Wheel") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "@database", nRequests, 10, "Database Lookup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "@none", nRequests, 10, "Session storage") _,
       checkDiameterPerformance("AA", "@file", Math.min(5000, nRequests), 10, "AA Warmup") _,
       checkDiameterPerformance("AA", "@file", nRequests, 10, "AA Free Wheel") _,
       checkDiameterPerformance("AC", "@file", nRequests, 10, "AC Warmup") _,

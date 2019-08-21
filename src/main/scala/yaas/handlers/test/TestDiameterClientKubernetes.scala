@@ -9,9 +9,11 @@ class TestDiameterClientKubernetes(statsServer: ActorRef, configObject: Option[S
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
   
-  // Used
-    val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
+  val includingNeRadiusGroup = "yaas-server-ne-group"
+  val allServersRadiusGroup = "yaas-server-group"
   
+  // Used
+  val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
   val superServerSessionsURL = s"http://${yaas_test_server}:30501"
   val iamBaseURL = s"http://${yaas_test_server}:30501/iam"
   val iamSecondaryBaseURL = s"http://${yaas_test_server}:30501/iam"

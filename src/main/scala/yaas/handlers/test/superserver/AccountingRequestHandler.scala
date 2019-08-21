@@ -14,6 +14,10 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   
   log.info("Instantiated AccessRequestHandler")
   
+  val nCPUOperations = Option(System.getenv("YAAS_CPU_OPERATIONS"))
+    .orElse(Option(System.getProperty("YAAS_CPU_OPERATIONS")))
+    .map(req => Integer.parseInt(req)).getOrElse(0)
+  
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
     ctx.requestPacket.code match {
@@ -30,6 +34,9 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
     if(userName.contains("drop")){
       dropRadiusPacket
     } 
-    else sendRadiusResponse(requestPacket.response() << ("User-Name" -> userName))
+    else{
+      if(nCPUOperations > 0) for(i <- 0 to nCPUOperations) Math.atan(Math.random())
+      sendRadiusResponse(requestPacket.response() << ("User-Name" -> userName))
+    }
   }
 }

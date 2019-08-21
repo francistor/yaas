@@ -14,7 +14,7 @@ var testItems = [
 			  "User-Password": ["password!_1"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 2000,
 		"retries": 1,
 		"validations":[
@@ -40,7 +40,7 @@ var testItems = [
 			  "Acct-Status-Type": ["Start"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 2000,
 		"retries": 1,
 		"validations":[
@@ -72,7 +72,7 @@ var testItems = [
 			  "User-Password": ["password!_11"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 1000,
 		"retries": 1,
 		"validations":[
@@ -92,19 +92,19 @@ var testItems = [
 			"avps": {
 			  "Acct-Session-Id": ["acctSessionId_12"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [12],
+			  "NAS-Port": [13],
 			  "User-Name": ["acs@acs"],
 			  "User-Password": ["<factory-set-password>"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 1000,
 		"retries": 1,
 		"validations":[
 			["code", 2],
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aacs"],
-			["attributeValueContains", "Class", "C=legacy_12"],
+			["attributeValueContains", "Class", "C=legacy_13"],
 			["attributeValueContains", "Class", "S=acs"]
 		]
 	},
@@ -121,7 +121,7 @@ var testItems = [
 			  "User-Password": ["mypassword"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 1000,
 		"retries": 1,
 		"validations":[
@@ -145,7 +145,7 @@ var testItems = [
 			  "User-Password": ["password!_4"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 2000,
 		"retries": 1,
 		"validations":[
@@ -172,7 +172,7 @@ var testItems = [
 			  "User-Password": ["<bad-password>"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 2000,
 		"retries": 1,
 		"validations":[
@@ -193,7 +193,7 @@ var testItems = [
 			  "User-Password": ["<bad-password>"]
 			}
 		},
-		"radiusGroup": "testServer",
+		"radiusGroup": "yaas-server-group",
 		"timeout": 2000,
 		"retries": 1,
 		"validations":[

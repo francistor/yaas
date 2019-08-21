@@ -295,8 +295,9 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                   // Accept. Add proxied attributes and service attributes
                   val radiusResponse = RadiusPacket.response(request) << 
                     proxyAVPList << 
-                    serviceAVPList <<
-                    ("Class" -> s"S=${oServiceNameOption.get}")
+                    serviceAVPList
+                  // Add serviceName
+                  oServiceNameOption.map(sn =>  radiusResponse <<("Class" -> s"S=${sn}"))
                   
                   // Add addon service attributes. May be blocked, or else the configured one (e.g. advertising)
                   if(status == 2){

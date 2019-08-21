@@ -12,7 +12,7 @@
         "IPAddress": "yaas-superserver-0.yaas-superserver",
         "port": 3868,
 		"connectionPolicy": "active",
-		"watchdogIntervalMillis": 300000,
+		"watchdogIntervalMillis": 10000,
 		"originNetwork": "0.0.0.0/0"
 	},
 	{
@@ -20,7 +20,7 @@
         "IPAddress": "yaas-superserver-1.yaas-superserver",
         "port": 3868,
 		"connectionPolicy": "active",
-		"watchdogIntervalMillis": 300000,
+		"watchdogIntervalMillis": 10000,
 		"originNetwork": "0.0.0.0/0"
 	}
 ]

@@ -2,7 +2,7 @@
 	<appender name="file-appender" class="ch.qos.logback.core.FileAppender">
 	    <file>log/aaa_${instance:-default}.log</file>
 	    <encoder>
-      		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+      		<pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n - %ex</pattern>
     	</encoder>
 	</appender>
 

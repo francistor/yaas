@@ -9,6 +9,9 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
   
+  val includingNeRadiusGroup = "yaas-server-ne-group"
+  val allServersRadiusGroup = "yaas-server-group"
+  
   // Used
   val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
   
@@ -23,10 +26,6 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
       testAccessRequestWithDrop _,
       testAccountingRequest _,
       testAccountingRequestWithDrop _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@file", Math.min(5000, nRequests), 10, "Radius Warmup") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@file", nRequests, 10, "Free Wheel") _,
-      checkRadiusPerformance(ACCESS_REQUEST, "@database", nRequests, 10, "Database Lookup") _,
-      checkRadiusPerformance(ACCOUNTING_REQUEST, "@file", nRequests, 10, "Session storage") _,
       factorySettings _,
       createPools _,
       createPoolSelectors _,
@@ -36,7 +35,11 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
       deletePools _, 
       errorConditions _,
       fillPool _,
-      reloadLookup _,
+      reloadLookup _, // The performance testing will will take some time, required to reload the lookup table in the other server (access is balanced)
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "@none", Math.min(5000, nRequests), 10, "Radius Warmup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "@none", nRequests, 10, "Free Wheel") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "@database", nRequests, 10, "Database Lookup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "@none", nRequests, 10, "Session storage") _,
       testLeases _,
       testBulkLease _,
       unavailableLease _

@@ -32,7 +32,7 @@ class DefaultAccessRequestHandler(statsServer: ActorRef, configObject: Option[St
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
     // Proxy to superserver
-    sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete {
+    sendRadiusGroupRequest("yaas-superserver-group", ctx.requestPacket.proxyRequest, 500, 1).onComplete {
               
         case Success(response) =>
           sendRadiusResponse(ctx.requestPacket.proxyResponse(response))

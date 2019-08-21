@@ -34,7 +34,7 @@ class DefaultAccountingRequestHandler(statsServer: ActorRef, configObject: Optio
     
     writer.writeCDR(ctx.requestPacket.getCDR(format))
     
-    sendRadiusGroupRequest("superServer", ctx.requestPacket.proxyRequest, 500, 1).onComplete{
+    sendRadiusGroupRequest("yaas-superserver-group", ctx.requestPacket.proxyRequest, 500, 1).onComplete{
       case Success(response) =>
         sendRadiusResponse(ctx.requestPacket.proxyResponse(response))
       case Failure(e) =>

@@ -1,4 +1,4 @@
-# Yaas Superserver generic (monitoring and diameter)
+# Yaas Superserver generic (radius, diameter and monitoring for statefulset)
 apiVersion: v1
 kind: Service
 metadata:
@@ -16,6 +16,12 @@ spec:
     - name: diameter
       protocol: TCP
       port: 3868
+    - name: radiusauth
+      protocol: UDP
+      port: 1812
+    - name: radiusacct
+      protocol: UDP
+      port: 1813
 ---
 # Yaas Superserver radius Service
 

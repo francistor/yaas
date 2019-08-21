@@ -1,6 +1,7 @@
 {
 	"servers" : 
 	[
+		// For access balanced by Kubernetes service
 		{
         "name": "yaas-superserver",
         "IPAddress": "yaas-superserver-radius",
@@ -12,20 +13,61 @@
         },
         "errorLimit": 3,
         "quarantineTimeMillis": 60000
+      },
+      
+      // For access balanced by radius
+      {
+        "name": "yaas-superserver-0",
+        "IPAddress": "yaas-superserver-0.yaas-superserver",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 10000
+      },
+      {
+        "name": "yaas-superserver-1",
+        "IPAddress": "yaas-superserver-0.yaas-superserver",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 10000
+      },
+      {
+        "name": "non-existing-server",
+        "IPAddress": "192.168.250.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
       }
 	],
+	
 	"serverGroups" :
 	[
 	  {
-        "name": "allServers",
+        "name": "yaas-server-ne-group",
         "servers": ["non-existing-server", "yaas-superserver"],
         # policy may be "fixed", "random", "fixed-withclear", "random-withclear"
         "policy": "fixed"
       },
       {
-      	"name": "superServer",
-      	"servers": ["yaas-superserver"],
+      	"name": "yaas-superserver-group",
+      	"servers": ["yaas-superserver-0, yaas-superserver-1"],
       	"policy": "random"
       }
 	]
 }
+
+
