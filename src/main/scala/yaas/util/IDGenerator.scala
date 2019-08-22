@@ -15,6 +15,8 @@ object IDGenerator {
   }
   
   def nextRadiusId : Long = {
-    (System.currentTimeMillis() / 1000) * 4294967296L + nextEndToEndId
+    // First int is the number of seconds since the epoch, second int is a sequential number
+    // The last 3 bytes are forced to zero, since they will be used to code the retransmission number
+    ((System.currentTimeMillis() / 1000) << 16) + (nextEndToEndId << 3)
   }
 }

@@ -31,7 +31,7 @@ object MessageHandler {
   case class DiameterRequestTimeout(e2eId: Long) 
   case class RadiusRequestTimeout(radiusId: Long)
   case class DiameterRequestInternal(promise: Promise[DiameterMessage], requestMessage: DiameterMessage, timeoutMillis: Int)
-  case class RadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int)
+  case class RadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, baseRadiusId: Long, timeoutMillis: Int, retries: Int, retryNum: Int)
 }
 
 /**
@@ -157,18 +157,24 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
    * Sends a Radius Request to the specified group.
    * 
    * To be used externally. Will use internal Actor message to avoid thread synchronization issues. It may be used from
-   * any thread.
+   * any thread because the requestMap manipulation takes place in the Actor Thread
    */
-  def sendRadiusGroupRequest(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int = 0): Future[RadiusPacket] = {
+  def sendRadiusGroupRequest(serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int = 0, prevRadiusId: Option[Long] = None): Future[RadiusPacket] = {
     val promise = Promise[RadiusPacket]
     val sentTimestamp = System.currentTimeMillis
     
-    self ! RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum)
+    // The baseRadiusId will be stable across retransmissions
+    val baseRadiusId = prevRadiusId match {
+      case Some(rId) => rId
+      case None => yaas.util.IDGenerator.nextRadiusId
+    }
+    
+    self ! RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, baseRadiusId, timeoutMillis, retries, retryNum)
     
     promise.future.recoverWith {
       case e if(retries > 0) =>
         MetricsOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
-        sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1)
+        sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1, Some(baseRadiusId))
     }.andThen {
       case Failure(e) =>
         MetricsOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
@@ -178,10 +184,11 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   }
   
   // To be used internally
-  private def sendRadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, timeoutMillis: Int, retries: Int, retryNum: Int) = {
+  private def sendRadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, baseRadiusId: Long, timeoutMillis: Int, retries: Int, retryNum: Int) = {
+    
+    val radiusId = baseRadiusId + retryNum
     
     // Publish in request Map
-    val radiusId = yaas.util.IDGenerator.nextRadiusId
     radiusRequestMapIn(radiusId, timeoutMillis, promise)
     
     // Send request using router
@@ -263,8 +270,8 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
       log.debug("<< Radius response received\n {}\n", radiusResponse.toString())
       radiusRequestMapOut(radiusId, Left(radiusResponse))
       
-    case RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum) =>
-      sendRadiusGroupRequestInternal(promise, serverGroupName, requestPacket, timeoutMillis, retries, retryNum)
+    case RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, baseRadiusId, timeoutMillis, retries, retryNum) =>
+      sendRadiusGroupRequestInternal(promise, serverGroupName, requestPacket, baseRadiusId, timeoutMillis, retries, retryNum)
 	}
   
   
