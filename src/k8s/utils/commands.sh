@@ -26,13 +26,13 @@ kubectl exec -it kagent -- curl http://yaas-superserver-0.yaas-superserver:19000
 kubectl exec -it kagent -- curl http://yaas-superserver-1.yaas-superserver:19000/diameter/peers | jq .
 
 # Change log level
-kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/config/setLogLevel?loggerName=yaas&level=DEBUG
+kubectl exec -it kagent -- curl -X PATCH "http://yaas-server-0.yaas-server:19000/config/setLogLevel?loggerName=yaas&level=DEBUG"
 
 # Reload configuration
-kubectl exec -it kagent -- curl -X PATCH http://yaas-server-0.yaas-server:19000/config/reload?fileName=diameterPeers.json
+kubectl exec -it kagent -- curl -X PATCH "http://yaas-server-0.yaas-server:19000/config/reload?fileName=diameterPeers.json"
 
 # Reset stats
-kubectl exec -it kagent -- curl -X PATCH http://yaas-server-0.yaas-server:19000/radius/metrics/reset
+kubectl exec -it kagent -- curl -X PATCH "http://yaas-server-0.yaas-server:19000/radius/metrics/reset"
 
 # Radius stats
 kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/radius/metrics/radiusServerRequest | jq .

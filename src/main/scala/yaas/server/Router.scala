@@ -440,7 +440,7 @@ class Router() extends Actor with ActorLogging {
   	          // Put in quarantine if necessary
   	          if(epStatus.accErrors > radiusServerPointer.errorLimit){
   	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, epStatus.port, radiusServerPointer.quarantineTimeMillis)
-  	            epStatus.quarantineTimestamp = System.currentTimeMillis + radiusServerPointer.quarantineTimeMillis
+  	            epStatus.setQuarantine(radiusServerPointer.quarantineTimeMillis)
   	            epStatus.reset
   	          }
 	          } 
@@ -499,14 +499,22 @@ class Router() extends Actor with ActorLogging {
 
 	        val nServers = servers.length
 	        if(nServers > 0) {
-	          // radiusId - retryNum is a stable number accross retransmissions (up to 8)
+	          // radiusId - retryNum is a stable number across retransmissions (up to 8)
 	          val requestId = radiusId - retryNum
             val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (requestId % nServers).toInt else 0)) % nServers
-            val radiusServer = radiusServers(servers(serverIndex))
-            // Name is converted to address here
-            radiusClientActor.get ! RadiusClientRequest(radiusPacket, 
-                    RadiusEndpoint(java.net.InetAddress.getByName(radiusServer.IPAddress).getHostAddress(), radiusServer.endpointMap(radiusPacket.code).port), radiusServer.secret,
-                    sender, radiusId)
+            val radiusServerPointer = radiusServers(servers(serverIndex))
+            
+            // Name is converted to address here. If cannot be done, put immediately in quarantine
+            val endPoint = radiusServerPointer.endpointMap(radiusPacket.code)
+            Try(java.net.InetAddress.getByName(radiusServerPointer.IPAddress).getHostAddress()) match {
+	            case Success(endpointIPAddress) =>
+	              radiusClientActor.get ! RadiusClientRequest(radiusPacket, RadiusEndpoint(endpointIPAddress, endPoint.port), radiusServerPointer.secret, sender, radiusId)
+                    
+	            case Failure(_) =>
+	              log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endPoint.port, radiusServerPointer.quarantineTimeMillis)
+	              endPoint.setQuarantine(radiusServerPointer.quarantineTimeMillis)
+	              endPoint.reset
+	          }
 	        }
           else log.warning("No available server found for group {}. Discarding packet", serverGroupName)
 
