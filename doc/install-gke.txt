@@ -35,8 +35,11 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
+REM get target host IP address
+kubectl get nodes -o wide
+
 REM set target host
-kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=35.204.163.173
+kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=34.90.228.131
 
 REM RADIUS TEST
 kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml

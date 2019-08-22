@@ -30,7 +30,7 @@
     	<appender-ref ref="console-appender" />
   	</root>
   	
-  	<logger name="yaas" level="INFO" additivity="false">
+  	<logger name="yaas" level="DEBUG" additivity="false">
     	<appender-ref ref="console-appender" />
   	</logger>
   	
