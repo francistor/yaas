@@ -42,7 +42,7 @@
       },
       {
         "name": "non-existing-server",
-        "IPAddress": "192.168.250.1",
+        "IPAddress": "1.1.1.1",
         "secret": "secret",
         "ports": {
           "auth": 1812,
@@ -64,7 +64,7 @@
       },
       {
       	"name": "yaas-superserver-group",
-      	"servers": ["yaas-superserver-1", "yaas-superserver-0"],
+      	"servers": ["yaas-superserver-0", "yaas-superserver-1"],
       	"policy": "random"
       }
 	]
