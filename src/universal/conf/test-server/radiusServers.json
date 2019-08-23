@@ -14,6 +14,18 @@
         "quarantineTimeMillis": 60000
       },
       {
+        "name": "yaas-superserver-mirror",
+        "IPAddress": "localhost",
+        "secret": "secret",
+        "ports": {
+          "auth": 21812,
+          "acct": 21813,
+          "coA": 23799
+        },
+        "errorLimit": 3,
+        "quarantineTimeMillis": 60000
+      },
+      {
         "name": "non-existing-server",
         "IPAddress": "192.168.250.1",
         "secret": "secret",
@@ -36,6 +48,8 @@
       },
       {
       	"name": "yaas-superserver-group",
+      	
+      	// Add "yaas-superserver-mirror" to insert sessions from both superservers
       	"servers": ["yaas-superserver"],
       	"policy": "random"
       }

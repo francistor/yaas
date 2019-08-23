@@ -19,6 +19,7 @@ import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
 import org.apache.ignite.configuration.IgniteConfiguration
 import org.apache.ignite.configuration.DataStorageConfiguration
 import org.apache.ignite.configuration.DataRegionConfiguration
+import org.apache.ignite.configuration.CacheConfiguration
 import org.apache.ignite.cache.CacheMode._
 
 import org.slf4j.Logger
@@ -42,6 +43,7 @@ case class Session(
     @ScalarCacheQuerySqlField(index = true) clientId: String,
     @ScalarCacheQuerySqlField(index = true) macAddress: String,
     @ScalarCacheQuerySqlField startTimestampUTC: Long,
+    @ScalarCacheQuerySqlField lastUpdatedTimestampUTC: Long,
     jData: String
 )
 
@@ -55,6 +57,7 @@ object JSession {
       session.clientId, 
       session.macAddress, 
       session.startTimestampUTC, 
+      session.lastUpdatedTimestampUTC,
       parse(session.jData))
 }
 
@@ -68,10 +71,11 @@ class JSession(
     val clientId: String,
     val macAddress: String,
     val startTimestampUTC: Long,
+    val lastUpdatedTimestampUTC: Long,
     val jData: JValue = JObject()
 ) {
   def toSession = {
-    Session(acctSessionId, ipAddress, clientId, macAddress, startTimestampUTC, compact(render(jData)))
+    Session(acctSessionId, ipAddress, clientId, macAddress, startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
   }
 }
 
@@ -85,6 +89,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
           (jv \ "clientId").extract[String],
           (jv \ "macAddress").extract[String],
           (jv \ "startTimestampUTC").extract[Long],
+          (jv \ "lastModifiedTimestampUTC").extract[Long],
           (jv \ "data")
       )
   },
@@ -95,6 +100,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
       ("clientId" -> jSession.clientId) ~
       ("macAddress" -> jSession.macAddress) ~
       ("startTimestampUTC" -> jSession.startTimestampUTC) ~
+      ("lastModifiedTimestampUTC" -> jSession.startTimestampUTC) ~
       ("data" -> jSession.jData)
   }
 ))
@@ -256,21 +262,23 @@ object SessionDatabase {
       igniteConfiguration.setDiscoverySpi(discSpi)
       igniteConfiguration.setGridLogger(new org.apache.ignite.logger.slf4j.Slf4jLogger)
       if(role == "server") igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
-      
+
       scalar.start(igniteConfiguration)
     }
   }
 
-  // TODO: Remove this
+  // TODO: Remove this. Done to force start if persistence enabled
   ignite.cluster.active(true)
+  
+  val sessionExpirationPolicy = new javax.cache.expiry.ModifiedExpiryPolicy(new javax.cache.expiry.Duration(java.util.concurrent.TimeUnit.HOURS, config.getInt("expiryTimeHours")))
   
   // Create caches if do not exist yet
   // TODO: Possible race condition
-  if(cache$("SESSIONS") == None) createCache$("SESSIONS", REPLICATED, Seq(classOf[String], classOf[Session]))
+  if(cache$("SESSIONS") == None) createCache$("SESSIONS", REPLICATED, Seq(classOf[String], classOf[Session])).withExpiryPolicy(sessionExpirationPolicy)
+  if(cache$("LEASES") == None) createCache$("LEASES", REPLICATED, Seq(classOf[Long], classOf[Lease])).withExpiryPolicy(sessionExpirationPolicy)
   if(cache$("POOLSELECTORS") == None) createCache$("POOLSELECTORS",REPLICATED, Seq(classOf[(String, String)], classOf[PoolSelector]))
   if(cache$("POOLS") == None) createCache$("POOLS", REPLICATED, Seq(classOf[String], classOf[Pool]))
   if(cache$("RANGES") == None) createCache$("RANGES", REPLICATED, Seq(classOf[(String, Long)], classOf[Range]))
-  if(cache$("LEASES") == None) createCache$("LEASES", REPLICATED, Seq(classOf[Long], classOf[Lease]))
   
   // Pointers to cache objects
   val sessionsCache = cache$[String, Session] ("SESSIONS").get

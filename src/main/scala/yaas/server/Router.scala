@@ -78,9 +78,6 @@ case class DiameterPeerPointer(config: DiameterPeerConfig, status: Int, actorRef
   Instrumental Radius classes
  ********************************/
 case class RadiusEndpointStatus(val endPointType: Int, val port: Int, var quarantineTimestamp: Long, var accErrors: Int) {
-  def setQuarantine(quarantineTimeMillis: Long) = { 
-    quarantineTimestamp = System.currentTimeMillis + quarantineTimeMillis
-  }
   
   def addErrors(errors: Int) = {
     accErrors = accErrors + errors
@@ -428,26 +425,32 @@ class Router() extends Actor with ActorLogging {
 	      (serverName, radiusServerPointer) <- radiusServers
 	      (_, epStatus) <- radiusServerPointer.endpointMap
 	    } {
-	      stats.get(RadiusEndpoint(radiusServerPointer.IPAddress, epStatus.port)) match {
-	        case Some((successes, errors)) => 
-	          // Only if not in quarantine
-	          if(radiusServerPointer.quarantineTimeMillis < currentTimestamp) {
-  	          // If there are successes, reset the old errors if any
-  	          if(successes > 0) epStatus.reset
-  	          // Add the errors if there are only errors
-  	          else epStatus.addErrors(errors)
-  	          
-  	          // Put in quarantine if necessary
-  	          if(epStatus.accErrors > radiusServerPointer.errorLimit){
-  	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, epStatus.port, radiusServerPointer.quarantineTimeMillis)
-  	            epStatus.setQuarantine(radiusServerPointer.quarantineTimeMillis)
-  	            epStatus.reset
-  	          }
-	          } 
-	          
-	        case _ =>
-	          // No stats reported in the interval for this endpoint
+	      Try(java.net.InetAddress.getByName(radiusServerPointer.IPAddress).getHostAddress()) match {
+	        case Success(ipAddr) =>
+	          stats.get(RadiusEndpoint(ipAddr, epStatus.port)) match {
+    	        case Some((successes, errors)) => 
+    	          // Only if not in quarantine
+    	          if(epStatus.quarantineTimestamp < currentTimestamp) {
+      	          // If there are successes, reset the old errors if any
+      	          if(successes > 0) epStatus.reset
+      	          // Add the errors if there are only errors
+      	          else epStatus.addErrors(errors)
+      	          
+      	          // Put in quarantine if necessary
+      	          if(epStatus.accErrors > radiusServerPointer.errorLimit){
+      	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, epStatus.port, radiusServerPointer.quarantineTimeMillis)
+      	            epStatus.quarantineTimestamp = currentTimestamp + radiusServerPointer.quarantineTimeMillis
+      	            epStatus.reset
+      	          }
+    	          } 
+    	          
+    	        case _ =>
+    	          // No stats reported in the interval for this endpoint
+	        }
+	        case Failure(e) =>
+	          // Unresolvable IP address
 	      }
+	      
 	    }
 	    
 	  case RadiusServerRequest(packet, actorRef, origin, secret) =>
@@ -499,8 +502,9 @@ class Router() extends Actor with ActorLogging {
 
 	        val nServers = servers.length
 	        if(nServers > 0) {
-	          // radiusId - retryNum is a stable number across retransmissions (up to 8)
-	          val requestId = radiusId - retryNum
+	          // (radiusId - retryNum) >> 3 is a stable number across retransmissions (up to 8). See yaas.util.IDGenerator
+	          val requestId = ((radiusId - retryNum) >> 3)
+	          
             val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (requestId % nServers).toInt else 0)) % nServers
             val radiusServerPointer = radiusServers(servers(serverIndex))
             
@@ -512,7 +516,7 @@ class Router() extends Actor with ActorLogging {
                     
 	            case Failure(_) =>
 	              log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endPoint.port, radiusServerPointer.quarantineTimeMillis)
-	              endPoint.setQuarantine(radiusServerPointer.quarantineTimeMillis)
+	              endPoint.quarantineTimestamp = System.currentTimeMillis() + radiusServerPointer.quarantineTimeMillis
 	              endPoint.reset
 	          }
 	        }

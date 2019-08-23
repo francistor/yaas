@@ -6,6 +6,7 @@ import yaas.coding._
 import yaas.coding.RadiusPacket._
 import yaas.server.RadiusActorMessages._
 import yaas.coding.RadiusConversions._
+import yaas.handlers.RadiusAttrParser._
 import yaas.server.MessageHandler
 import yaas.database._
 import org.json4s.JsonDSL._
@@ -27,16 +28,36 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
     
-    val requestPacket = ctx.requestPacket
-    val userName: String = requestPacket >> "User-Name"
+    val request = ctx.requestPacket
+    val userName: String = request >> "User-Name"
     
     // Will send a response depending on the contents of the User-Name
     if(userName.contains("drop")){
       dropRadiusPacket
     } 
     else{
+      
+      if((request >> "Acct-Status-Type").contentEquals("Start")){
+        
+        // Store in sessionDatabase
+        SessionDatabase.putSession(new JSession(
+          "SS-" + (request >> "Acct-Session-Id").get,
+          "SS-" + (request >> "Framed-IP-Address").getOrElse(""),
+          getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
+          getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
+          System.currentTimeMillis,
+          System.currentTimeMillis(),
+          ("a" -> "aval") ~ ("b" -> 2)))
+          
+      } 
+      else if((request >> "Acct-Status-Type").contentEquals("Stop")){
+        
+        // Remove session
+         SessionDatabase.removeSession(request >>++ "Acct-Session-Id")
+      }
+      
       if(nCPUOperations > 0) for(i <- 0 to nCPUOperations) Math.atan(Math.random())
-      sendRadiusResponse(requestPacket.response() << ("User-Name" -> userName))
+      sendRadiusResponse(request.response() << ("User-Name" -> userName))
     }
   }
 }

@@ -94,8 +94,10 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
           getFromClass(request, "C").getOrElse("<UNKNOWN>"),
           getFromClass(request, "M").getOrElse("<UNKNOWN>"),
           System.currentTimeMillis,
+          System.currentTimeMillis,
           ("a" -> "aval") ~ ("b" -> 2)))
-      } else if((request >> "Acct-Status-Type").contentEquals("Stop")){
+      } 
+      else if((request >> "Acct-Status-Type").contentEquals("Stop")){
         
         // Remove session
          SessionDatabase.removeSession(request >>++ "Acct-Session-Id")

@@ -56,7 +56,8 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
             request >> "Framed-IP-Address",
             "Client-Id",
             "0",
-            System.currentTimeMillis(),
+            System.currentTimeMillis,
+            System.currentTimeMillis,
             ("uno" -> "uno") ~ ("dos" -> "dos")))
   
         } else if((request >> "Accounting-Record-Type").contentEquals("STOP_RECORD")){

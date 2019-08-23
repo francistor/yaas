@@ -57,6 +57,7 @@ class RESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
       case "diameterHandlerServer" => List("oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
       case "diameterHandlerClient" => List("oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
       case "diameterHandlerClientTimeout" => List("oh", "or", "dh", "dr", "ap", "cm")
+      case _ => List()
     }
   }
   
@@ -76,6 +77,7 @@ class RESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
       case "radiusHandlerRequest" => List("rh", "rq", "rs", "rt")
       case "radiusHandlerRetransmission" => List("group", "rq")
       case "radiusHandlerTimeout" => List("group", "rq")
+      case _ => List()
     }
   }
   
@@ -155,7 +157,6 @@ class RESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
         }
       } ~
       pathPrefix("radius"){
-        log.info("radius -->")
         pathPrefix("metrics" / "reset"){
           metricsServer ! MetricsServer.RadiusMetricsReset
           log.info("Radius Metrics Reset")
