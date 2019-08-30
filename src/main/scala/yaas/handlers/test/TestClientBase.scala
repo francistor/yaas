@@ -41,7 +41,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   log.info("Instantiated Radius/Diameter client application")
   
   val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).orElse(Option(System.getProperty("YAAS_TEST_REQUESTS"))).map(req => Integer.parseInt(req)).getOrElse(10000)
-  val doLoop = Option(System.getenv("YAAS_TEST_LOOOP")).orElse(Option(System.getProperty("YAAS_TEST_LOOP"))).map(_.toBoolean).getOrElse(false)
+  val doLoop = Option(System.getenv("YAAS_TEST_LOOP")).orElse(Option(System.getProperty("YAAS_TEST_LOOP"))).map(_.toBoolean).getOrElse(false)
 
   implicit val materializer = ActorMaterializer()
   val http = Http(context.system)
@@ -155,13 +155,16 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   def nextTest(): Unit = {
     lastTestIdx = lastTestIdx + 1
     if(tests.length > lastTestIdx) tests(lastTestIdx)() else {
-      println("FINISHED")
       if(doLoop){
+        println("LOOP")
         // Assuming at least one test is defined
         lastTestIdx = 0
         tests(0)()
       } 
-      else System.exit(0)
+      else {
+        println("FINISHED")
+        System.exit(0)
+      }
     }
   }
   

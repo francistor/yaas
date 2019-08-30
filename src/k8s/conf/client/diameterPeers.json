@@ -6,5 +6,13 @@
 		"connectionPolicy": "active",
 		"watchdogIntervalMillis": 300000,
 		"originNetwork": "0.0.0.0/0"
+	},
+	{
+        "diameterHost": "yaas-server-1.yaasserver",
+        "IPAddress": "${YAAS_TEST_SERVER:yaas-test-server}",
+        "port": 30201,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000,
+		"originNetwork": "0.0.0.0/0"
 	}
 ]

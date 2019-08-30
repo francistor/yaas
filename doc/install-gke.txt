@@ -8,6 +8,11 @@ gcloud config set proxy/port 8080
 gcloud config set proxy/username frodriguezg
 gcloud config set proxy/password _Brillaba11
 
+REM Or remove them
+REM gcloud config unset proxy/type
+REM gcloud config unset proxy/address
+REM gcloud config unset proxy/port 
+
 REM Create cluster
 gcloud container clusters create yaas-cluster
 gcloud container clusters get-credentials yaas-cluster
@@ -30,7 +35,7 @@ REM get target host IP address
 kubectl get nodes -o wide
 
 REM set target host
-kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=35.204.137.229
+kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=34.90.183.138
 
 REM Deploy the descriptors
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml

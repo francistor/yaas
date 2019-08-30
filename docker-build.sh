@@ -2,6 +2,12 @@
 
 ############################################
 # Build docker image and pull to Docker Hub
+# In order to make this work behind a proxy, edit or create
+# /etc/systemd/system/docker.service.d/http-proxy.conf
+#
+# [Service]
+# Environment="HTTPS_PROXY=http://<user>:<password>@<proxy>:<port>"
+# Environment="HTTP_PROXY=http://<user>:<password>@<proxy>:<port>"
 ############################################
 
 # Better at the beginning

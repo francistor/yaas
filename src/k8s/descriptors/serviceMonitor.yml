@@ -12,5 +12,5 @@ spec:
     matchNames:
     - default
   endpoints:
-    - interval: 15s
+    - interval: 5s
       targetPort: 19000
