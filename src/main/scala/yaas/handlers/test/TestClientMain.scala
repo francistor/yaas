@@ -21,7 +21,6 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   // _ is needed to promote the method (no arguments) to a function
   
   val tests = IndexedSeq[() => Unit](
-      checkHttpStats("GET", 0) _,
       checkConnectedPeer(s"${clientMetricsURL}", "server.yaasserver") _,
       checkNotConnectedPeer(s"${clientMetricsURL}", "non-existing-server.yaasserver") _,
       checkConnectedPeer(s"${serverMetricsURL}", "superserver.yaassuperserver") _,

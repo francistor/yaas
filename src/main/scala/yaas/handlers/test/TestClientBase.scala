@@ -726,7 +726,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
             ("NAS-Port" -> index) <<
             ("User-Name" -> ("radius_user_"+ index + domain)) << 
             ("User-Password" -> password) <<
-            ("Acct-Session-Id" -> ("session-" + testName + "-" + reqIndex)) <<
+            ("Acct-Session-Id" -> ("radiusPerformance-" + reqIndex)) <<
             ("Framed-IP-Address" -> intToIPAddress(reqIndex))
             
           if(requestType == RadiusPacket.ACCOUNTING_REQUEST) radiusPacket << ("Acct-Status-Type" -> acctStatusType) 
@@ -816,7 +816,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
             val request = DiameterMessage.request("NASREQ", "AC")
             request << 
               "Destination-Realm" -> "yaasserver" << 
-              "Session-Id" -> ("diameter-session-" + i) << 
+              "Session-Id" -> ("diameterPerformance-" + reqIndex) << 
               "Framed-IP-Address" -> intToIPAddress(5000000 + reqIndex) <<
               "User-Name" -> ("diameter_user_"+ i + "_" + domain) <<
               "Accounting-Record-Type" -> acctStatusType <<
