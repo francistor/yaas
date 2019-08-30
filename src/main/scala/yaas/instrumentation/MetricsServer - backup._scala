@@ -9,14 +9,33 @@ object MetricsServer {
   
   case object DiameterMetricsReset
   case object RadiusMetricsReset
-  case object HttpMetricsReset
+  case object HTTPMetricsReset
   
-  trait MetricKey {
-    def getValue(key : String) :String 
-    def getAggrValue(keyList : List[String]) : List[String]
+  class HTTPMetricsKey(oh: String, path: String, rc: String) {
+    def getValue(key : String) = {
+      key match {
+        case "oh" => oh; case "path" => path; case "rc" => rc;
+      }
+    }
+    
+    /**
+     * Given a set of keys (e.g. List("oh", "rc")) returns the corresponding values of this HTTPMetricsItem, 
+     * to be used as a key for aggregation
+     */
+    def getAggrValue(keyList : List[String]) = {
+      for {
+        key <- keyList
+      } yield getValue(key)
+    }
   }
   
-  trait DiameterMetricsKey extends MetricKey {    
+  class DiameterMetricsKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) {
+    def getValue(key : String) = {
+      key match {
+        case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
+      }
+    }
+    
     /**
      * Given a set of keys (e.g. List("ap", "cm")) returns the corresponding values of this DiameterMetricsItem, to be used as a key
      * for aggregation
@@ -28,11 +47,11 @@ object MetricsServer {
     }
   }
   
-  class DiameterPeerMetricsKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricsKey {
+  class DiameterPeerMetricsKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricsKey(oh, or, dh, dr, ap, cm) {
     override def getValue(key : String) = {
       key match {
-        case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
         case "peer" => peer
+        case k: String => super.getValue(k)
       }
     }
   }
@@ -82,25 +101,10 @@ object MetricsServer {
   }
 
   // Router Metrics
-  case class DiameterRequestDroppedKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricsKey {
-    override def getValue(key : String) = {
-        key match {
-          case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
-        }
-      }
-  }
-  
-  
+  case class DiameterRequestDroppedKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricsKey(oh, or, dh, dr, ap, cm)
+
   // Handler Metrics
-  class DiameterHandlerMetricsKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricsKey {
-    override def getValue(key : String) = {
-      key match {
-        case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
-      }
-    }
-  }
-  
-  case class DiameterHandlerServerKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterHandlerMetricsKey(oh, or, dh, dr, ap, cm){
+  case class DiameterHandlerServerKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterMetricsKey(oh, or, dh, dr, ap, cm){
     override def getValue(key : String) = {
       key match {
         case "rc" => rc
@@ -109,7 +113,7 @@ object MetricsServer {
       }
     }
   }
-  case class DiameterHandlerClientKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterHandlerMetricsKey(oh, or, dh, dr, ap, cm){
+  case class DiameterHandlerClientKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterMetricsKey(oh, or, dh, dr, ap, cm){
     override def getValue(key : String) = {
       key match {
         case "rc" => rc
@@ -118,7 +122,7 @@ object MetricsServer {
       }
     }
   }
-  case class DiameterHandlerClientTimeoutKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterHandlerMetricsKey(oh, or, dh, dr, ap, cm)
+  case class DiameterHandlerClientTimeoutKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricsKey(oh, or, dh, dr, ap, cm)
   
   case class DiameterPeerRequestQueueSize(dp: String, size: Int)
   
@@ -126,7 +130,7 @@ object MetricsServer {
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////
   
-  trait RadiusMetricKey extends MetricKey {
+  trait RadiusMetricKey {
     def getValue(key: String) : String
     
     /**
@@ -241,42 +245,15 @@ object MetricsServer {
   
   case class RadiusServerRequestQueueSizes(sizes: Map[RadiusEndpoint, Int])
   
-  
-  
-  //////////////////////////////////////////
-  // Http
-  //////////////////////////////////////////
-  
-  class HttpMetricKey(oh: String, method: String, path: String, rc: String) extends MetricKey {
-    def getValue(key : String) = {
-      key match {
-        case "oh" => oh; case "method" => method; case "path" => path; case "rc" => rc;
-      }
-    }
-    
-    /**
-     * Given a set of keys (e.g. List("oh", "rc")) returns the corresponding values of this HttpMetricsItem, 
-     * to be used as a key for aggregation
-     */
-    def getAggrValue(keyList : List[String]) = {
-      for {
-        key <- keyList
-      } yield getValue(key)
-    }
-  }
-  
-  case class HttpOperationKey(oh: String, method: String, path: String, rc: String) extends HttpMetricKey(oh, method, path, rc)
-  
   // Get metrics messages
   case class GetDiameterMetrics(metricName: String, params: List[String])
   case class GetRadiusMetrics(metricName: String, params: List[String])
-  case class GetHttpMetrics(metricName: String, params: List[String])
-  
-  case object GetDiameterPeerRequestQueueGauges
-  case object GetRadiusServerRequestQueueGauges
+  case class GetDiameterPeerRequestQueueGauges()
+  case class GetRadiusServerRequestQueueGauges()
 }
 
-case class MetricsItem(keyMap: Map[String, String], counter: Long)
+case class RadiusMetricsItem(keyMap: Map[String, String], counter: Long)
+case class DiameterMetricsItem(keyMap: Map[String, String], counter: Long)
 
 class MetricsServer extends Actor with ActorLogging {
   
@@ -306,6 +283,16 @@ class MetricsServer extends Actor with ActorLogging {
   // Queue Metrics
   private var diameterPeerRequestQueueSizeGauge = scala.collection.mutable.Map[String, Long]()
   
+  /**
+   * Get Metrics items aggregated by the specified keys
+   * Returns a List of DiameterMetricsItem, which contains the map from key->value and the associated counter value
+   */
+  private def getDiameterMetrics(MetricsMap: scala.collection.mutable.Map[DiameterMetricsKey, Long], keys : List[String]) = {
+    MetricsMap.groupBy{ case (metricsKey, value) => metricsKey.getAggrValue(keys)}
+    .map{case (k, v) => DiameterMetricsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
+    .toList
+  }
+  
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -327,21 +314,15 @@ class MetricsServer extends Actor with ActorLogging {
   private var radiusServerRequestQueueSizeGauge = Map[String, Int]()
 
   
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Http
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  private var httpOperationsCounter = scala.collection.mutable.Map[HttpMetricKey, Long]().withDefaultValue(0)
-  
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  
-  def getMetrics[A <: MetricKey](MetricsMap: scala.collection.mutable.Map[A, Long], keys: List[String]): List[MetricsItem] = {
+  /**
+   * Get Metrics items aggregated by the specified keys
+   */
+  def getRadiusMetrics(MetricsMap: scala.collection.mutable.Map[RadiusMetricKey, Long], keys: List[String]) = {
       // The key for the aggregation is the list of values for the specified keys
       MetricsMap.groupBy{case (metricsKey, value) => metricsKey.getAggrValue(keys)} 
-      .map{case (k, v) => MetricsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
+      .map{case (k, v) => RadiusMetricsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
       .toList
   }
-  
   
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Receive
@@ -385,10 +366,6 @@ class MetricsServer extends Actor with ActorLogging {
     
     case RadiusServerRequestQueueSizes(sizes) => radiusServerRequestQueueSizeGauge = for{(endPoint, size) <- sizes} yield (s"${endPoint.ipAddress}:${endPoint.port}", size)
     
-    // Http
-    case s: HttpOperationKey => httpOperationsCounter(s) = httpOperationsCounter(s) + 1
-    
-    // Reset
     case DiameterMetricsReset =>      
       diameterRequestReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
       diameterAnswerReceivedCounter = scala.collection.mutable.Map[DiameterMetricsKey, Long]().withDefaultValue(0)
@@ -420,9 +397,6 @@ class MetricsServer extends Actor with ActorLogging {
       radiusHandlerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
       radiusHandlerRetransmissionCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
       radiusHandlerTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      
-    case HttpMetricsReset =>
-      httpOperationsCounter = scala.collection.mutable.Map[HttpMetricKey, Long]().withDefaultValue(0)
 
     /*
      * Statistics query
@@ -430,18 +404,18 @@ class MetricsServer extends Actor with ActorLogging {
     case GetDiameterMetrics(metricName, paramList) =>
       try{
         metricName match {
-          case "diameterRequestReceived" => sender ! getMetrics(diameterRequestReceivedCounter, paramList)
-          case "diameterAnswerReceived" => sender ! getMetrics(diameterAnswerReceivedCounter, paramList)
-          case "diameterRequestTimeout" => sender ! getMetrics(diameterRequestTimeoutCounter, paramList)
-          case "diameterAnswerSent" => sender ! getMetrics(diameterAnswerSentCounter, paramList)
-          case "diameterRequestSent" => sender ! getMetrics(diameterRequestSentCounter, paramList)
-          case "diameterAnswerDiscarded" => sender ! getMetrics(diameterAnswerDiscardedCounter, paramList)
+          case "diameterRequestReceived" => sender ! getDiameterMetrics(diameterRequestReceivedCounter, paramList)
+          case "diameterAnswerReceived" => sender ! getDiameterMetrics(diameterAnswerReceivedCounter, paramList)
+          case "diameterRequestTimeout" => sender ! getDiameterMetrics(diameterRequestTimeoutCounter, paramList)
+          case "diameterAnswerSent" => sender ! getDiameterMetrics(diameterAnswerSentCounter, paramList)
+          case "diameterRequestSent" => sender ! getDiameterMetrics(diameterRequestSentCounter, paramList)
+          case "diameterAnswerDiscarded" => sender ! getDiameterMetrics(diameterAnswerDiscardedCounter, paramList)
           
-          case "diameterRequestDropped" => sender ! getMetrics(diameterRequestDroppedCounter, paramList)
+          case "diameterRequestDropped" => sender ! getDiameterMetrics(diameterRequestDroppedCounter, paramList)
           
-          case "diameterHandlerServer" => sender ! getMetrics(diameterHandlerServerCounter, paramList)
-          case "diameterHandlerClient" => sender ! getMetrics(diameterHandlerClientCounter, paramList)
-          case "diameterHandlerClientTimeout" => sender ! getMetrics(diameterHandlerClientTimeoutCounter, paramList)
+          case "diameterHandlerServer" => sender ! getDiameterMetrics(diameterHandlerServerCounter, paramList)
+          case "diameterHandlerClient" => sender ! getDiameterMetrics(diameterHandlerClientCounter, paramList)
+          case "diameterHandlerClientTimeout" => sender ! getDiameterMetrics(diameterHandlerClientTimeoutCounter, paramList)
         }
       } 
       catch {
@@ -454,20 +428,20 @@ class MetricsServer extends Actor with ActorLogging {
     case GetRadiusMetrics(metricName, paramList) =>
       try{
         metricName match {
-          case "radiusServerRequest" => sender ! getMetrics(radiusServerRequestCounter, paramList)
-          case "radiusServerDropped" => sender ! getMetrics(radiusServerDroppedCounter, paramList)
-          case "radiusServerResponse" => sender ! getMetrics(radiusServerResponseCounter, paramList)
+          case "radiusServerRequest" => sender ! getRadiusMetrics(radiusServerRequestCounter, paramList)
+          case "radiusServerDropped" => sender ! getRadiusMetrics(radiusServerDroppedCounter, paramList)
+          case "radiusServerResponse" => sender ! getRadiusMetrics(radiusServerResponseCounter, paramList)
           
-          case "radiusClientRequest" => sender ! getMetrics(radiusClientRequestCounter, paramList)
-          case "radiusClientResponse" => sender ! getMetrics(radiusClientResponseCounter, paramList)
-          case "radiusClientTimeout" => sender ! getMetrics(radiusClientTimeoutCounter, paramList)
-          case "radiusClientDropped" => sender ! getMetrics(radiusClientDroppedCounter, paramList)
+          case "radiusClientRequest" => sender ! getRadiusMetrics(radiusClientRequestCounter, paramList)
+          case "radiusClientResponse" => sender ! getRadiusMetrics(radiusClientResponseCounter, paramList)
+          case "radiusClientTimeout" => sender ! getRadiusMetrics(radiusClientTimeoutCounter, paramList)
+          case "radiusClientDropped" => sender ! getRadiusMetrics(radiusClientDroppedCounter, paramList)
           
-          case "radiusHandlerResponse" => sender ! getMetrics(radiusHandlerResponseCounter, paramList)
-          case "radiusHandlerDropped" => sender ! getMetrics(radiusHandlerDroppedCounter, paramList)
-          case "radiusHandlerRequest" => sender ! getMetrics(radiusHandlerRequestCounter, paramList)
-          case "radiusHandlerRetransmission" => sender ! getMetrics(radiusHandlerRetransmissionCounter, paramList)
-          case "radiusHandlerTimeout" => sender ! getMetrics(radiusHandlerTimeoutCounter, paramList)
+          case "radiusHandlerResponse" => sender ! getRadiusMetrics(radiusHandlerResponseCounter, paramList)
+          case "radiusHandlerDropped" => sender ! getRadiusMetrics(radiusHandlerDroppedCounter, paramList)
+          case "radiusHandlerRequest" => sender ! getRadiusMetrics(radiusHandlerRequestCounter, paramList)
+          case "radiusHandlerRetransmission" => sender ! getRadiusMetrics(radiusHandlerRetransmissionCounter, paramList)
+          case "radiusHandlerTimeout" => sender ! getRadiusMetrics(radiusHandlerTimeoutCounter, paramList)
         }
       } 
       catch {
@@ -476,15 +450,5 @@ class MetricsServer extends Actor with ActorLogging {
       
     case GetRadiusServerRequestQueueGauges =>
       sender ! radiusServerRequestQueueSizeGauge
-      
-    case GetHttpMetrics(metricName, paramList) =>
-      try{
-        metricName match {
-          case "httpOperation" => sender ! getMetrics(httpOperationsCounter, paramList)
-        }
-      }
-      catch {
-        case e: Throwable => sender ! akka.actor.Status.Failure(e)
-      }
   }
 }

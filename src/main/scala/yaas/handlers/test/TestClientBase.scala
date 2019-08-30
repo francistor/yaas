@@ -51,11 +51,6 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   def wait[T](r: Awaitable[T]) = Await.result(r, 10 second)
   
-  def sleep = {
-    Thread.sleep(6000)
-    nextTest
-  }
-  
   def intToIPAddress(i: Int) = {
     val bytes = Array[Byte]((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, (i % 8).toByte)
     java.net.InetAddress.getByAddress(bytes).getHostAddress
@@ -174,6 +169,11 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   /////////////////////////////////////////////////////////////////////////
   // Test functions
   /////////////////////////////////////////////////////////////////////////
+  
+  def sleep(millis: Int)(): Unit = {
+    Thread.sleep(millis)
+    nextTest
+  }
   
   // Finishes the tests because does not call nextText
   def stop(): Unit = {
@@ -357,7 +357,6 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       
     val accountingRequest: RadiusPacket = parse(sAccountingRequest)
 
-      
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest(includingNeRadiusGroup, accountingRequest, 2000, 1).onComplete {
       case Success(response) => 
@@ -688,7 +687,16 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       nextTest
   }
   
-  def checkRadiusPerformance(serverGroup: String, requestType: Int, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
+  def checkHttpStats(method: String,  mustBe: Int)(): Unit = {
+    println(s"[TEST] Http stats")
+    
+    val jHttpRequests = jsonFromGet(s"${superServerMetricsURL}/http/metrics/httpOperation?agg=$method")
+    checkMetric(jHttpRequests, mustBe, Map("method" -> method), s"$method")
+    
+    nextTest
+  }
+  
+  def checkRadiusPerformance(serverGroup: String, requestType: Int, acctStatusType: String, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
     println(s"[TEST] RADIUS Performance. $testName")
     
@@ -709,17 +717,18 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         if(reqIndex < nRequests){
           // The server will echo the User-Password. We'll test this
           val password = s"password!_$index"
-          val accessRequest = 
+          val radiusPacket = 
             RadiusPacket.request(requestType) <<
             ("NAS-IP-Address" -> "1.1.1.1") <<
             ("NAS-Port" -> index) <<
-            ("User-Name" -> ("user_"+ index + domain)) << 
+            ("User-Name" -> ("radius_user_"+ index + domain)) << 
             ("User-Password" -> password) <<
             ("Acct-Session-Id" -> ("session-" + testName + "-" + reqIndex)) <<
-            ("Acct-Status-Type" -> "Start") <<
             ("Framed-IP-Address" -> intToIPAddress(reqIndex))
             
-          sendRadiusGroupRequest(serverGroup, accessRequest, 3000, 1).onComplete {
+          if(requestType == RadiusPacket.ACCOUNTING_REQUEST) radiusPacket << ("Acct-Status-Type" -> acctStatusType) 
+            
+          sendRadiusGroupRequest(serverGroup, radiusPacket, 3000, 1).onComplete {
             case Success(response) =>
               if(response.code == ACCOUNTING_RESPONSE|| (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>++ "User-Password") == password)) loop
               else promise.failure(new Exception("Bad Radius Response"))
@@ -754,7 +763,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     }
   }
   
-  def checkDiameterPerformance(requestType: String, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
+  def checkDiameterPerformance(requestType: String, domain: String, acctStatusType: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
     println(s"[TEST] Diameter Performance. $testName")
     
@@ -799,17 +808,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
             }
           } 
           else {
-            val ipAddress = "200.0.0.1"
-            val acctSessionId = "diameter-session-1"
-            val userName = "user_" + (reqIndex % 1000) + domain
+            val userName = "user_" + (reqIndex % 10000) + domain
             
             val request = DiameterMessage.request("NASREQ", "AC")
             request << 
               "Destination-Realm" -> "yaasserver" << 
-              "Session-Id" -> acctSessionId << 
-              "Framed-IP-Address" -> ipAddress <<
-              "User-Name" -> userName <<
-              "Accounting-Record-Type" -> "START_RECORD"<<
+              "Session-Id" -> ("diameter-session-" + i) << 
+              "Framed-IP-Address" -> intToIPAddress(5000000 + reqIndex) <<
+              "User-Name" -> ("diameter_user_"+ i + "_" + domain) <<
+              "Accounting-Record-Type" -> acctStatusType <<
               ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
             
             sendDiameterRequest(request, 5000).onComplete{

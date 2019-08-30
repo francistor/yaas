@@ -125,16 +125,16 @@ class Router() extends Actor with ActorLogging {
   
   val peerCheckTimeSeconds = config.getInt("diameter.peerCheckTimeSeconds")
   
+    // Create stats server
+  val metricsServer = context.actorOf(MetricsServer.props)
+  
   // Start sessions database and IPAM REST server
 	val databaseRole = config.getString("sessionsDatabase.role")
 	if(databaseRole != "none") yaas.database.SessionDatabase.init
-	if(databaseRole == "server") context.actorOf(yaas.database.SessionRESTProvider.props())
-  
-  // Create stats server
-  val metricsServer = context.actorOf(MetricsServer.props)
-  
+	if(databaseRole == "server") context.actorOf(yaas.database.SessionRESTProvider.props(metricsServer))
+ 
   // Create instrumentation server
-  val instrumentationActor = context.actorOf(yaas.instrumentation.RESTProvider.props(metricsServer))
+  val instrumentationActor = context.actorOf(yaas.instrumentation.InstrumentationRESTProvider.props(metricsServer))
   
   // Empty initial maps to working objects
   // Diameter

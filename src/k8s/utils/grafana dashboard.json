@@ -50,7 +50,16 @@
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "alias": "/server yaas*/",
+          "color": "#F2CC0C"
+        },
+        {
+          "alias": "/super-server*/",
+          "color": "#37872D"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -143,7 +152,16 @@
       "pointradius": 2,
       "points": false,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "alias": "/server*/",
+          "color": "#FF780A"
+        },
+        {
+          "alias": "/super-server*/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -245,5 +263,5 @@
   "timezone": "",
   "title": "Yaas",
   "uid": "kRk4ZCdZz",
-  "version": 8
+  "version": 3
 }

@@ -6,6 +6,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RejectionHandler
+import akka.http.scaladsl.model.headers._
 
 import com.typesafe.config._
 import scala.concurrent.duration._
@@ -16,9 +17,10 @@ import scala.util.{Success, Failure}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 
 import yaas.database._
+import yaas.instrumentation.MetricsOps._
 
 object SessionRESTProvider {
-  def props() = Props(new SessionRESTProvider)
+  def props(metricsServer: ActorRef) = Props(new SessionRESTProvider(metricsServer))
 }
 
 trait JsonSupport extends Json4sSupport {
@@ -26,7 +28,7 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
-class SessionRESTProvider extends Actor with ActorLogging with JsonSupport {
+class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging with JsonSupport {
   
   import SessionRESTProvider._
   
@@ -60,33 +62,34 @@ class SessionRESTProvider extends Actor with ActorLogging with JsonSupport {
   // Cleanup
   override def postStop = {
 
-  }
-  
-  val route = pathPrefix("sessions") {
-    get {
-      pathPrefix("find") {
-        parameterMap { params => {
-            log.debug(s"find radius sessions for $params")
-            if(params.size == 0) complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
-            else params.keys.map(_ match {
-              case "acctSessionId" => complete(SessionDatabase.findSessionsByAcctSessionId(params("acctSessionId")))
-              case "ipAddress" => complete(SessionDatabase.findSessionsByIPAddress(params("ipAddress")))
-              case "MACAddress" => complete(SessionDatabase.findSessionsByMACAddress(params("macAddress")))
-              case "clientId" => complete(SessionDatabase.findSessionsByClientId(params("clientId")))
-              case _ => complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
-            }).head
-          }
-        }
-      } 
-    }
-  }
+  }   
   
   val notFoundHandler = RejectionHandler.newBuilder.handle {
     case _ => complete(400, "Unknown request could not be handled")
   }. result
   
+  val sessionsRoute = 
+    pathPrefix("sessions") {
+      get {
+        pathPrefix("find") {
+          parameterMap { params => {
+              log.debug(s"find radius sessions for $params")
+              if(params.size == 0) complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
+              else params.keys.map(_ match {
+                case "acctSessionId" => complete(SessionDatabase.findSessionsByAcctSessionId(params("acctSessionId")))
+                case "ipAddress" => complete(SessionDatabase.findSessionsByIPAddress(params("ipAddress")))
+                case "MACAddress" => complete(SessionDatabase.findSessionsByMACAddress(params("macAddress")))
+                case "clientId" => complete(SessionDatabase.findSessionsByClientId(params("clientId")))
+                case _ => complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
+              }).head
+            }
+          }
+        } 
+      }
+    }
+  
+  
   val iamRoute = 
-  handleRejections(notFoundHandler){
     pathPrefix("iam") {
   	  get {
   		  (pathPrefix("poolSelectors") & pathEndOrSingleSlash) {
@@ -288,10 +291,25 @@ class SessionRESTProvider extends Actor with ActorLogging with JsonSupport {
   			  }
   		  }
   	  }
-    }
   }
   
-  val bindFuture = Http().bindAndHandle(route ~ iamRoute, bindAddress, bindPort)
+  // Custom directive for statistics and rejections
+  def logAndRejectWrapper(innerRoutes: => Route): Route = { 
+    ctx => 
+    (
+      mapResponse(rsp => {
+        pushHttpOperation(
+            metricsServer, 
+            ctx.request.header[`Remote-Address`].get.address.getAddress.get.getHostAddress, 
+            ctx.request.method.value,
+            ctx.request.uri.path.toString, 
+            rsp.status.intValue)
+        rsp
+      })(handleRejections(notFoundHandler)(innerRoutes))
+    )(ctx)
+  }
+  
+  val bindFuture = Http().bindAndHandle(logAndRejectWrapper(sessionsRoute ~ iamRoute), bindAddress, bindPort)
   
   bindFuture.onComplete {
     case Success(binding) =>

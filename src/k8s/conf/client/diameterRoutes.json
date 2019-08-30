@@ -1,4 +1,3 @@
-// Send everything to server.yaasserver
 [
-	{"realm": "*", "applicationId": "*", "peers": ["non-existing-server.yaasserver", "yaas-server-0.yaasserver"], "policy": "fixed"}
+	{"realm": "*", "applicationId": "*", "peers": ["non-existing-server.yaasserver", "yaas-server-0.yaasserver", "yaas-server-1.yaasserver"], "policy": "fixed"}
 ]

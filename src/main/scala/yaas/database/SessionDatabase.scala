@@ -271,21 +271,12 @@ object SessionDatabase {
   ignite.cluster.active(true)
   
   val sessionExpirationPolicy = new javax.cache.expiry.ModifiedExpiryPolicy(new javax.cache.expiry.Duration(java.util.concurrent.TimeUnit.HOURS, config.getInt("expiryTimeHours")))
-  
-  // Create caches if do not exist yet
-  // TODO: Possible race condition
-  if(cache$("SESSIONS") == None) createCache$("SESSIONS", REPLICATED, Seq(classOf[String], classOf[Session])).withExpiryPolicy(sessionExpirationPolicy)
-  if(cache$("LEASES") == None) createCache$("LEASES", REPLICATED, Seq(classOf[Long], classOf[Lease])).withExpiryPolicy(sessionExpirationPolicy)
-  if(cache$("POOLSELECTORS") == None) createCache$("POOLSELECTORS",REPLICATED, Seq(classOf[(String, String)], classOf[PoolSelector]))
-  if(cache$("POOLS") == None) createCache$("POOLS", REPLICATED, Seq(classOf[String], classOf[Pool]))
-  if(cache$("RANGES") == None) createCache$("RANGES", REPLICATED, Seq(classOf[(String, Long)], classOf[Range]))
-  
-  // Pointers to cache objects
-  val sessionsCache = cache$[String, Session] ("SESSIONS").get
-  val poolSelectorsCache = cache$[(String, String), PoolSelector] ("POOLSELECTORS").get
-  val poolsCache = cache$[String, Pool] ("POOLS").get
-  val rangesCache = cache$[(String, Long), Range] ("RANGES").get
-  val leasesCache = cache$[Long, Lease]("LEASES").get
+
+  val sessionsCache = ignite.getOrCreateCache[String, Session](new org.apache.ignite.configuration.CacheConfiguration[String, Session].setName("SESSIONS").setCacheMode(REPLICATED).setIndexedTypes(classOf[String], classOf[Session])).withExpiryPolicy(sessionExpirationPolicy)
+  val leasesCache = ignite.getOrCreateCache[Long, Lease](new org.apache.ignite.configuration.CacheConfiguration[Long, Lease].setName("LEASES").setCacheMode(REPLICATED).setIndexedTypes(classOf[Long], classOf[Lease])).withExpiryPolicy(sessionExpirationPolicy)
+  val poolSelectorsCache = ignite.getOrCreateCache[(String, String), PoolSelector](new org.apache.ignite.configuration.CacheConfiguration[(String, String), PoolSelector].setName("POOLSELECTORS").setCacheMode(REPLICATED).setIndexedTypes(classOf[(String, String)], classOf[PoolSelector]))
+  val poolsCache = ignite.getOrCreateCache[String, Pool](new org.apache.ignite.configuration.CacheConfiguration[String, Pool].setName("POOLS").setCacheMode(REPLICATED).setIndexedTypes(classOf[String], classOf[Pool]))
+  val rangesCache = ignite.getOrCreateCache[(String, Long), Range](new org.apache.ignite.configuration.CacheConfiguration[(String, Long), Range].setName("RANGES").setCacheMode(REPLICATED).setIndexedTypes(classOf[(String, Long)], classOf[Range]))
   
   def init() = {
     // Instantiates this object

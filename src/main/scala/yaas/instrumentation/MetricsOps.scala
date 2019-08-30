@@ -144,4 +144,11 @@ object MetricsOps {
   def pushRadiusHandlerTimeout(metricsActor: ActorRef, group: String, reqCode: Int) = {
     metricsActor ! RadiusHandlerTimeoutKey(group, reqCode.toString)
   }
+  
+  /////////////////////////////////////////
+  // Http
+  /////////////////////////////////////////
+  def pushHttpOperation(metricsActor: ActorRef, oh: String, method: String, path: String, resCode: Int) = {
+    metricsActor ! HttpOperationKey(oh, method, path, resCode.toString)
+  }
 }
