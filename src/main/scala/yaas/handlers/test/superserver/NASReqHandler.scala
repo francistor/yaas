@@ -56,6 +56,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
             request >> "Framed-IP-Address",
             "Client-Id",
             "0",
+            List(),
             System.currentTimeMillis,
             System.currentTimeMillis,
             ("uno" -> "uno") ~ ("dos" -> "dos")))

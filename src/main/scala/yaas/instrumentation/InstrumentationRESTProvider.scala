@@ -57,6 +57,8 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
       case "diameterHandlerServer" => List("oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
       case "diameterHandlerClient" => List("oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
       case "diameterHandlerClientTimeout" => List("oh", "or", "dh", "dr", "ap", "cm")
+      
+      case "diameterPeerQueueSize" => List("peer")
       case _ => List()
     }
   }
@@ -77,6 +79,9 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
       case "radiusHandlerRequest" => List("rh", "rq", "rs", "rt")
       case "radiusHandlerRetransmission" => List("group", "rq")
       case "radiusHandlerTimeout" => List("group", "rq")
+      
+      case "radiusClientQueueSize" => List("rh")
+      
       case _ => List()
     }
   }
@@ -84,6 +89,14 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   def httpKeys(statName: String) = {
     statName match {
       case "httpOperation" => List("oh", "method", "path", "rc")
+      case _ => List()
+    }
+  }
+  
+  def sessionKeys(statName: String) = {
+    statName match {
+      // Depends on this code in InstrumentationRestProvider: if(paramList.length == 0 || paramList.length > 4) metricsItems
+      case "sessionGroups" => List("1", "2", "3", "4", "5")
       case _ => List()
     }
   }
@@ -135,19 +148,21 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
         getPrometheusDiameterMetricFut("diameterHandlerServer"),
         getPrometheusDiameterMetricFut("diameterHandlerClient"),
         getPrometheusDiameterMetricFut("diameterHandlerClientTimeout"),
+        getPrometheusDiameterMetricFut("diameterPeerQueueSize"),
         
-        getPrometheusRadiusStatsFut("radiusServerRequest"),
-        getPrometheusRadiusStatsFut("radiusServerDropped"),
-        getPrometheusRadiusStatsFut("radiusServerResponse"),
-        getPrometheusRadiusStatsFut("radiusClientRequest"),
-        getPrometheusRadiusStatsFut("radiusClientResponse"),
-        getPrometheusRadiusStatsFut("radiusClientTimeout"),
-        getPrometheusRadiusStatsFut("radiusClientDropped"),
-        getPrometheusRadiusStatsFut("radiusHandlerResponse"),
-        getPrometheusRadiusStatsFut("radiusHandlerDropped"),
-        getPrometheusRadiusStatsFut("radiusHandlerRequest"),
-        getPrometheusRadiusStatsFut("radiusHandlerRetransmission"),
-        getPrometheusRadiusStatsFut("radiusHandlerTimeout"),
+        getPrometheusRadiusMetricFut("radiusServerRequest"),
+        getPrometheusRadiusMetricFut("radiusServerDropped"),
+        getPrometheusRadiusMetricFut("radiusServerResponse"),
+        getPrometheusRadiusMetricFut("radiusClientRequest"),
+        getPrometheusRadiusMetricFut("radiusClientResponse"),
+        getPrometheusRadiusMetricFut("radiusClientTimeout"),
+        getPrometheusRadiusMetricFut("radiusClientDropped"),
+        getPrometheusRadiusMetricFut("radiusHandlerResponse"),
+        getPrometheusRadiusMetricFut("radiusHandlerDropped"),
+        getPrometheusRadiusMetricFut("radiusHandlerRequest"),
+        getPrometheusRadiusMetricFut("radiusHandlerRetransmission"),
+        getPrometheusRadiusMetricFut("radiusHandlerTimeout"),
+        getPrometheusRadiusMetricFut("radiusClientQueueSize"),
         
         getPrometheusHttpStatsFut("httpOperation")
       )
@@ -156,7 +171,20 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   
   class RestRouteProvider extends JsonSupport {
     
-    def restRoute = 
+  def completeMetrics(metricsType: Metrics, statName: String, params: Map[String, String]) = {
+    val allKeys = metricsType match {
+      case DiameterMetrics => diameterKeys(statName)
+      case RadiusMetrics => radiusKeys(statName)
+      case HttpMetrics => httpKeys(statName)
+      case SessionMetrics => sessionKeys(statName)
+    }
+    val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
+    val invalidKeys = inputKeys.filter(!allKeys.contains(_))
+    if(invalidKeys.length == 0) complete((metricsServer ? GetMetrics(metricsType, statName, inputKeys)).mapTo[List[MetricsItem]])  
+    else complete(StatusCodes.NotAcceptable, "Invalid aggregation key : " + invalidKeys.mkString(","))
+  }
+    
+  def restRoute = 
     patch {
       pathPrefix("diameter"){
         pathPrefix("metrics" / "reset"){
@@ -185,53 +213,40 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
         pathPrefix("peers"){
           complete((context.parent ? IXGetPeerStatus).mapTo[Map[String, MetricsOps.DiameterPeerStatus]])
         } ~
-        pathPrefix("requestQueues"){
-          complete((metricsServer ? GetDiameterPeerRequestQueueGauges).mapTo[Map[String, Int]])
-        } ~
         pathPrefix("metrics"){
           path(Remaining){ statName =>
-            parameterMap { params =>
-              
-              // To validate the input and generate the full list if none is specified
-              val allKeys = diameterKeys(statName)
-              val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
-              val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-              if(invalidKeys.length == 0) complete((metricsServer ? GetDiameterMetrics(statName, inputKeys)).mapTo[List[MetricsItem]])  
-              else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
+            parameterMap { params => completeMetrics(DiameterMetrics, statName, params)
             }
           }
         }
       } ~ 
       pathPrefix("radius") {
-        pathPrefix("requestQueues"){
-          complete((metricsServer ? GetRadiusServerRequestQueueGauges).mapTo[Map[String, Int]])
-        } ~
         pathPrefix("metrics") {
           path(Remaining) { statName =>
             parameterMap { params =>
-              // To validate the input and generate the full list if none is specified
-              val allKeys = radiusKeys(statName)
-              val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
-              val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-              if(invalidKeys.length == 0) complete((metricsServer ? GetRadiusMetrics(statName, inputKeys)).mapTo[List[MetricsItem]])  
-              else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
+              completeMetrics(RadiusMetrics, statName, params)
             }
           }
         }
       } ~ 
-        pathPrefix("http"){
-          pathPrefix("metrics"){
-            path(Remaining) { statName =>
-              parameterMap { params =>
-                val allKeys = httpKeys(statName)
-                val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
-                val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-                if(invalidKeys.length == 0) complete((metricsServer ? GetHttpMetrics(statName, inputKeys)).mapTo[List[MetricsItem]])  
-                else complete(StatusCodes.NotAcceptable, invalidKeys.mkString(","))
-              }
+      pathPrefix("http"){
+        pathPrefix("metrics"){
+          path(Remaining) { statName =>
+            parameterMap { params =>
+              completeMetrics(HttpMetrics, statName, params)
             }
           }
-        } 
+        }
+      } ~
+      pathPrefix("session"){
+        pathPrefix("metrics"){
+          path(Remaining) { statName =>
+            parameterMap { params =>
+              completeMetrics(SessionMetrics, statName, params)
+            }
+          }
+        }
+      }
     }
   }
 
@@ -249,81 +264,87 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   /**
    * Helper functions
    */
+  
+  
+  def genPrometheusString(stats: List[MetricsItem], metricName: String, helpString: String, isCounter: Boolean = true): String = {
+      val theType = if(isCounter) "counter" else "gauge"
+		  s"\n# HELP metricName $helpString\n# TYPE metricName $theType\n" +
+				  stats.map(dsi => s"metricName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.value}").mkString("\n") +
+				  "\n"
+  }
+ 				  
   def getPrometheusDiameterMetricFut(statName: String) = {
 		  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
 
-				  def genPrometheusString(counterName: String, helpString: String): String = {
-						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
-								  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
-								  "\n"
-				  }
-
 				  statName match {
-  				  case "diameterRequestReceived" => genPrometheusString("diameter_requests_received", "The number of Diameter requests received")
-  				  case "diameterAnswerReceived" => genPrometheusString("diameter_answers_received", "The number of Diameter answers received")
-  				  case "diameterRequestTimeout" => genPrometheusString("diameter_requests_timeout", "The number of Diameter timeouts")
-  				  case "diameterAnswerSent" => genPrometheusString("diameter_answers_sent", "The number of Diameter answers sent")
-  				  case "diameterRequestSent" => genPrometheusString("diameter_requests_sent", "The number of Diameter requests sent")
-  				  case "diameterRequestDropped" => genPrometheusString("diameter_requests_dropped", "The number of Diameter requests dropped")
-  				  case "diameterHandlerServer" => genPrometheusString("diameter_handler_server", "The number of Diameter requests handled")
-  				  case "diameterHandlerClient" => genPrometheusString("diameter_handler_client", "The number of Diameter requests sent by handlers")
-  				  case "diameterHandlerClientTimeout" => genPrometheusString("diameter_handler_client_timeout", "The number of Diameter requests sent by handler timed out")
+  				  case "diameterRequestReceived" => genPrometheusString(stats, "diameter_requests_received", "The number of Diameter requests received")
+  				  case "diameterAnswerReceived" => genPrometheusString(stats, "diameter_answers_received", "The number of Diameter answers received")
+  				  case "diameterRequestTimeout" => genPrometheusString(stats, "diameter_requests_timeout", "The number of Diameter timeouts")
+  				  case "diameterAnswerSent" => genPrometheusString(stats, "diameter_answers_sent", "The number of Diameter answers sent")
+  				  case "diameterRequestSent" => genPrometheusString(stats, "diameter_requests_sent", "The number of Diameter requests sent")
+  				  case "diameterRequestDropped" => genPrometheusString(stats, "diameter_requests_dropped", "The number of Diameter requests dropped")
+  				  case "diameterHandlerServer" => genPrometheusString(stats, "diameter_handler_server", "The number of Diameter requests handled")
+  				  case "diameterHandlerClient" => genPrometheusString(stats, "diameter_handler_client", "The number of Diameter requests sent by handlers")
+  				  case "diameterHandlerClientTimeout" => genPrometheusString(stats, "diameter_handler_client_timeout", "The number of Diameter requests sent by handler timed out")
+  				  case "diameterPeerQueueSize" => genPrometheusString(stats, "diameter_peer_queue_size", "The queue of requests to be processed", false)
   
   				  case _ => ""
 
 				  }
 		  }
-		  (metricsServer ? GetDiameterMetrics(statName, diameterKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
-  }
-
-  def getPrometheusRadiusStatsFut(statName: String) = {
-		  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
-
-				  def genPrometheusString(counterName: String, helpString: String): String = {
-						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
-								  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
-								  "\n"
-				  }
-
-				  statName match {
-  				  case "radiusServerRequest" => genPrometheusString("radius_server_requests", "The number of Radius server requests received")
-  				  case "radiusServerDropped" => genPrometheusString("radius_server_dropped", "The number of Radius server requests dropped")
-  				  case "radiusServerResponse" => genPrometheusString("radius_server_responses", "The number of Radius server requests responsed")
-  				  case "radiusClientRequest" => genPrometheusString("radius_client_requests", "The number of Radius client requests sent")
-  				  case "radiusClientResponse" => genPrometheusString("radius_client_responses", "The number of Radius client responses received")
-  				  case "radiusClientTimeout" => genPrometheusString("radius_client_timeout", "The number of Radius client requests timed out")
-  				  case "radiusClientDropped" => genPrometheusString("radius_client_dropped", "The number of Radius client responses dropped")
-  				  case "radiusHandlerResponse" => genPrometheusString("radius_handler_responses", "The number of Radius responses sent by handlers")
-  				  case "radiusHandlerDropped" => genPrometheusString("radius_handler_dropped", "The number of Radius requests dropped by handlers")
-  				  case "radiusHandlerRequest" => genPrometheusString("radius_handler_requests", "The number of Radius requests received by handlers")
-  				  case "radiusHandlerRetransmission" => genPrometheusString("radius_handler_retransmission", "The number of Radius requests retransmitted")
-  				  case "radiusHandlerTimeout" => genPrometheusString("radius_handler_timeout", "The number of Radius requests timed out")
-  
-  				  case _ => ""
-
-				  }
-		  }
-
-		  (metricsServer ? GetRadiusMetrics(statName, radiusKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
+		  (metricsServer ? GetMetrics(DiameterMetrics, statName, diameterKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
   }
   
-    def getPrometheusHttpStatsFut(statName: String) = {
-		  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
 
-				  def genPrometheusString(counterName: String, helpString: String): String = {
-						  s"\n# HELP $counterName $helpString\n# TYPE $counterName counter\n" +
-								  stats.map(dsi => s"$counterName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.counter}").mkString("\n") +
-								  "\n"
-				  }
+  def getPrometheusRadiusMetricFut(statName: String) = {
+	  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
 
-				  statName match {
-				  case "httpOperation" => genPrometheusString("http_operations", "The number of http operations processed")
-				  case _ => ""
+		  statName match {
+			  case "radiusServerRequest" => genPrometheusString(stats, "radius_server_requests", "The number of Radius server requests received")
+			  case "radiusServerDropped" => genPrometheusString(stats, "radius_server_dropped", "The number of Radius server requests dropped")
+			  case "radiusServerResponse" => genPrometheusString(stats, "radius_server_responses", "The number of Radius server requests responsed")
+			  case "radiusClientRequest" => genPrometheusString(stats, "radius_client_requests", "The number of Radius client requests sent")
+			  case "radiusClientResponse" => genPrometheusString(stats, "radius_client_responses", "The number of Radius client responses received")
+			  case "radiusClientTimeout" => genPrometheusString(stats, "radius_client_timeout", "The number of Radius client requests timed out")
+			  case "radiusClientDropped" => genPrometheusString(stats, "radius_client_dropped", "The number of Radius client responses dropped")
+			  case "radiusHandlerResponse" => genPrometheusString(stats, "radius_handler_responses", "The number of Radius responses sent by handlers")
+			  case "radiusHandlerDropped" => genPrometheusString(stats, "radius_handler_dropped", "The number of Radius requests dropped by handlers")
+			  case "radiusHandlerRequest" => genPrometheusString(stats, "radius_handler_requests", "The number of Radius requests received by handlers")
+			  case "radiusHandlerRetransmission" => genPrometheusString(stats, "radius_handler_retransmission", "The number of Radius requests retransmitted")
+			  case "radiusHandlerTimeout" => genPrometheusString(stats, "radius_handler_timeout", "The number of Radius requests timed out")
+				case "radiusClientQueueSize" => genPrometheusString(stats, "radius_client_queue_size", "The queue of requests to be processed", false)
 
-				  }
+			  case _ => ""
 		  }
+	  }
 
-		  (metricsServer ? GetHttpMetrics(statName, httpKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
+		(metricsServer ? GetMetrics(RadiusMetrics, statName, radiusKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
+  }
+  
+  def getPrometheusHttpStatsFut(statName: String) = {
+	  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
+
+		  statName match {
+		  case "httpOperation" => genPrometheusString(stats, "http_operations", "The number of http operations processed")
+		  case _ => ""
+
+		  }
+	  }
+
+	  (metricsServer ? GetMetrics(HttpMetrics, statName, httpKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
+  }
+  
+  def getPrometheusSessionStatsFut(statName: String) = {
+	  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
+
+		  statName match {
+			  case "sessionGroups" => genPrometheusString(stats, "sessions", "The number of radius and diameter sessions", false)
+			  case _ => ""
+
+		  }
+	  }
+
+	  (metricsServer ? GetMetrics(SessionMetrics, statName, httpKeys(statName))).mapTo[List[MetricsItem]].map(f => toPrometheus(statName, f))
   }
     
 }

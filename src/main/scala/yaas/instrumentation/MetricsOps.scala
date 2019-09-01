@@ -31,8 +31,8 @@ object MetricsOps {
   
   case class DiameterPeerStatus(config: DiameterPeerConfig, status: Int)
   
-  def updateDiameterPeerRequestQueueGauge(metricsActor: ActorRef, peerName: String, size: Int) = {
-    metricsActor ! DiameterPeerRequestQueueSize(peerName, size)
+  def updateDiameterPeerQueueGauge(metricsActor: ActorRef, peerName: String, size: Int) = {
+    metricsActor ! DiameterPeerQueueSize(peerName, size)
   }
   
   // Peer
@@ -89,8 +89,8 @@ object MetricsOps {
   // Radius
   /////////////////////////////////////////
   
-  def updateRadiusServerRequestQueueGauges(metricsActor: ActorRef, queueSizes: Map[RadiusEndpoint, Int]) = {
-    metricsActor ! RadiusServerRequestQueueSizes(queueSizes)
+  def updateRadiusClientRequestQueueGauges(metricsActor: ActorRef, queueSizes: Map[RadiusEndpoint, Int]) = {
+    metricsActor ! RadiusClientQueueSizes(queueSizes)
   }
   
   // Server

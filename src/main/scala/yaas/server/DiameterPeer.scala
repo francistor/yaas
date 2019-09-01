@@ -206,7 +206,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
     case Clean => 
       requestMapClean
       cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanIntervalMillis milliseconds, self, Clean))
-      MetricsOps.updateDiameterPeerRequestQueueGauge(metricsServer, peerHostName, requestMap.size)
+      MetricsOps.updateDiameterPeerQueueGauge(metricsServer, peerHostName, requestMap.size)
       
     case CERTimeout =>
       log.error("No answer to CER received from Peer")
@@ -274,7 +274,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
     dwrTimer.map(_.cancel)
     
     // Signal that this peer now has no queue size to report
-    MetricsOps.updateDiameterPeerRequestQueueGauge(metricsServer, peerHostName, -1)
+    MetricsOps.updateDiameterPeerQueueGauge(metricsServer, peerHostName, -1)
   }
   
   ////////////////////////////////////////////////////////////////////////////

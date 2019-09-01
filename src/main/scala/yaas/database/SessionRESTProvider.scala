@@ -25,7 +25,7 @@ object SessionRESTProvider {
 
 trait JsonSupport extends Json4sSupport {
   implicit val serialization = org.json4s.jackson.Serialization
-  implicit val json4sFormats = org.json4s.DefaultFormats
+  implicit val json4sFormats = org.json4s.DefaultFormats + new JSessionSerializer
 }
 
 class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging with JsonSupport {

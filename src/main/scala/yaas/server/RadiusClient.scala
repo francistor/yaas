@@ -123,12 +123,7 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
       endpointErrors = Map().withDefaultValue(0)
       cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
       
-      // Metrics for request queue size
-      for{
-        (endpoint, reqMap) <- requestMap
-      } 
-      
-      MetricsOps.updateRadiusServerRequestQueueGauges(
+      MetricsOps.updateRadiusClientRequestQueueGauges(
           metricsServer, 
           (for{(endpoint, reqMap) <- requestMap} yield (endpoint, reqMap.size)).toMap
       )

@@ -29,7 +29,10 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
     
     val request = ctx.requestPacket
-    val userName: String = request >> "User-Name"
+    val nasIpAddress = request.S("NAS-IP-Address")
+    val userName = request.S("User-Name")
+    val userNameComponents = userName.split("@")
+    val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
     
     // Will send a response depending on the contents of the User-Name
     if(userName.contains("drop")){
@@ -45,6 +48,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
           "SS-" + (request >> "Framed-IP-Address").getOrElse(""),
           getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
           getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
+          List(nasIpAddress, realm),
           System.currentTimeMillis,
           System.currentTimeMillis(),
           ("a" -> "aval") ~ ("b" -> 2)))

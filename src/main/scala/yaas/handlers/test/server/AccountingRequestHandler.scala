@@ -16,7 +16,6 @@ import yaas.server.MessageHandler
 
 import org.json4s.JsonDSL._
 
-
 class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   log.info("Instantiated AccountingRequestHandler")
@@ -93,6 +92,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
           request >> "Framed-IP-Address",
           getFromClass(request, "C").getOrElse("<UNKNOWN>"),
           getFromClass(request, "M").getOrElse("<UNKNOWN>"),
+          List(nasIpAddress, realm),
           System.currentTimeMillis,
           System.currentTimeMillis,
           ("a" -> "aval") ~ ("b" -> 2)))
@@ -101,6 +101,10 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
         
         // Remove session
          SessionDatabase.removeSession(request >>++ "Acct-Session-Id")
+      } else if((request >> "Acct-Status-Type").contentEquals("Interim-Update")){
+      
+        // Update Session
+        SessionDatabase.updateSession(request >> "Acct-Session-Id", Some(("interim" -> true)), true)
       }
     }
     

@@ -101,11 +101,11 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   def fail(msg: String = "") = println(s"\t[FAIL] $msg")
   
   // Returns -1 on error
-  def getCounterForKey(stats: JValue, keymap: Map[String, String]) = {
+  def getCounterForKey(stats: JValue, keyMap: Map[String, String]) = {
     val out = for {
       JArray(statValues) <- stats
       statValue <- statValues
-      JInt(counterValue) <- statValue \ "counter" if((statValue \ "keyMap" diff keymap) == Diff(JNothing, JNothing, JNothing))
+      JInt(counterValue) <- statValue \ "value" if((statValue \ "keyMap" diff keyMap) == Diff(JNothing, JNothing, JNothing))
     } yield counterValue
     
     if(out.length == 0) -1 else out(0)
@@ -371,6 +371,55 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           ok("Session found")
         }
         else fail("Session not found")
+        nextTest
+
+      case Failure(ex) => 
+        fail("Response not received")
+        nextTest
+    }
+  }
+  
+  def testAccountingInterim(): Unit = {
+    
+    // Accounting request
+    println("[TEST] Accounting Interim")
+    
+    val ipAddress = "199.0.0.1"
+    val acctSessionId = "radius-session-0"
+    
+    val sAccountingRequest = s"""
+      {
+        "code": 4,
+        "avps": {
+          "NAS-IP-Address": ["1.1.1.1"],
+          "NAS-Port": [0],
+          "User-Name": ["test@database"],
+          "Acct-Session-Id": ["${acctSessionId}"],
+          "Framed-IP-Address": ["${ipAddress}"],
+          "Acct-Status-Type": ["Interim-Update"]
+        }
+      }
+      """
+          
+    val accountingRequest: RadiusPacket = parse(sAccountingRequest)
+
+    // Will go directly to the server
+    sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 2000, 1).onComplete {
+      case Success(response) => 
+        ok("Received response")
+        
+        // Find session
+        val session = jsonFromGet(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
+        if((session(0) \ "acctSessionId").extract[String] == acctSessionId){
+          ok("Session found")
+        }
+        else fail("Session not found")
+
+        if((session(0) \ "data" \ "interim").extract[Boolean] == true){
+          ok("Updated data found")
+        }
+        else fail("Updated data found")
+        
         nextTest
 
       case Failure(ex) => 
@@ -691,10 +740,31 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   }
   
   def checkHttpStats(method: String,  mustBe: Int)(): Unit = {
-    println(s"[TEST] Http stats")
+    println(s"[TEST] Http Stats")
     
-    val jHttpRequests = jsonFromGet(s"${superServerMetricsURL}/http/metrics/httpOperation?agg=$method")
+    val jHttpRequests = jsonFromGet(s"${superServerMetricsURL}/http/metrics/httpOperation?agg=method")
     checkMetric(jHttpRequests, mustBe, Map("method" -> method), s"$method")
+    
+    nextTest
+  }
+  
+  def checkQueueStats(): Unit = {
+    println(s"[TEST] Queue Stats")
+    
+    val jRadiusQueueStats = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusClientQueueSize")
+    if(jRadiusQueueStats == JNothing) fail("Radius Queue Stats did not return a valid value") else ok("Radius Queue Stats -> " + compact(jRadiusQueueStats))
+    
+    val jDiameterQueueStats = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterPeerQueueSize")
+    if(jDiameterQueueStats == JNothing) fail("Diameter Queue Stats did not return a valid value") else ok("Diameter Queue Stats -> " + compact(jDiameterQueueStats))
+    
+    nextTest
+  }
+  
+  def checkSessionStats(): Unit = {
+    println(s"[TEST] Session Stats")
+    
+    val jSessionGroups = jsonFromGet(s"${superServerMetricsURL}/session/metrics/sessionGroups")
+    if(jSessionGroups == JNothing) fail("sessionGroups did not return a valid value") else ok("Session Stats  -> " + compact(jSessionGroups))
     
     nextTest
   }

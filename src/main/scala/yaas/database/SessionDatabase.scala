@@ -42,6 +42,7 @@ case class Session(
     @ScalarCacheQuerySqlField(index = true) ipAddress: String, 
     @ScalarCacheQuerySqlField(index = true) clientId: String,
     @ScalarCacheQuerySqlField(index = true) macAddress: String,
+    @ScalarCacheQuerySqlField(index = true) groups: String,
     @ScalarCacheQuerySqlField startTimestampUTC: Long,
     @ScalarCacheQuerySqlField lastUpdatedTimestampUTC: Long,
     jData: String
@@ -56,6 +57,7 @@ object JSession {
       session.ipAddress, 
       session.clientId, 
       session.macAddress, 
+      session.groups.split(",").toList,
       session.startTimestampUTC, 
       session.lastUpdatedTimestampUTC,
       parse(session.jData))
@@ -70,13 +72,19 @@ class JSession(
     val ipAddress: String, 
     val clientId: String,
     val macAddress: String,
+    val groups: List[String],
     val startTimestampUTC: Long,
     val lastUpdatedTimestampUTC: Long,
     val jData: JValue = JObject()
 ) {
+  
   def toSession = {
-    Session(acctSessionId, ipAddress, clientId, macAddress, startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
+    Session(acctSessionId, ipAddress, clientId, macAddress, groups.mkString(","), startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
   }
+  
+  def copyUpdated(updatedJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), updatedJData)
+  
+  def copyMerged(toMergeJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), jData.merge(toMergeJData))
 }
 
 // Serializers for List of attributes. We sometimes want them not as JSON arrays, but as property sets
@@ -88,6 +96,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
           (jv \ "ipAddress").extract[String],
           (jv \ "clientId").extract[String],
           (jv \ "macAddress").extract[String],
+          (jv \ "groups").extract[List[String]],
           (jv \ "startTimestampUTC").extract[Long],
           (jv \ "lastModifiedTimestampUTC").extract[Long],
           (jv \ "data")
@@ -99,6 +108,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
       ("ipAddress" -> jSession.ipAddress) ~
       ("clientId" -> jSession.clientId) ~
       ("macAddress" -> jSession.macAddress) ~
+      ("groups" -> jSession.groups) ~
       ("startTimestampUTC" -> jSession.startTimestampUTC) ~
       ("lastModifiedTimestampUTC" -> jSession.startTimestampUTC) ~
       ("data" -> jSession.jData)
@@ -290,12 +300,43 @@ object SessionDatabase {
    * Session methods
    *****************************************************************/
   
+  /**
+   * Inserts a new session or overwrites based on the AcctSessionId
+   */
   def putSession(jSession: JSession) = {
     sessionsCache.put(jSession.acctSessionId, jSession.toSession)
   }
   
+  /**
+   * Removes the session with the specified acctSessionId
+   */
   def removeSession(acctSessionId: String) = {
     sessionsCache.remove(acctSessionId)
+  }
+  
+  /**
+   * Updates the lastUpdatedTimestamp field and merges or updates the jData
+   */
+  def updateSession(acctSessionId: String, jDataOption: Option[JValue], merge: Boolean) = {
+    jDataOption match {
+      case None => 
+        val updateStmt = new SqlFieldsQuery("update \"SESSIONS\".Session set lastUpdatedTimestampUTC = ? where acctSessionId = ?")
+          .setArgs(
+              System.currentTimeMillis: java.lang.Long,
+              acctSessionId: java.lang.String
+           )
+			  sessionsCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long] == 1
+        
+      case Some(jData) =>
+        findSessionsByAcctSessionId(acctSessionId) match {
+          case List(currentSession) =>
+            if(merge) putSession(currentSession.copyMerged(jData)) else putSession(currentSession.copyUpdated(jData))
+            true
+        
+          case _ =>
+            false
+        }
+    }
   }
   
   def findSessionsByIPAddress(ipAddress: String) = {
@@ -312,6 +353,10 @@ object SessionDatabase {
   
   def findSessionsByAcctSessionId(acctSessionId: String) = {
     sessionsCache.sql("select * from \"SESSIONS\".Session where acctSessionId = ?", acctSessionId).getAll.map(entry => JSession(entry.getValue)).toList
+  }
+  
+  def getSessionGroups = {
+    sessionsCache.query(new SqlFieldsQuery("select groups, count(*) as count from \"SESSIONS\".Session group by groups")).getAll.map(item => (item.get(0).asInstanceOf[String], item.get(1).asInstanceOf[Long])).toList
   }
   
  /******************************************************************
