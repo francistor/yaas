@@ -509,8 +509,8 @@ class MetricsServer extends Actor with ActorLogging {
     case GetMetrics(SessionMetrics, metricName, paramList) =>
      try {
         metricName match {
-          case "sessionGroups" => 
-            // getSessionGroups : List[(String, Long)], where "String" is "keyValue1,keyValue2,..."
+          case "sessions" => 
+            // getSessions : List[(String, Long)], where "String" is "keyValue1,keyValue2,..."
             // metricItems : List[MetricsItem], where a MetricsItem contains a Map[key, keyValue] and a counter
             val metricsItems = yaas.database.SessionDatabase.getSessionGroups.map(item => {
               val keyValues = item._1.split(",")

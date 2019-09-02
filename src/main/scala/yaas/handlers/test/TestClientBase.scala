@@ -763,8 +763,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   def checkSessionStats(): Unit = {
     println(s"[TEST] Session Stats")
     
-    val jSessionGroups = jsonFromGet(s"${superServerMetricsURL}/session/metrics/sessionGroups")
-    if(jSessionGroups == JNothing) fail("sessionGroups did not return a valid value") else ok("Session Stats  -> " + compact(jSessionGroups))
+    val jSessions = jsonFromGet(s"${superServerMetricsURL}/session/metrics/sessions")
+    if(jSessions == JNothing) fail("sessions did not return a valid value") else ok("Session Stats  -> " + compact(jSessions))
     
     nextTest
   }

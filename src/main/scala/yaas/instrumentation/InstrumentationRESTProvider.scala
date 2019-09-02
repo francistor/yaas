@@ -96,7 +96,7 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   def sessionKeys(statName: String) = {
     statName match {
       // Depends on this code in InstrumentationRestProvider: if(paramList.length == 0 || paramList.length > 4) metricsItems
-      case "sessionGroups" => List("1", "2", "3", "4", "5")
+      case "sessions" => List("1", "2", "3", "4", "5")
       case _ => List()
     }
   }
@@ -164,7 +164,9 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
         getPrometheusRadiusMetricFut("radiusHandlerTimeout"),
         getPrometheusRadiusMetricFut("radiusClientQueueSize"),
         
-        getPrometheusHttpStatsFut("httpOperation")
+        getPrometheusHttpStatsFut("httpOperation"),
+        
+        getPrometheusSessionStatsFut("sessions")
       )
       complete(Future.reduce(futList)((a, b) => a + b))
     }
@@ -338,9 +340,8 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
 	  def toPrometheus(statName: String, stats: List[MetricsItem]): String = {
 
 		  statName match {
-			  case "sessionGroups" => genPrometheusString(stats, "sessions", "The number of radius and diameter sessions", false)
+			  case "sessions" => genPrometheusString(stats, "sessions", "The number of radius and diameter sessions", false)
 			  case _ => ""
-
 		  }
 	  }
 
