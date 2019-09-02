@@ -268,8 +268,8 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   
   def genPrometheusString(stats: List[MetricsItem], metricName: String, helpString: String, isCounter: Boolean = true): String = {
       val theType = if(isCounter) "counter" else "gauge"
-		  s"\n# HELP metricName $helpString\n# TYPE metricName $theType\n" +
-				  stats.map(dsi => s"metricName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.value}").mkString("\n") +
+		  s"\n# HELP $metricName $helpString\n# TYPE metricName $theType\n" +
+				  stats.map(dsi => s"$metricName{${dsi.keyMap.map{case (k, v) => s"""$k="$v""""}.mkString(",")}} ${dsi.value}").mkString("\n") +
 				  "\n"
   }
  				  
