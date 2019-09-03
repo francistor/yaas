@@ -516,7 +516,7 @@ class MetricsServer extends Actor with ActorLogging {
               val keyValues = item._1.split(",")
               val keyMap = (for {
                 i <- 0 to (keyValues.length - 1)
-              } yield (i.toString, keyValues(i))).toMap
+              } yield (s"g$i", keyValues(i))).toMap
               
               MetricsItem(keyMap, item._2)
             })
