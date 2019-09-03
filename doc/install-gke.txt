@@ -35,7 +35,7 @@ REM get target host IP address
 kubectl get nodes -o wide
 
 REM set target host
-kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=35.204.216.102
+kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=34.90.54.218
 
 REM Deploy the descriptors
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml
