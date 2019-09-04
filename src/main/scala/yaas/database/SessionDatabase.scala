@@ -14,6 +14,7 @@ import org.apache.ignite.cache.CacheMode._
 import org.apache.ignite.cache.query.SqlFieldsQuery
 import org.apache.ignite.logger.slf4j.Slf4jLogger
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder
+import org.apache.ignite.spi.discovery.tcp.ipfinder.kubernetes.TcpDiscoveryKubernetesIpFinder
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
 import org.apache.ignite.configuration.IgniteConfiguration
@@ -255,8 +256,15 @@ object SessionDatabase {
       dsRegionConfiguration.setPersistenceEnabled(config.getBoolean("persistenceEnabled"))
       dsConfiguration.setDefaultDataRegionConfiguration(dsRegionConfiguration)
   
-      val finder = new TcpDiscoveryVmIpFinder
-      finder.setAddresses(igniteAddresses.split(",").toList)
+      val finder = if(igniteAddresses.startsWith("k8s:")){
+        val kFinder = new TcpDiscoveryKubernetesIpFinder
+        val tokens = igniteAddresses.split(":")
+        kFinder.setNamespace(tokens(1))
+        kFinder.setServiceName(tokens(2))
+        kFinder
+      } else {
+        (new TcpDiscoveryVmIpFinder).setAddresses(igniteAddresses.split(",").toList)
+      }
       
       val discSpi = new TcpDiscoverySpi
       discSpi.setIpFinder(finder)

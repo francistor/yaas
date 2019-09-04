@@ -24,6 +24,7 @@ libraryDependencies ++=
     "org.apache.ignite" % "ignite-indexing" % "2.7.5",
     "org.apache.ignite" % "ignite-scalar" % "2.7.5",
     "org.apache.ignite" % "ignite-slf4j" % "2.7.5",
+    "org.apache.ignite" % "ignite-kubernetes" % "2.7.5",
     "com.typesafe.slick" %% "slick" % "3.3.0",
     "com.typesafe.slick" %% "slick-hikaricp" % "3.3.0"
   )

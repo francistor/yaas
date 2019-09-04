@@ -49,7 +49,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   //////////////////////////////////////////////////////////////////////////////
   // Helper functions
   
-  def wait[T](r: Awaitable[T]) = Await.result(r, 10 second)
+  def waitJValue(r: Future[JValue]) = Await.result(r,  5 second)
+  
+  def waitInt(r: Future[Int]) = Await.result(r, 5 second)
   
   def intToIPAddress(i: Int) = {
     val bytes = Array[Byte]((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, (i % 8).toByte)
@@ -57,21 +59,22 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   }
   
   def jsonFromGet(url: String) = {
-    wait(for {
+    waitJValue(for {
       r <- http.singleRequest(HttpRequest(uri = url))
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
-    } yield j)
+    } yield j
+    )
   }
   
   def jsonFromPostJson(url: String, json: String) = {
-    wait(for {
+    waitJValue(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
     } yield j)
   }
   
   def jsonFromPostJsonWithErrorTrace(url: String, json: String) = {
-    wait(for {
+    waitJValue(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
       dummy = if(r.status.intValue() != 200) println(s"$url got ${r.status}")
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
@@ -79,19 +82,19 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   }
   
   def codeFromPostJson(url: String, json: String) = {
-    wait(for {
+    waitInt(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
     } yield r.status.intValue())
   }
   
   def codeFromDelete(url: String) = {
-     wait(for {
+     waitInt(for {
       r <- http.singleRequest(HttpRequest(DELETE, uri = url))
     } yield r.status.intValue())   
   }
   
   def patchJson(url: String, json: String) = {
-    wait(for {
+    waitInt(for {
       r <- http.singleRequest(HttpRequest(PATCH, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
     } yield r.status.intValue())
   }
@@ -154,7 +157,16 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   var lastTestIdx = -1
   def nextTest(): Unit = {
     lastTestIdx = lastTestIdx + 1
-    if(tests.length > lastTestIdx) tests(lastTestIdx)() else {
+    if(tests.length > lastTestIdx)
+      try{
+      tests(lastTestIdx)() 
+      }
+      catch{
+        case t: Throwable =>
+          println(s">> ERROR ${t.getMessage}")
+          nextTest
+      }
+    else {
       if(doLoop){
         println("LOOP")
         // Assuming at least one test is defined
@@ -1281,6 +1293,5 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   	
   	// Excecute Javascript
   	engine.eval(ConfigManager.readObject(scriptName));
-  	
   }
 }
