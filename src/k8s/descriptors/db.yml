@@ -16,6 +16,7 @@ spec:
       labels:
         app: yaas-db
     spec:
+      serviceAccountName: yaas
       initContainers:
       - name: git
         image: alpine/git:1.0.7

@@ -6,6 +6,7 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: yaas
       restartPolicy: Never
       initContainers:
       - name: git

@@ -35,11 +35,11 @@ REM get target host IP address
 kubectl get nodes -o wide
 
 REM set target host
-kubectl create configmap yaas-test-config --from-literal YAAS_TEST_SERVER=192.168.0.1
+kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=192.168.0.1
 
 REM Deploy the descriptors
-kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml
-kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml 
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db.yml 
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server-services.yml
@@ -49,10 +49,10 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
 REM RADIUS TEST
 kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml
-kubectl logs -f radiusclient
+kubectl logs -f radiusclient --namespace yaas
 REM DIAMETER TEST
 kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\diameterClient.yml
-kubectl logs -f radiusclient
+kubectl logs -f radiusclient --namespace yaas
 
 REM kube-prometheus
 REM remove the os: linux tags and the resources: tags specifying memory and cpu
@@ -70,15 +70,15 @@ REM See grafana dashboard
 kubectl --namespace monitoring port-forward svc/grafana 3000
 
 # Reload servers
-kubectl scale --replicas=0 statefulSet/yaas-server
-kubectl scale --replicas=0 statefulSet/yaas-superserver
-kubectl scale --replicas=0 statefulSet/yaas-db
-kubectl scale --replicas=1 statefulSet/yaas-server
-kubectl scale --replicas=1 statefulSet/yaas-superserver
-kubectl scale --replicas=1 statefulSet/yaas-db
-kubectl scale --replicas=2 statefulSet/yaas-server
-kubectl scale --replicas=2 statefulSet/yaas-superserver
-kubectl scale --replicas=2 statefulSet/yaas-db
+kubectl scale --namespace yaas --replicas=0 statefulSet/yaas-server 
+kubectl scale --namespace yaas --replicas=0 statefulSet/yaas-superserver
+kubectl scale --namespace yaas --replicas=0 statefulSet/yaas-db
+kubectl scale --namespace yaas --replicas=1 statefulSet/yaas-server
+kubectl scale --namespace yaas --replicas=1 statefulSet/yaas-superserver
+kubectl scale --namespace yaas --replicas=1 statefulSet/yaas-db
+kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-server
+kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-superserver
+kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-db
 
 REM Delete cluster
 gcloud container clusters delete yaas-cluster

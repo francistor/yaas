@@ -18,6 +18,7 @@ spec:
       labels:
         app: yaas-superserver
     spec:
+      serviceAccountName: yaas
       initContainers:
       - name: git
         image: alpine/git:1.0.7

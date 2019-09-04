@@ -4,6 +4,7 @@ metadata:
   name: kagent
   namespace: yaas
 spec:
+  serviceAccountName: yaas
   containers:
   - name: alpine 
     image: giantswarm/tiny-tools

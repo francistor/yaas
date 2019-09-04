@@ -18,6 +18,7 @@ spec:
       labels:
         app: yaas-server
     spec:
+      serviceAccountName: yaas
       tolerations:
       - key: node-role.kubernetes.io/master
         effect: NoSchedule
