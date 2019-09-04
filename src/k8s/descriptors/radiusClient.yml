@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: radiusclient
-  namespace: default
+  namespace: yaas
 spec:
   template:
     spec:

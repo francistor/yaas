@@ -5,6 +5,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: yaas-superserver
+  namespace: yaas
 spec:
   replicas: 1
   serviceName: yaas-superserver

@@ -3,6 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: yaas-server
+  namespace: yaas
   labels:
     app: yaas-monitor
 spec:
@@ -19,6 +20,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: yaas-server-radius
+  namespace: yaas
 spec:
   type: NodePort
   sessionAffinity: None

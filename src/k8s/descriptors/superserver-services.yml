@@ -3,6 +3,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: yaas-superserver
+  namespace: yaas
   labels:
     app: yaas-monitor
 spec:
@@ -29,6 +30,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: yaas-superserver-radius
+  namespace: yaas
 spec:
   selector:
     app: yaas-superserver

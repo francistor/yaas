@@ -2,7 +2,7 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: yaas-server-monitor
-  namespace: default
+  namespace: yaas
 spec:
   jobLabel: yaas-server-metrics
   selector:
@@ -10,7 +10,7 @@ spec:
       app: yaas-monitor
   namespaceSelector:
     matchNames:
-    - default
+    - yaas
   endpoints:
     - interval: 5s
       targetPort: 19000

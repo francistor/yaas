@@ -4,6 +4,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: yaas-db
+  namespace: yaas
 spec:
   selector:
     matchLabels:
