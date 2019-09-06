@@ -18,7 +18,6 @@ spec:
       port: 19000
     - name: ignite
       port: 47500
-
 ---
     
 apiVersion: v1
