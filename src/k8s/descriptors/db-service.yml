@@ -17,7 +17,7 @@ spec:
       protocol: TCP
       port: 19000
     - name: ignite
-      port: 9042
+      port: 47500
 
 ---
     
