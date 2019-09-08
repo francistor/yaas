@@ -60,7 +60,7 @@ kubectl logs -f radiusclient --namespace yaas
 
 REM kube-prometheus
 REM See doc/k8s/kube-prometheus.txt
-kubectl apply -f c:\tmp\kube-prometheus\manifests\
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\kprometheus-descriptors
 
 REM monitor YAAS
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\serviceMonitor.yml
