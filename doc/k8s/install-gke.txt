@@ -84,8 +84,8 @@ kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-superserver
 kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-db
 
 # Reload clients
-kubectl scale --namespace yaas --replicas=1 deployment/radiusclient
-kubectl scale --namespace yaas --replicas=1 deployment/diameterclient
+kubectl scale --namespace yaas --replicas=0 deployment/radiusclient
+kubectl scale --namespace yaas --replicas=0 deployment/diameterclient
 
 
 REM Delete cluster

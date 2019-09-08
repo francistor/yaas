@@ -44,6 +44,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
+        ports:
+          - containerPort: 19000 # Instrumentation
         securityContext:
           runAsUser: 1000
         imagePullPolicy: Always
