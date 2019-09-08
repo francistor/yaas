@@ -16,8 +16,14 @@ spec:
     - name: monitoring
       protocol: TCP
       port: 19000
-    - name: ignite
+    - name: ignite-disc
       port: 47500
+    - name: ignite-comm
+      port: 47100
+    - name: ignite-jdbc
+      port: 10800
+    - name: ignite-http
+      port: 11211
 ---
     
 apiVersion: v1

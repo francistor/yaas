@@ -1,13 +1,20 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: radiusclient
   namespace: yaas
 spec:
+  replicas: 0
+  selector: 
+    matchLabels:
+      nodeType: radiusclient
   template:
+    metadata:
+      labels:
+        nodeType: radiusclient
+        app: yaas-client
     spec:
       serviceAccountName: yaas
-      restartPolicy: Never
       initContainers:
       - name: git
         image: alpine/git:1.0.7

@@ -1,0 +1,17 @@
+# Generic server 
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-client
+  namespace: yaas
+  labels:
+    app: yaas-monitor
+spec:
+  clusterIP: None
+  selector:
+    app: yaas-client
+  ports:
+    - name: monitoring
+      protocol: TCP
+      port: 19000
+

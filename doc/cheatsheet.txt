@@ -1,0 +1,13 @@
+Ejecutar comandos en el namespace del container
+-----------------------------------------------
+https://www.digitalocean.com/community/tutorials/how-to-inspect-kubernetes-networking
+
+Get the container to enter 
+ sudo docker ps|grep <pod-name>
+ 
+Get the pid of the container process
+ sudo docker inspect --format '{{ .State.Pid }}' <container-id>
+ 
+Execute the command
+
+ sudo nsenter -t <process-id> -n <command>

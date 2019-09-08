@@ -1,13 +1,20 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: diameterclient
   namespace: yaas
 spec:
+  replicas: 0
+  selector: 
+    matchLabels:
+      nodeType: diameterclient
   template:
+    metadata:
+      labels:
+        nodeType: diameterclient
+        app: yaas-client
     spec:
       serviceAccountName: yaas
-      restartPolicy: Never
       initContainers:
       - name: git
         image: alpine/git:1.0.7
@@ -37,6 +44,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
+        ports:
+          - containerPort: 19000 # Instrumentation
         securityContext:
           runAsUser: 1000
         imagePullPolicy: Always

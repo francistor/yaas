@@ -35,7 +35,7 @@ REM get target host IP address
 kubectl get nodes -o wide
 
 REM set target host
-kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=192.168.0.1
+kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=192.168.0.101
 
 REM Deploy the descriptors
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml 
@@ -44,6 +44,10 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.ym
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\client-services.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\diameterClient.yml
+kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\client-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
 
@@ -55,8 +59,7 @@ kubectl create -f c:\code\yaasws\yaas\src\k8s\descriptors\diameterClient.yml
 kubectl logs -f radiusclient --namespace yaas
 
 REM kube-prometheus
-REM remove the os: linux tags and the resources: tags specifying memory and cpu
-REM also change scraping interval to 5s
+REM See doc/k8s/kube-prometheus.txt
 kubectl apply -f c:\tmp\kube-prometheus\manifests\
 
 REM monitor YAAS
@@ -79,6 +82,11 @@ kubectl scale --namespace yaas --replicas=1 statefulSet/yaas-db
 kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-server
 kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-superserver
 kubectl scale --namespace yaas --replicas=2 statefulSet/yaas-db
+
+# Reload clients
+kubectl scale --namespace yaas --replicas=1 deployment/radiusclient
+kubectl scale --namespace yaas --replicas=1 deployment/diameterclient
+
 
 REM Delete cluster
 gcloud container clusters delete yaas-cluster

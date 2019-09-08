@@ -1,10 +1,10 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: yaas-server-monitor
+  name: yaas-monitor
   namespace: yaas
 spec:
-  jobLabel: yaas-server-metrics
+  jobLabel: yaas-metrics
   selector:
     matchLabels:
       app: yaas-monitor

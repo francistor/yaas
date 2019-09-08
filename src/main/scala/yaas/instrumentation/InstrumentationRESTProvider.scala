@@ -34,6 +34,8 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = actorSystem.dispatcher
   
+  val isDatabaseServer = ConfigFactory.load().getConfig("aaa.sessionsDatabase").getString("role") == "server"
+  
   val config = ConfigFactory.load().getConfig("aaa.instrumentation")
   val bindPort = config.getInt("bindPort")
   val bindAddress= config.getString("bindAddress")
@@ -164,11 +166,12 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
         getPrometheusRadiusMetricFut("radiusHandlerTimeout"),
         getPrometheusRadiusMetricFut("radiusClientQueueSize"),
         
-        getPrometheusHttpStatsFut("httpOperation"),
-        
-        getPrometheusSessionStatsFut("sessions")
+        getPrometheusHttpStatsFut("httpOperation")
       )
-      complete(Future.reduce(futList)((a, b) => a + b))
+      
+      val completeFutList = if(isDatabaseServer) futList :+ getPrometheusSessionStatsFut("sessions") else futList
+      
+      complete(Future.reduce(completeFutList)((a, b) => a + b))
     }
   
   class RestRouteProvider extends JsonSupport {
