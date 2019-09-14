@@ -34,7 +34,10 @@ import org.json4s.jackson.JsonMethods._
  * Represents a Radius/Diameter Session as stored in the in-memory sessions database.
  * jData is stringified JSON
  * 
- * Handlers use a JSession object, which is internally converted to Session
+ * Handlers use a JSession object, which is internally converted to Session.
+ * 
+ * For each session, a list of "groups" may be specified (order is important), for
+ * counting purposes (e.g. number of sessions for a given service-name)
  */
 
 // TODO: Should use Options
@@ -316,10 +319,24 @@ object SessionDatabase {
   }
   
   /**
+   * Inserts a new session or overwrites based on the AcctSessionId
+   */
+  def putSessionAsync(jSession: JSession) = {
+    sessionsCache.putAsync(jSession.acctSessionId, jSession.toSession)
+  }
+  
+  /**
    * Removes the session with the specified acctSessionId
    */
   def removeSession(acctSessionId: String) = {
     sessionsCache.remove(acctSessionId)
+  }
+  
+  /**
+   * Removes the session with the specified acctSessionId
+   */
+  def removeSessionAsync(acctSessionId: String) = {
+    sessionsCache.removeAsync(acctSessionId)
   }
   
   /**
@@ -348,6 +365,7 @@ object SessionDatabase {
   }
   
   def findSessionsByIPAddress(ipAddress: String) = {
+    sessionsCache.getAsync(ipAddress)
     sessionsCache.sql("select * from \"SESSIONS\".Session where ipAddress = ?", ipAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
   

@@ -42,6 +42,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).orElse(Option(System.getProperty("YAAS_TEST_REQUESTS"))).map(req => Integer.parseInt(req)).getOrElse(10000)
   val doLoop = Option(System.getenv("YAAS_TEST_LOOP")).orElse(Option(System.getProperty("YAAS_TEST_LOOP"))).map(_.toBoolean).getOrElse(false)
+  val continueOnPerfError = Option(System.getenv("YAAS_CONTINUE_ON_PERF_ERROR")).orElse(Option(System.getProperty("YAAS_CONTINUE_ON_PERF_ERROR"))).map(_.toBoolean).getOrElse(false)
 
   implicit val materializer = ActorMaterializer()
   val http = Http(context.system)
@@ -819,7 +820,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
               else promise.failure(new Exception("Bad Radius Response"))
               
             case Failure(e) =>
-              promise.failure(e)
+              if(continueOnPerfError) loop else promise.failure(e)
           }
         } else promise.success(Unit)
       }
@@ -889,7 +890,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
                 else promise.failure(new Exception("Bad answer"))
                 
               case Failure(e) =>
-                promise.failure(e)
+                if(continueOnPerfError) loop else promise.failure(e)
             }
           } 
           else {
