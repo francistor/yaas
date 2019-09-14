@@ -820,7 +820,11 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
               else promise.failure(new Exception("Bad Radius Response"))
               
             case Failure(e) =>
-              if(continueOnPerfError) loop else promise.failure(e)
+              if(continueOnPerfError){
+                print(s"\r--- ")
+                loop 
+              }
+              else promise.failure(e)
           }
         } else promise.success(Unit)
       }
@@ -890,7 +894,11 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
                 else promise.failure(new Exception("Bad answer"))
                 
               case Failure(e) =>
-                if(continueOnPerfError) loop else promise.failure(e)
+                if(continueOnPerfError){
+                  print(s"\r--- ")
+                  loop 
+                }
+                else promise.failure(e)
             }
           } 
           else {
