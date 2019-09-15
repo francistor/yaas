@@ -44,6 +44,10 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   val doLoop = Option(System.getenv("YAAS_TEST_LOOP")).orElse(Option(System.getProperty("YAAS_TEST_LOOP"))).map(_.toBoolean).getOrElse(false)
   val continueOnPerfError = Option(System.getenv("YAAS_CONTINUE_ON_PERF_ERROR")).orElse(Option(System.getProperty("YAAS_CONTINUE_ON_PERF_ERROR"))).map(_.toBoolean).getOrElse(false)
 
+  println(".......................")
+  print(continueOnPerfError)
+  println(".......................")
+  
   implicit val materializer = ActorMaterializer()
   val http = Http(context.system)
   
@@ -821,7 +825,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
               
             case Failure(e) =>
               if(continueOnPerfError){
-                print(s"\r--- ")
+                print(s"\r         --> At least one timeout")
                 loop 
               }
               else promise.failure(e)
@@ -895,7 +899,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
                 
               case Failure(e) =>
                 if(continueOnPerfError){
-                  print(s"\r--- ")
+                  print(s"\r         --> At least one timeout")
                   loop 
                 }
                 else promise.failure(e)
