@@ -36,13 +36,13 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
       errorConditions _,
       fillPool _,
       reloadLookup _, // The performance testing will will take some time, required to reload the lookup table in the other server (access is balanced)
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 2000, 10, "Radius Warmup") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", nRequests, 10, "Free Wheel") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, 10, "Database Lookup") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests * 2, 10, "Session storage") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Stop", "@none", nRequests * 2, 10, "Session storage") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 2000, 2, "Radius Warmup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", nRequests, 2, "Free Wheel") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, 2, "Database Lookup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests * 2, 2, "Session storage") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Stop", "@none", nRequests * 2, 2, "Session storage") _,
       testLeases _,
       // testBulkLease _,
-      unavailableLease _
+      // unavailableLease _
   )
 }

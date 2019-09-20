@@ -1,5 +1,5 @@
 
-gcloud config set project sandbox-project
+gcloud config set project <project-id>
 
 REM configure gcloud settings 
 gcloud config set proxy/type http
@@ -38,7 +38,7 @@ kubectl get nodes -o wide
 REM Deploy the descriptors
 REM Change YAAS_TEST_SERVER!
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\namespace.yml 
-kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=34.90.196.49
+kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=34.90.62.195
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml 
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db.yml 
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.yml
@@ -48,7 +48,6 @@ kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\server.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\client-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\radiusClient.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\diameterClient.yml
-kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\client-services.yml
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\kagent.yml
 
 
