@@ -41,7 +41,7 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, 2, "Database Lookup") _,
       checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests * 2, 2, "Session storage") _,
       checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Stop", "@none", nRequests * 2, 2, "Session storage") _,
-      testLeases _,
+      testLeases _
       // testBulkLease _,
       // unavailableLease _
   )
