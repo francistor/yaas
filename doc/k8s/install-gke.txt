@@ -28,7 +28,7 @@ gcloud compute firewall-rules create diameter-0 --allow tcp:30200
 gcloud compute firewall-rules create diameter-1 --allow tcp:30201
 gcloud compute firewall-rules create sessions --allow tcp:30501
 
-# Remove implicit limit to 100m
+REM Remove implicit limit to 100m
 kubectl delete limitrange limits
 
 REM get target host IP address

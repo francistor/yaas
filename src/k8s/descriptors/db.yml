@@ -37,12 +37,6 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
-        readynessProbe:
-	      httpGet:
-	        path: /ready
-	        port: 19000
-	      initialDelaySeconds: 10
-	      periodSeconds: 5
         ports:
           - containerPort: 19000 # Instrumentation
           - containerPort: 19500 # Sessions database
