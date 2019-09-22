@@ -132,9 +132,6 @@ class Router() extends Actor with ActorLogging {
 	val databaseRole = config.getString("sessionsDatabase.role")
 	if(databaseRole != "none") yaas.database.SessionDatabase.init
 	if(databaseRole == "server") context.actorOf(yaas.database.SessionRESTProvider.props(metricsServer))
- 
-  // Create instrumentation server
-  val instrumentationActor = context.actorOf(yaas.instrumentation.InstrumentationRESTProvider.props(metricsServer))
   
   // Empty initial maps to working objects
   // Diameter
@@ -192,6 +189,9 @@ class Router() extends Actor with ActorLogging {
   
   // Initialize handlers
   handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig, handlerMap)
+  
+  // Create instrumentation server
+  context.actorOf(yaas.instrumentation.InstrumentationRESTProvider.props(metricsServer))
   
   ////////////////////////////////////////////////////////////////////////
   // Diameter configuration

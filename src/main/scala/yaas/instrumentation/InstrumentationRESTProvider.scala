@@ -104,6 +104,9 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
   }
   
   val configRoute =
+    pathPrefix("ready"){
+      complete(200, "OK")
+    } ~
     pathPrefix("config"){
       pathPrefix("reload"){
         patch {

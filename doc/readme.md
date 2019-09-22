@@ -11,7 +11,7 @@ information (not user traffic) between network nodes, and is used because it off
 performance due to its asyncronous nature. A single connection (there is even no such a thing
 as "connection" in the case of Radius) may multiplex requests and responses comming out or order,
 avoiding wait times between request and response. This multiplex feature over the same connection
-is implemented in http2, and probably Diameter and Radius will become slowly out of favor.
+is implemented in http2, and probably Diameter and Radius will become slowly out of favor when http2 gains traction in telcos.
 
 Yaas is built in scala and Akka.
 
@@ -34,7 +34,7 @@ assginments and, incidentally, for storing client data for internal tests.
 
 ## Installation
 
-Clone the repository and use sbt. The Universal packager is used, so that rmp or deb or zip artifacts
+Clone the repository and use sbt. The Universal packager is used, so that rpm or deb or zip artifacts
 may be created with the appropriate command.
 
 If incorporating external handlers (which will usually be the case), those must be made available in the
@@ -42,7 +42,14 @@ classpath (XXXXX how to do this).
 
 ## Smoke testing
 
-TODO: the test script should be generated into the test directory
+Execute `testAll` in the `bin` directory.
+
+This will launch several instances:
+
+- A "superserver" instance, which acts as a Diameter and Radius server plus an ignite database server.
+- A "superserver-mirror" instance, which will act as an ignite replica.
+- A "server" instance, which receives the client requests, looks for clients in the ignite database, stores sessions and proxies the requests to the superserver.
+- A "client" instance, which generates the requests and performs the tests.
 
 ## Configuration
 
@@ -52,12 +59,11 @@ some other cannot.
 
 ### Bootstrap
 
-If no parmeter is specified, Yaas will bootstrap using a local file in the "conf" directory with the name
-aaa-<instance_name>.conf. <instance_name> is passed as a parameter in the command line as 
--Dinstance=<instance_name>, and "default" with be used if nothing is specified.
+If no parameter is specified, Yaas will bootstrap using a local file in the "conf" directory with the name
+`aaa-<instance_name>.conf`. <instance_name> is passed as a parameter in the command line as 
+`-Dinstance=<instance_name>`, and "default" with be used if nothing is specified.
 
-A specific bootstrap file may be forced using -Dconfig.resource, -Dconfig.file or -Dconfig.url parameters,
-the last one allowing for the file to be stored in a remote/centralized location.
+A specific bootstrap file may be forced using `-Dconfig.resource`, `-Dconfig.file` or `-Dconfig.url` parameters, the last one allowing for the file to be stored in a remote/centralized location.
 
 In this bootstrap file, there is a section called "aaa.configSearchRules" that specifies where to look
 for other configuration files based on the name of the file. That location may be a URL, whose base location is specified, or it will be assumed to be the location of the bootstrap file. It may be also specified as a
@@ -75,8 +81,10 @@ The location of the logging configuration file is, by default, logback-<instance
 Each configuration file, irrespective o whether it is located in a URL or in a resource, will be tried first
 in the expected location with the <instance_name/> string appended, and then in the raw expected location.
 
-The embedded "aaa-reference.conf" must be always included, and defines all the possible configuration
-parameters with some documentation.
+The embedded `aaa-reference.conf` must be always included, and defines all the possible configuration
+parameters with some documentation. 
+
+The most important parameter is `aaa.sessionsDatabase.role`, which defines whether to launch an ignite client or server ignite instance (values may be `client`, `server` and `none`). The ignite configuration parameters (memory, ip addresses and ports) may be configured in this file, or an `ignite.xml` file may be used. See comments inline `aaa-reference.conf` for details.
 
 This looks complicated but usage should be simple and flexible. Here are some examples
 
@@ -467,6 +475,49 @@ val sAccountingRequest = s"""
   """
       
 val accountingRequest: RadiusPacket = parse(sAccountingRequest)
+```
+
+## Storing and finding sessions
+
+The Session Database functionality is exposed by the object yaas.database.SessionDatabase, which offers methods to create and to find sessions. They may be invoked by any Yaas instance whose `aaa.sessionsDatabase.role` is `client` or `server`.
+
+The Session class is the one persisted in ignite, but developers should use the JSession class, which provides some convenience methods. 
+
+The key parameter is the `acctSessionId`, and searches may be performed also by, `iPAddress`, `clientId`, and `macAddress`.
+
+The groups attribute is a list with session attributes used for classification. a typical group list could be NAS-IP-Address plus ServiceName assigned. The instrumentation server may be queried by the number of sessions aggregated by one or more groups. The usage may be consistent in all the handlers, that is, groups and its ordering must be the same.
+
+To create a session, create a new JSession. The last parameter is an arbitrary JValue
+
+```
+SessionDatabase.putSession(new JSession(
+          request >> "Acct-Session-Id",
+          request >> "Framed-IP-Address",
+          getFromClass(request, "C").getOrElse("<UNKNOWN>"),
+          getFromClass(request, "M").getOrElse("<UNKNOWN>"),
+          List(nasIpAddress, realm),
+          System.currentTimeMillis,
+          System.currentTimeMillis,
+          ("a" -> "myValue") ~ ("b" -> 2)))
+```
+
+The session may be later updated using the AccountingSessionId as a key. The provided JValue may replace or be merged with the previous value. The lastUpdatedTimestamp value will be automatically updated.
+
+```
+SessionDatabase.updateSession(request >> "Acct-Session-Id", Some(("interim" -> true)), true)
+```
+
+There are various methods to look for Sessions, all of them returning a list of JSession
+
+```
+findSessionByAcctSessionId(acctSessionId: String) 
+findSessionsByIPAddress(ipAddress: String)
+findSessionsByClientId(clientId: String)
+findSessionsByMACAddress(macAddress: String)
+```
+
+```
+
 ```
 
 

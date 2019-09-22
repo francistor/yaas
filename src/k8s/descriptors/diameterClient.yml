@@ -37,6 +37,8 @@ spec:
             value: "10000"
           - name: YAAS_TEST_LOOP
             value: "true"
+          - name: YAAS_TEST_THREADS
+            value: "2"
           - name: YAAS_TEST_SERVER
             valueFrom:
               configMapKeyRef:

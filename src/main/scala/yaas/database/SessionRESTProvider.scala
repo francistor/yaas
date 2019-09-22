@@ -88,7 +88,6 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
       }
     }
   
-  
   val iamRoute = 
     pathPrefix("iam") {
   	  get {

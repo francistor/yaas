@@ -23,9 +23,9 @@ class TestDiameterClientKubernetes(statsServer: ActorRef, configObject: Option[S
       testAA _,
       testAC _,
       testGxRouting _,   
-      checkDiameterPerformance("AA", "@file", "<VOID>", 2000, 10, "AA Warmup") _,
-      checkDiameterPerformance("AA", "@file", "<VOID>", nRequests, 10, "AA Free Wheel") _,
-      checkDiameterPerformance("AC", "@file", "START_RECORD", nRequests, 10, "AC Start") _,
-      checkDiameterPerformance("AC", "@file", "STOP_RECORD", nRequests, 10, "AC Stop") _
+      checkDiameterPerformance("AA", "@file", "<VOID>", 2000, nThreads, "AA Warmup") _,
+      checkDiameterPerformance("AA", "@file", "<VOID>", nRequests, nThreads, "AA Free Wheel") _,
+      checkDiameterPerformance("AC", "@file", "START_RECORD", nRequests, nThreads, "AC Start") _,
+      checkDiameterPerformance("AC", "@file", "STOP_RECORD", nRequests, nThreads, "AC Stop") _
   )
 }
