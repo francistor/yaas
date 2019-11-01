@@ -126,7 +126,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   val clientMetricsURL : String
   val serverMetricsURL : String
   val superServerMetricsURL : String
-  val superServerSessionsURL : String
+  val sessionsURL : String
   val iamBaseURL : String
   val iamSecondaryBaseURL : String
   
@@ -380,7 +380,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         ok("Received response")
         
         // Find session
-        val session = jsonFromGet(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
+        val session = jsonFromGet(sessionsURL + "/sessions/find?ipAddress=" + ipAddress)
         if(((session \ "acctSessionId")(0)).extract[String] == acctSessionId){
           ok("Session found")
         }
@@ -423,7 +423,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         ok("Received response")
         
         // Find session
-        val session = jsonFromGet(superServerSessionsURL + "/sessions/find?ipAddress=" + ipAddress)
+        val session = jsonFromGet(sessionsURL + "/sessions/find?ipAddress=" + ipAddress)
         if((session(0) \ "acctSessionId").extract[String] == acctSessionId){
           ok("Session found")
         }
@@ -512,7 +512,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
         
         // Find session
-        val session = jsonFromGet(superServerSessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
+        val session = jsonFromGet(sessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
         if(((session \ "ipAddress")(0)).extract[String] == ipAddress){
           ok("Session found")
         }

@@ -67,6 +67,8 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
       // Add stats
       MetricsOps.pushRadiusClientRequest(metricsServer, endpoint, requestPacket.code)
       
+      if(log.isDebugEnabled) log.debug(s">> Sending radius client request $requestPacket")
+      
     case RadiusClientSocketResponse(bytes, endpoint, clientPort) =>
       val identifier = UByteString.getUnsignedByte(bytes.slice(1, 2))
       // Look in request Map
@@ -91,6 +93,8 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
           
           // Update stats
           endpointSuccesses(ep) = endpointSuccesses(ep) + 1
+          
+          if(log.isDebugEnabled) log.debug(s"<< Received radius client response $responsePacket")
           
         case None =>
           log.warning(s"Radius request not found for response received from endpoint $endpoint to $radiusPortId")

@@ -19,8 +19,15 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
     ctx.requestPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(ctx)
-    }
+      case RadiusPacket.ACCESS_REQUEST => 
+      try {
+          handleAccessRequest(ctx)
+        } catch {
+        case e: RadiusExtractionException =>
+          log.error(e, e.getMessage)
+          dropRadiusPacket(ctx)
+        }
+      }
   }
   
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {

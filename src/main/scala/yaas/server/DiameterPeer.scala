@@ -146,14 +146,14 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
         requestMapOut(decodedMessage.hopByHopId) match {
           case Some(RequestEntry(hopByHopId, requestTimestamp, sendingActor, key)) =>
             MetricsOps.pushDiameterAnswerReceived(metricsServer, peerHostName, decodedMessage, requestTimestamp)
-            log.debug(s">> Received diameter answer decodedMessage")
+            if(log.isDebugEnabled) log.debug(s">> Received diameter answer $decodedMessage")
           case None =>
             // Unsolicited or stalled response. 
             MetricsOps.pushDiameterDiscardedAnswer(metricsServer, peerHostName, decodedMessage)
         }
       } else{
         MetricsOps.pushDiameterRequestReceived(metricsServer, peerHostName, decodedMessage)
-        log.debug(s">> Received diameter request decodedMessage")
+        if(log.isDebugEnabled) log.debug(s">> Received diameter request $decodedMessage")
       }
           
       handleDiameterBase(decodedMessage)
@@ -164,7 +164,7 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
       if(decodedMessage.isRequest){
         context.parent ! decodedMessage
         MetricsOps.pushDiameterRequestReceived(metricsServer, peerHostName, decodedMessage)
-        log.debug(s">> Received diameter request $decodedMessage")
+        if(log.isDebugEnabled) log.debug(s">> Received diameter request $decodedMessage")
       }
       // If response, check where to send it to, and clean from map
       else {
@@ -172,10 +172,10 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
           case Some(RequestEntry(hopByHopId, requestTimestamp, destActor, messageKey)) => 
             destActor ! decodedMessage
             MetricsOps.pushDiameterAnswerReceived(metricsServer, peerHostName, decodedMessage, requestTimestamp)
-            log.debug(s">> Received diameter answer $decodedMessage")
+            if(log.isDebugEnabled) log.debug(s">> Received diameter answer $decodedMessage")
           case None =>
             MetricsOps.pushDiameterDiscardedAnswer(metricsServer, peerHostName, decodedMessage)
-            log.warning(s"Unsolicited or staled response $decodedMessage")
+            if(log.isDebugEnabled) log.warning(s"Unsolicited or staled response $decodedMessage")
         }
       }
       
@@ -184,24 +184,24 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
       if(message.isRequest){
         requestMapIn(message, self)
         MetricsOps.pushDiameterRequestSent(metricsServer, peerHostName, message)
-        log.debug(s"<< Sent diameter request $message")
+        if(log.isDebugEnabled) log.debug(s"<< Sent diameter request $message")
       } else{
         MetricsOps.pushDiameterAnswerSent(metricsServer, peerHostName, message)
-        log.debug(s"<< Sent diameter answer $message")
+        if(log.isDebugEnabled) log.debug(s"<< Sent diameter answer $message")
       }
       
     // Message to send a answer to peer
     case message: DiameterMessage => 
       q.offer(message.getBytes)
       MetricsOps.pushDiameterAnswerSent(metricsServer, peerHostName, message)
-      log.debug(s"<< Sent diameter answer $message")
+      if(log.isDebugEnabled) log.debug(s"<< Sent diameter answer $message")
       
     // Message to send request to peer
     case RoutedDiameterMessage(message, originActor) =>
       requestMapIn(message, originActor)
       q.offer(message.getBytes)
       MetricsOps.pushDiameterRequestSent(metricsServer, peerHostName, message)
-      log.debug(s"<< Sent diameter request $message")
+      if(log.isDebugEnabled) log.debug(s"<< Sent diameter request $message")
 
     case Clean => 
       requestMapClean
@@ -285,12 +285,12 @@ class DiameterPeer(val config: Option[DiameterPeerConfig], val metricsServer: Ac
   val requestMap = scala.collection.mutable.Map[Int, RequestEntry]()
   
   def requestMapIn(diameterMessage: DiameterMessage, sendingActor: ActorRef) = {
-    log.debug("Request Map -> in {}", diameterMessage.hopByHopId)
+    if(log.isDebugEnabled) log.debug("Request Map -> in {}", diameterMessage.hopByHopId)
     requestMap(diameterMessage.hopByHopId) = RequestEntry(diameterMessage.hopByHopId, System.currentTimeMillis(), sendingActor, diameterMessage.key)
   }
   
   def requestMapOut(hopByHopId : Int) : Option[RequestEntry] = {
-    log.debug("Request Map <- out {}", hopByHopId)
+    if(log.isDebugEnabled) log.debug("Request Map <- out {}", hopByHopId)
     requestMap.remove(hopByHopId)
   }
   

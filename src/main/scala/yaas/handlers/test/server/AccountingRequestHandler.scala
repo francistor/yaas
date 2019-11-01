@@ -20,7 +20,6 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   
   log.info("Instantiated AccountingRequestHandler")
 
-    
   /**
    * Read configuration
    */
@@ -37,8 +36,15 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an accounting-request anyway
     ctx.requestPacket.code match {
-      case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(ctx)
-    }
+      case RadiusPacket.ACCOUNTING_REQUEST => 
+        try {
+            handleAccountingRequest(ctx)
+          } catch {
+          case e: RadiusExtractionException =>
+            log.error(e, e.getMessage)
+            dropRadiusPacket(ctx)
+          }
+        }
   }
   
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {

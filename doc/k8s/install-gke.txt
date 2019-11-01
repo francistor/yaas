@@ -1,4 +1,6 @@
 
+
+
 gcloud config set project <project-id>
 
 REM configure gcloud settings 
@@ -6,20 +8,20 @@ gcloud config set proxy/type http
 gcloud config set proxy/address proxy.indra.es
 gcloud config set proxy/port 8080
 gcloud config set proxy/username frodriguezg
-gcloud config set proxy/password _Brillaba11
+gcloud config set proxy/password _Brumeando22
 
 REM Or remove them
-REM gcloud config unset proxy/type
-REM gcloud config unset proxy/address
-REM gcloud config unset proxy/port 
+gcloud config unset proxy/type
+gcloud config unset proxy/address
+gcloud config unset proxy/port 
 
 REM Create cluster
 gcloud container clusters create yaas-cluster
 gcloud container clusters get-credentials yaas-cluster
 
 REM And this is needed for kubectl
-set http_proxy=http://frodriguezg:_Brillaba11@172.22.232.100:8080
-set https_proxy=http://frodriguezg:_Brillaba11@172.22.232.100:8080
+set http_proxy=http://frodriguezg:_Brumeando22@172.22.232.100:8080
+set https_proxy=http://frodriguezg:_Brumeando22@172.22.232.100:8080
 
 REM firewall rules
 gcloud compute firewall-rules create radius-auth --allow udp:30101
@@ -32,13 +34,15 @@ REM Remove implicit limit to 100m
 kubectl delete limitrange limits
 
 REM get target host IP address
-kubectl get nodes -o wide
-
+kubectl get nodes -o wide|gawk "BEGIN {line=0} /Ready/ {if(line==1) print $7; line++}" > scratch.txt
+set /p NODE_ADDRESS= < scratch.txt
+del scratch.txt
+echo %NODE_ADDRESS%
 
 REM Deploy the descriptors
 REM Change YAAS_TEST_SERVER!
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\namespace.yml 
-kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=34.90.62.195
+kubectl create configmap yaas-test-config --namespace yaas --from-literal YAAS_TEST_SERVER=%NODE_ADDRESS%
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db-service.yml 
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\db.yml 
 kubectl apply -f c:\code\yaasws\yaas\src\k8s\descriptors\superserver-services.yml

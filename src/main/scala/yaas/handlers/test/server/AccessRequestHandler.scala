@@ -45,23 +45,34 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
     ctx.requestPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(ctx)
-    }
+      case RadiusPacket.ACCESS_REQUEST =>
+        try {
+          handleAccessRequest(ctx)
+        } catch {
+        case e: RadiusExtractionException =>
+          log.error(e, e.getMessage)
+          dropRadiusPacket(ctx)
+        }
+      }
   }
   
   /**
-   * Looks for client in database or file, depending on the realm. May set reject message if no permissiveService and not provisioned
-   * Proxies also depending on the realm
+   * Looks for client in database or file, depending on the realm. May set reject message if no permissiveService 
+   * and not provisioned. Proxies also depending on the realm
    * Validates locally the password if configured for the realm
    * 
-   * Rejects if there is a reason and the reject service is not configured
+   * Rejects if there is a reject-reason and the reject service is not configured
    * Otherwise sets the service to reject or to the assigned one and merges attributes
    */
   def handleAccessRequest(implicit ctx: RadiusRequestContext) = {
     
     /*
      * Returns the list of radius attributes from the specified object (jValue) for the specified key and 
-     * property (typically, radiusAttrs or nonOverridableRadiusAttrs)
+     * property (typically, radiusAttrs or nonOverridableRadiusAttrs).
+     * 
+     * "radiusAttrs":[
+		 *    {"Service-Type": "Framed"}
+		 *  ],
      */
     def getRadiusAttrs(jValue: JValue, key: Option[String], propName: String)  = {
       val nv = key match {
@@ -88,7 +99,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
     
     val request = ctx.requestPacket
     
-    // Get request data. TODO: This throws exceptions
+    // Get request data.
     val nasPort = request.L("NAS-Port")
     val nasIpAddress = request.S("NAS-IP-Address")
     val userName = request.S("User-Name")

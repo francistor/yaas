@@ -22,8 +22,15 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   override def handleRadiusMessage(ctx: RadiusRequestContext) = {
     // Should always be an access-request anyway
     ctx.requestPacket.code match {
-      case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(ctx)
-    }
+      case RadiusPacket.ACCOUNTING_REQUEST =>
+        try {
+          handleAccountingRequest(ctx)
+        } catch {
+        case e: RadiusExtractionException =>
+          log.error(e, e.getMessage)
+          dropRadiusPacket(ctx)
+        }
+      }
   }
   
   def handleAccountingRequest(implicit ctx: RadiusRequestContext) = {
@@ -39,25 +46,26 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
       dropRadiusPacket
     } 
     else{
-      
-      if((request >> "Acct-Status-Type").contentEquals("Start")){
-        
-        // Store in sessionDatabase
-        SessionDatabase.putSession(new JSession(
-          "SS-" + (request >> "Acct-Session-Id").get,
-          "SS-" + (request >> "Framed-IP-Address").getOrElse(""),
-          getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
-          getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
-          List(nasIpAddress, realm),
-          System.currentTimeMillis,
-          System.currentTimeMillis(),
-          ("a" -> "aval") ~ ("b" -> 2)))
+      if(!userName.contains("nosession")){
+        if((request >> "Acct-Status-Type").contentEquals("Start")){
           
-      } 
-      else if((request >> "Acct-Status-Type").contentEquals("Stop")){
-        
-        // Remove session
-         SessionDatabase.removeSession("SS-" + (request >>++ "Acct-Session-Id"))
+          // Store in sessionDatabase
+          SessionDatabase.putSession(new JSession(
+            "SS-" + (request >> "Acct-Session-Id").get,
+            "SS-" + (request >> "Framed-IP-Address").getOrElse(""),
+            getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
+            getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
+            List(nasIpAddress, realm),
+            System.currentTimeMillis,
+            System.currentTimeMillis(),
+            ("a" -> "aval") ~ ("b" -> 2)))
+            
+        } 
+        else if((request >> "Acct-Status-Type").contentEquals("Stop")){
+          
+          // Remove session
+           SessionDatabase.removeSession("SS-" + (request >>++ "Acct-Session-Id"))
+        }
       }
       
       if(nCPUOperations > 0) for(i <- 0 to nCPUOperations) Math.atan(Math.random())

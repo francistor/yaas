@@ -7,7 +7,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   val clientMetricsURL = "http://localhost:19001"
   val serverMetricsURL = "http://localhost:19002"
   val superServerMetricsURL = "http://localhost:19003"
-  val superServerSessionsURL = "http://localhost:19503"
+  val sessionsURL = "http://localhost:19503"
   
   val includingNeRadiusGroup = "yaas-server-ne-group"
   val allServersRadiusGroup = "yaas-server-group"

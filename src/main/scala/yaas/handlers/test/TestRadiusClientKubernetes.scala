@@ -15,7 +15,7 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
   // Used
   val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
   
-  val superServerSessionsURL = s"http://${yaas_test_server}:30501"
+  val sessionsURL = s"http://${yaas_test_server}:30501"
   val iamBaseURL = s"http://${yaas_test_server}:30501/iam"
   val iamSecondaryBaseURL = s"http://${yaas_test_server}:30501/iam"
   
