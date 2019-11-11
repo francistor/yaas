@@ -1,7 +1,7 @@
 
 
 
-gcloud config set project <project-id>
+gcloud config set project sandbox-project-250013
 
 REM configure gcloud settings 
 gcloud config set proxy/type http

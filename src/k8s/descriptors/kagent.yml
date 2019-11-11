@@ -10,6 +10,6 @@ spec:
     image: giantswarm/tiny-tools
     command:
       - sleep
-      - "360000"
+      - "3600000"
     imagePullPolicy: IfNotPresent
   restartPolicy: Always

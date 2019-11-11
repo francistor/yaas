@@ -39,6 +39,7 @@ kubectl exec -it kagent -- curl http://yaas-server-0.yaas-server:19000/radius/me
 
 # Programatic Prometheus query
 curl http://localhost:9090/api/v1/query?query=sum\(radius_server_requests{pod="yaas-server-0"}\) | jq .
+curl "http://localhost:9090/api/v1/query?query=sum\(rate\(diameter_requests_received{service=\"yaas-superserver\"}[30s]\)\) by \(pod\)" | jq .
 
 # GKE radius client
 aaaserver -DYAAS_TEST_SERVER=xx -Dinstance=radius -Dconfig.file=c:\code\yaasws\yaas\src\k8s\conf\client-gke\aaa-default.conf -Dlogback.configurationFile=c:\code\yaasws\yaas\src\k8s\conf\client-gke\logback-default.xml
@@ -46,3 +47,13 @@ aaaserver -DYAAS_TEST_SERVER=xx -Dinstance=radius -Dconfig.file=c:\code\yaasws\y
 # GKE diameter client
 aaaserver -DYAAS_TEST_SERVER=xx -Dinstance=diameter -Dconfig.file=c:\code\yaasws\yaas\src\k8s\conf\client-gke\aaa-default.conf -Dlogback.configurationFile=c:\code\yaasws\yaas\src\k8s\conf\client-gke\logback-default.xml
 
+
+# Kubernetes API from pod
+kubectl exec -it kagent --namespace yaas
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+curl -H "Authorization: Bearer $TOKEN" --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt https://kubernetes.default/api/v1/namespaces/yaas/pods|jq '.items|.[].metadata.name'
+
+# Kubernetes API from command line
+kubectl proxy
+curl --noproxy localhost -s http://localhost:8001/api/v1/namespaces/yaas/pods|"d:\program files\jq\jq" ".items|.[].metadata.name"
+curl --noproxy localhost -s http://localhost:8001/api/v1/namespaces/yaas/pods?watch|"d:\program files\jq\jq" ".object.metadata.name,.type"

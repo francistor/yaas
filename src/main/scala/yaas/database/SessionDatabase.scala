@@ -288,8 +288,8 @@ object SessionDatabase {
     }
   }
 
-  // TODO: Remove this. Done to force start if persistence enabled
-  ignite.cluster.active(true)
+  // Done to force start if persistence enabled and do not want to activate the cluster manually
+  if(config.getBoolean("forceActivateCluster")) ignite.cluster.active(true)
   
   val sessionExpirationPolicy = new javax.cache.expiry.ModifiedExpiryPolicy(new javax.cache.expiry.Duration(java.util.concurrent.TimeUnit.HOURS, config.getInt("expiryTimeHours")))
 
