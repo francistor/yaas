@@ -12,7 +12,7 @@
           "coA": 3799
         },
         "errorLimit": 3,
-        "quarantineTimeMillis": 60000
+        "quarantineTimeMillis": 10000
       },
       
       // For access balanced by radius

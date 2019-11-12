@@ -12,7 +12,7 @@
           "dm": 30103
         },
         "errorLimit": 3,
-        "quarantineTimeMillis": 60000
+        "quarantineTimeMillis": 10000
       },
       {
         "name": "non-existing-server",
