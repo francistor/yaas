@@ -14,6 +14,8 @@ class TestDiameterClientKubernetes(statsServer: ActorRef, configObject: Option[S
   
   // Used
   val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
+  val yaas_test_type = Integer.parseInt(Option(System.getenv("YAAS_TEST_TYPE")).orElse(Option(System.getProperty("YAAS_TEST_TYPE"))).getOrElse("2"))
+
   val sessionsURL = s"http://${yaas_test_server}:30501"
   val iamBaseURL = s"http://${yaas_test_server}:30501/iam"
   val iamSecondaryBaseURL = s"http://${yaas_test_server}:30501/iam"
@@ -25,7 +27,7 @@ class TestDiameterClientKubernetes(statsServer: ActorRef, configObject: Option[S
       testGxRouting _,   
       checkDiameterPerformance("AA", "@file", "<VOID>", 2000, nThreads, "AA Warmup") _,
       checkDiameterPerformance("AA", "@file", "<VOID>", nRequests, nThreads, "AA Free Wheel") _,
-      checkDiameterPerformance("AC", "@file", "START_RECORD", nRequests, nThreads, "AC Start") _,
-      checkDiameterPerformance("AC", "@file", "STOP_RECORD", nRequests, nThreads, "AC Stop") _
+      if(yaas_test_type > 1) checkDiameterPerformance("AC", "@file", "START_RECORD", nRequests, nThreads, "AC Start") _ else () => {nextTest},
+      if(yaas_test_type > 1)  checkDiameterPerformance("AC", "@file", "STOP_RECORD", nRequests, nThreads, "AC Stop") _ else () => {nextTest}
   )
 }
