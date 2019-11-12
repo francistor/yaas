@@ -14,7 +14,8 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
   
   // Used
   val yaas_test_server = Option(System.getenv("YAAS_TEST_SERVER")).orElse(Option(System.getProperty("YAAS_TEST_SERVER"))).getOrElse("yaas-test-server")
-  
+  val yaas_test_type = Integer.parseInt(Option(System.getenv("YAAS_TEST_TYPE")).orElse(Option(System.getProperty("YAAS_TEST_TYPE"))).getOrElse("2"))
+
   val sessionsURL = s"http://${yaas_test_server}:30501"
   val iamBaseURL = s"http://${yaas_test_server}:30501/iam"
   val iamSecondaryBaseURL = s"http://${yaas_test_server}:30501/iam"
@@ -36,11 +37,11 @@ class TestRadiusClientKubernetes(statsServer: ActorRef, configObject: Option[Str
       errorConditions _,
       fillPool _,
       reloadLookup _, // The performance testing will will take some time, required to reload the lookup table in the other server (access is balanced)
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 2000, nThreads, "Radius Warmup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 1000, nThreads, "Radius Warmup") _,
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", nRequests, nThreads, "Free Wheel") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, nThreads, "Database Lookup") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests * 2, nThreads, "Session storage") _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Stop", "@none", nRequests * 2, nThreads, "Session storage") _,
+      if(yaas_test_type > 0) checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, nThreads, "Database Lookup") _ else () => {},
+      if(yaas_test_type > 1) checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests * 2, nThreads, "Session storage") _ else () => {},
+      if(yaas_test_type > 1) checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Stop", "@none", nRequests * 2, nThreads, "Session storage") _ else () => {},
       testLeases _
       // testBulkLease _,
       // unavailableLease _
