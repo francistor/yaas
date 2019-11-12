@@ -13,8 +13,8 @@ import yaas.config.ConfigManager
 
 object AAAServer extends App {
   
-  java.security.Security.setProperty("networkaddress.cache.ttl" , "60");
-  java.security.Security.setProperty("networkaddress.cache.negative.ttl " , "30");
+  java.security.Security.setProperty("networkaddress.cache.ttl", "30");
+  java.security.Security.setProperty("networkaddress.cache.negative.ttl", "20");
   
   // Set config.file property as aaa-<instance>.conf, where <instance> is -Dinstance value or "default"
   val ti = System.getProperty("instance")
