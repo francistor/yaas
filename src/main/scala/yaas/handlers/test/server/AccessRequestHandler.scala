@@ -166,7 +166,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
         case Failure(error) => 
           // Database error. Drop packet to signal something is wrong
           dropRadiusPacket
-          log.error(error.getMessage)
+          log.error(s"Error looking up client: ${error.getMessage}")
           
         case Success(queryResult) => 
           log.debug("Query executed")

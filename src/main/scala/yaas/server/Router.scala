@@ -438,7 +438,7 @@ class Router() extends Actor with ActorLogging {
       	          
       	          // Put in quarantine if necessary
       	          if(epStatus.accErrors > radiusServerPointer.errorLimit){
-      	            log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, epStatus.port, radiusServerPointer.quarantineTimeMillis)
+      	            log.info("Too many timeouts. Radius Server Endpoint {}/{}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, ipAddr, epStatus.port, radiusServerPointer.quarantineTimeMillis)
       	            epStatus.quarantineTimestamp = currentTimestamp + radiusServerPointer.quarantineTimeMillis
       	            epStatus.reset
       	          }
@@ -515,7 +515,7 @@ class Router() extends Actor with ActorLogging {
 	              radiusClientActor.get ! RadiusClientRequest(radiusPacket, RadiusEndpoint(endpointIPAddress, endPoint.port), radiusServerPointer.secret, sender, radiusId)
                     
 	            case Failure(_) =>
-	              log.info("Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endPoint.port, radiusServerPointer.quarantineTimeMillis)
+	              log.info("Bad resolution. Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endPoint.port, radiusServerPointer.quarantineTimeMillis)
 	              endPoint.quarantineTimestamp = System.currentTimeMillis() + radiusServerPointer.quarantineTimeMillis
 	              endPoint.reset
 	          }
