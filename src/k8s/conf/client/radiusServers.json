@@ -38,7 +38,7 @@
       {
         "name": "yaas-server-group",
         "servers": ["yaas-server"],
-        "policy": "fixed"
+        "policy": "fixed-clear"
       }
 	]
 }
