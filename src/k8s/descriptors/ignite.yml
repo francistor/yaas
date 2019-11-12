@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ignite
+  namespace: yaas
+spec:
+  serviceAccountName: yaas
+  containers:
+  - name: ignite 
+    image: apacheignite/ignite:2.7.6
+    imagePullPolicy: IfNotPresent
+  restartPolicy: Always
