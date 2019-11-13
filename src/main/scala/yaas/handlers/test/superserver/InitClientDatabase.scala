@@ -12,8 +12,12 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
   if(cache$("CLIENTS").isEmpty){
     
     log.info("Creating Clients database")
+    
+    import org.apache.ignite.cache.CacheMode._
   
-    val clientCache = ignite$.getOrCreateCache[Nothing, Nothing]("CLIENTS")
+    //val clientCache2 = ignite$.getOrCreateCache[Nothing, Nothing]("CLIENTS")
+    val clientCache = ignite$.getOrCreateCache[Nothing, Nothing](new org.apache.ignite.configuration.CacheConfiguration[Nothing, Nothing].setName("CLIENTS").setCacheMode(REPLICATED))
+
     clientCache.query(new SqlFieldsQuery("""
       CREATE TABLE "CLIENTS".Client (
         NASIPAddress varchar,

@@ -15,7 +15,7 @@
           "coA": 30103,
           "dm": 30103
         },
-        "errorLimit": 2,
+        "errorLimit": 3,
         "quarantineTimeMillis": 10000
       },
       {

@@ -32,7 +32,7 @@ spec:
             mountPath: /aaaserver/conf 
         env:
           - name: YAAS_TEST_TYPE
-            value: "1"
+            value: "2"
           - name: YAAS_CONTINUE_ON_PERF_ERROR
             value: "true"
           - name: YAAS_TEST_REQUESTS
