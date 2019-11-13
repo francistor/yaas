@@ -1,26 +1,3 @@
 [
-	{
-        "diameterHost": "client.yaasclient",
-        "IPAddress": "yaas-client",
-        "port": 3868,
-		"connectionPolicy": "passive",
-		"watchdogIntervalMillis": 300000,
-		"originNetwork": "0.0.0.0/0"
-	},
-	{
-        "diameterHost": "yaas-superserver-0.yaassuperserver",
-        "IPAddress": "yaas-superserver-0.yaas-superserver",
-        "port": 3868,
-		"connectionPolicy": "active",
-		"watchdogIntervalMillis": 10000,
-		"originNetwork": "0.0.0.0/0"
-	},
-	{
-        "diameterHost": "yaas-superserver-1.yaassuperserver",
-        "IPAddress": "yaas-superserver-1.yaas-superserver",
-        "port": 3868,
-		"connectionPolicy": "active",
-		"watchdogIntervalMillis": 10000,
-		"originNetwork": "0.0.0.0/0"
-	}
+
 ]

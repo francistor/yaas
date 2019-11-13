@@ -1,0 +1,18 @@
+[
+	{
+        "diameterHost": "yaas-server-0.yaasserver",
+        "IPAddress": "${YAAS_TEST_SERVER_0:yaas-test-server}",
+        "port": 30200,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000,
+		"originNetwork": "0.0.0.0/0"
+	},
+	{
+        "diameterHost": "yaas-server-1.yaasserver",
+        "IPAddress": "${YAAS_TEST_SERVER_0:yaas-test-server}",
+        "port": 30201,
+		"connectionPolicy": "active",
+		"watchdogIntervalMillis": 300000,
+		"originNetwork": "0.0.0.0/0"
+	}
+]
