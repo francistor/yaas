@@ -1,15 +1,32 @@
+// Kubernetes does still send UDP packets to pods that are non existing
+// For this reason, the balancing provided by a Kubernetes service is not used
+// We map a Nodeport service for each radius server and let the client detect
+// failures
 {
 	"servers" : 
 	[
-		{
-        "name": "yaas-server",
-        "IPAddress": "${YAAS_TEST_SERVER:yaas-test-server}",
+	  {
+        "name": "yaas-server-0",
+        "IPAddress": "${YAAS_TEST_SERVER_0:yaas-test-server}",
         "secret": "secret",
         "ports": {
           "auth": 30101,
           "acct": 30102,
           "coA": 30103,
           "dm": 30103
+        },
+        "errorLimit": 2,
+        "quarantineTimeMillis": 10000
+      },
+      {
+        "name": "yaas-server-1",
+        "IPAddress": "${YAAS_TEST_SERVER_1:yaas-test-server}",
+        "secret": "secret",
+        "ports": {
+          "auth": 30111,
+          "acct": 30112,
+          "coA": 30113,
+          "dm": 30113
         },
         "errorLimit": 3,
         "quarantineTimeMillis": 10000
@@ -32,13 +49,13 @@
 	[
 	  {
         "name": "yaas-server-ne-group",
-        "servers": ["non-existing-server", "yaas-server"],
+        "servers": ["non-existing-server", "yaas-server-0", "yaas-server-1"],
         "policy": "fixed"
       },
       {
         "name": "yaas-server-group",
-        "servers": ["yaas-server"],
-        "policy": "fixed-clear"
+        "servers": ["yaas-server-0", "yaas-server-1"],
+        "policy": "random"
       }
 	]
 }

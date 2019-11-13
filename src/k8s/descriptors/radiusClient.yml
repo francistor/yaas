@@ -41,11 +41,16 @@ spec:
             value: "true"
           - name: YAAS_TEST_THREADS
             value: "2"
-          - name: YAAS_TEST_SERVER
+          - name: YAAS_TEST_SERVER_0
             valueFrom:
               configMapKeyRef:
                 name: yaas-test-config
-                key: YAAS_TEST_SERVER
+                key: YAAS_TEST_SERVER_0
+          - name: YAAS_TEST_SERVER_1
+            valueFrom:
+              configMapKeyRef:
+                name: yaas-test-config
+                key: YAAS_TEST_SERVER_1
           - name: POD_NAME
             valueFrom:
               fieldRef:

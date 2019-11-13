@@ -15,11 +15,11 @@ spec:
       protocol: TCP
       port: 19000
 ---
-# Yaas Server for Radius
+# Yaas Server for Radius. Node 0
 apiVersion: v1
 kind: Service
 metadata:
-  name: yaas-server-radius
+  name: yaas-server-radius-0
   namespace: yaas
 spec:
   type: NodePort
@@ -34,7 +34,28 @@ spec:
     - name: radiusacct
       protocol: UDP
       port: 1813
-      nodePort: 30102      
+      nodePort: 30102 
+---
+# Yaas Server for Radius. Node 1
+apiVersion: v1
+kind: Service
+metadata:
+  name: yaas-server-radius-1
+  namespace: yaas
+spec:
+  type: NodePort
+  sessionAffinity: None
+  selector:
+    app: yaas-server
+  ports:
+    - name: radiusauth
+      protocol: UDP
+      port: 1812
+      nodePort: 30111
+    - name: radiusacct
+      protocol: UDP
+      port: 1813
+      nodePort: 30212      
 ---      
 # Yaas Server for Diameter. Node 0
 apiVersion: v1
