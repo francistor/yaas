@@ -7,7 +7,7 @@
 	[
 	  {
         "name": "yaas-server-0",
-        "IPAddress": "${YAAS_TEST_SERVER_0:yaas-test-server}",
+        "IPAddress": "${YAAS_TEST_SERVER:yaas-test-server}",
         "secret": "secret",
         "ports": {
           "auth": 30101,
@@ -20,7 +20,7 @@
       },
       {
         "name": "yaas-server-1",
-        "IPAddress": "${YAAS_TEST_SERVER_1:yaas-test-server}",
+        "IPAddress": "${YAAS_TEST_SERVER_SEC:yaas-test-server}",
         "secret": "secret",
         "ports": {
           "auth": 30111,
