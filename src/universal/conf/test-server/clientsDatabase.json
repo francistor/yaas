@@ -1,5 +1,5 @@
 {
-	"url": "jdbc:ignite:thin://127.0.0.1:10800/CLIENTS",
+	"url": "jdbc:ignite:thin://yaas-db-0.yaas-db:10800,yaas-db-1.yaas-db:10800/CLIENTS",
 	"driver": "org.apache.ignite.IgniteJdbcThinDriver",
 	"numThreads": 10
 }

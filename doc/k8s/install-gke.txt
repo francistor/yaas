@@ -24,8 +24,8 @@ set http_proxy=http://frodriguezg:_Brumeando22@172.22.232.100:8080
 set https_proxy=http://frodriguezg:_Brumeando22@172.22.232.100:8080
 
 REM firewall rules
-gcloud compute firewall-rules create radius-auth --allow udp:30101
-gcloud compute firewall-rules create radius-acct --allow udp:30102
+gcloud compute firewall-rules create radius-auth --allow udp:30101 --allow udp:30111 
+gcloud compute firewall-rules create radius-acct --allow udp:30102 --allow udp:30112
 gcloud compute firewall-rules create diameter-0 --allow tcp:30200
 gcloud compute firewall-rules create diameter-1 --allow tcp:30201
 gcloud compute firewall-rules create sessions --allow tcp:30501
