@@ -6,6 +6,7 @@
 **/cdr/*
 **/log/*
 /bin/
+/project/
 **/test/*.html
 **/test/*.xml
 

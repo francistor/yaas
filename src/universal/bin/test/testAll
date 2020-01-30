@@ -9,12 +9,17 @@ BIN_DIR=..
 rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
 
+echo launching superserver...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver
-nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver-iam-mirror > log/nohup-superserver-iam-mirror
+sleep 5
+echo launching superserver mirror...
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver-mirror > log/nohup-superserver-iam-mirror
 sleep 20
 
+echo launching server...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server > log/nohup-server
 sleep 20
 
+echo launching client...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client > log/nohup-client
 
