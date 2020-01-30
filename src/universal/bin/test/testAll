@@ -1,0 +1,20 @@
+#!/bin/bash
+
+YAAS_TEST_REQUESTS=10000
+YAAS_TEST_LOOP=false
+
+_THIS_FILE_DIRNAME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+BIN_DIR=..
+
+rm $_THIS_FILE_DIRNAME/log/*
+rm $_THIS_FILE_DIRNAME/cdr/*
+
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver-iam-mirror > log/nohup-superserver-iam-mirror
+sleep 20
+
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server > log/nohup-server
+sleep 20
+
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client > log/nohup-client
+

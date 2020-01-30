@@ -3,7 +3,6 @@
 *.class
 *.jar
 **/target/*
-**/bin/*
 **/cdr/*
 **/log/*
 /bin/
