@@ -1,9 +1,6 @@
 package yaas.dictionary
 
-import scala.collection.mutable.ListBuffer
-
 import org.json4s._
-import org.json4s.JsonDSL._
 
 import yaas.config.ConfigManager
 
@@ -60,7 +57,9 @@ import yaas.config.ConfigManager
 // }
 
 
-// Companion object
+/**
+ * Hosts diameter types enumeration
+ */
 object DiameterTypes {
 	val NONE: Int = 0
 	val OCTETSTRING: Int = 1
@@ -85,38 +84,97 @@ object DiameterTypes {
 	val RADIUS_IPV6PREFIX: Int = 1003
 }
 
-case class GroupedProperties(mandatory: Option[Boolean], val minOccurs: Option[Int], val maxOccurs: Option[Int]){
-	val isMandatory = mandatory.getOrElse(false)
-	override def toString() = {s"{minOccurs: $minOccurs, maxOccurs: $maxOccurs, mandatory: $isMandatory}"}
+/**
+ * Holder of the attributes of a grouped Diameter AVP
+ * @param mandatory the attribute needs to be understood by the server. I guess it makes sense to define this but I don't get it
+ * @param minOccurs as the name implies
+ * @param maxOccurs as the name implies
+ */
+case class GroupedProperties(mandatory: Option[Boolean], minOccurs: Option[Int], maxOccurs: Option[Int]){
+	val isMandatory: Boolean = mandatory.getOrElse(false)
+	override def toString: String = {s"{minOccurs: $minOccurs, maxOccurs: $maxOccurs, mandatory: $isMandatory}"}
 }
 
+/**
+ * Base class for Diameter Dictionary Items
+ */
 abstract class DiameterAVPDictItem {
 	def code: Long
 	def vendorId: Long
 	def name: String
 	def diameterType: Int
 }
+
+/**
+ * A Basic Diameter Dictionary item
+ * @param code the number
+ * @param vendorId the vendor identifier
+ * @param name the name with vendor prepended
+ * @param diameterType one of the diameter types [[DiameterTypes]]
+ */
 case class BasicAVPDictItem(code: Long, vendorId: Long, name: String, diameterType: Int) extends DiameterAVPDictItem
+
+/**
+ * A Diameter Dictionary item for a Grouped AVP
+ * @param code the number
+ * @param vendorId the vendor identifier
+ * @param name the name with vendor prepended
+ * @param diameterType one of the diameter types [[DiameterTypes]]
+ * @param groupedItems map to inside attribute names to their properties inside this AVP (mandatory, etc.)
+ */
 case class GroupedAVPDictItem(code: Long, vendorId: Long, name: String, diameterType: Int, groupedItems: Map[String, GroupedProperties]) extends DiameterAVPDictItem
+
+/**
+ * A Diameter Dictionary item for an Enumerated AVP
+ * @param code the number
+ * @param vendorId the vendor identifier
+ * @param name the name with vendor prepended
+ * @param diameterType one of the diameter types [[DiameterTypes]]
+ * @param values map from names to codes
+ * @param codes map from codes to names
+ */
 case class EnumeratedAVPDictItem(code: Long, vendorId: Long, name: String, diameterType: Int, values: Map[String, Int], codes: Map[Int, String]) extends DiameterAVPDictItem
 
-// Request or Response
-case class RoRDictItem(val avpNameMap: Map[String, GroupedProperties], val avpCodeMap: Map[(Long, Long), GroupedProperties])
-case class CommandDictItem(val code: Int, val name: String, val request: RoRDictItem, val response: RoRDictItem)
-case class ApplicationDictItem(val code: Long, val name: String, val appType: Option[String], val commandMapByName: Map[String, CommandDictItem], val commandMapByCode: Map[Int, CommandDictItem])
-
-/*
- * Helper classes for encoding from/to JSON
+/**
+ * Specification of the attributes in the request or response
+ * @param avpNameMap indexed by name
+ * @param avpCodeMap indexed by code
  */
-case class JAVP(code: Long, name: String, `type`: String, group: Option[Map[String, GroupedProperties]], enumValues: Option[Map[String, Int]])
-case class JCommand(code: Int, name: String, request: Map[String, GroupedProperties], response: Map[String, GroupedProperties])
-case class JApplication(name: String, code: Long, appType: Option[String], commands: List[JCommand])
+case class RoRDictItem(avpNameMap: Map[String, GroupedProperties], avpCodeMap: Map[(Long, Long), GroupedProperties])
 
-    
-// Holds the parsed diameter dictionary with utility functions to use
+/**
+ * Specification of a Diameter command
+ * @param code the number
+ * @param name the name
+ * @param request attributes in the request [[RoRDictItem]]
+ * @param response attributes in the response [[RoRDictItem]]
+ */
+case class CommandDictItem(code: Int, name: String, request: RoRDictItem, response: RoRDictItem)
+
+/**
+ * Specification of a Diameter application
+ * @param code the number
+ * @param name the name
+ * @param appType auth or acct
+ * @param commandMapByName map of commands by name
+ * @param commandMapByCode map of commands by code
+ */
+case class ApplicationDictItem(code: Long, name: String, appType: Option[String], commandMapByName: Map[String, CommandDictItem], commandMapByCode: Map[Int, CommandDictItem])
+
+/**
+ * Holds the parsed diameter dictionary with utility functions to use
+ */
+
 object DiameterDictionary {
+
+	/*
+  * Helper classes for encoding from/to JSON. Member names as used in JSON
+  */
+	private case class JAVP(code: Long, name: String, `type`: String, group: Option[Map[String, GroupedProperties]], enumValues: Option[Map[String, Int]])
+	private case class JCommand(code: Int, name: String, request: Map[String, GroupedProperties], response: Map[String, GroupedProperties])
+	private case class JApplication(name: String, code: Long, appType: Option[String], commands: List[JCommand])
   
-  def AVPDictItemFromJAVP(jAVP: JAVP, vendorId: String) : DiameterAVPDictItem = {
+  private def AVPDictItemFromJAVP(jAVP: JAVP, vendorId: String) : DiameterAVPDictItem = {
     val vendor = vendorId.toLong
     val code = jAVP.code
     val name = (if(vendorId == "0") "" else vendorNames(vendorId.toLong) + "-") + jAVP.name
@@ -144,54 +202,50 @@ object DiameterDictionary {
     }
   }
   
-	val dictionaryJson = ConfigManager.getConfigObject("diameterDictionary.json")
+	private val dictionaryJson = ConfigManager.getConfigObject("diameterDictionary.json")
 
-  implicit val jsonFormats = DefaultFormats
+  private implicit val jsonFormats: DefaultFormats.type = DefaultFormats
   
   /**
    * Holds a map vendorId -> vendorName
    */
-	val vendorNames = for {
+	val vendorNames: Map[Long, String] = for {
 		(vendorId, vendorName) <- (dictionaryJson \ "vendor").extract[Map[String, String]]
-	} yield (vendorId.toLong -> vendorName)
-  
-  // Read JSON
-	val jAVPMap = (dictionaryJson \ "avp").extract[Map[String, List[JAVP]]]
-	val jApplicationMap = (dictionaryJson \ "applications").extract[List[JApplication]]
+	} yield vendorId.toLong -> vendorName
 	
 	/**
 	 * Holds a map ((vendorId, code) -> DiameterAVPDictItem)
 	 */
-	val avpMapByCode = (for {
-	  (vendorId, avps) <- jAVPMap
+	val avpMapByCode: Map[(Long, Long), DiameterAVPDictItem] = for {
+	  (vendorId, avps) <- (dictionaryJson \ "avp").extract[Map[String, List[JAVP]]]
 	  avp <- avps
-	} yield ((vendorId.toLong, avp.code) -> AVPDictItemFromJAVP(avp, vendorId))).toMap
+	} yield (vendorId.toLong, avp.code) -> AVPDictItemFromJAVP(avp, vendorId)
 	
 	/**
 	 * Holds a map (avpName -> DiameterAVPDictItem)
 	 */
-	val avpMapByName = (for {
-	  ((vendorId, _), dictItem) <- avpMapByCode
-	} yield (dictItem.name -> dictItem)).toMap
+	val avpMapByName: Map[String, DiameterAVPDictItem] = for {
+	  (_, dictItem) <- avpMapByCode
+	} yield dictItem.name -> dictItem
 	
 	// Helper function
-	def RoRDictItemFromMap(avpMap: Map[String, GroupedProperties]) = {
+	private def RoRDictItemFromMap(avpMap: Map[String, GroupedProperties]) = {
     val avpCodeMap = for {
       (avpName, gp) <- avpMap
-    } yield ((avpMapByName(avpName).vendorId, avpMapByName(avpName).code) -> gp)
+    } yield (avpMapByName(avpName).vendorId, avpMapByName(avpName).code) -> gp
     
     RoRDictItem(avpMap, avpCodeMap)
   }
   
 	// Helper function
-  def ApplicationDictItemFromJApplication(jApp: JApplication) = {
+  private def ApplicationDictItemFromJApplication(jApp: JApplication) = {
     val commandsByName = for {
       command <- jApp.commands
-    } yield (command.name -> CommandDictItem(command.code, command.name, RoRDictItemFromMap(command.request), RoRDictItemFromMap(command.response)))
+    } yield command.name -> CommandDictItem(command.code, command.name, RoRDictItemFromMap(command.request), RoRDictItemFromMap(command.response))
         
     val commandsByCode = for {
-      (commandName, commandDictItem) <- commandsByName
-    } yield (commandDictItem.code -> commandDictItem)
+      (_, commandDictItem) <- commandsByName
+    } yield commandDictItem.code -> commandDictItem
         
     ApplicationDictItem(jApp.code, jApp.name, jApp.appType, commandsByName.toMap, commandsByCode.toMap)
   }
@@ -199,18 +253,18 @@ object DiameterDictionary {
 	/**
 	 * Holds a map (appCode -> ApplicationDictItem)
 	 */
-	val appMapByCode = (for {
-	  application <- jApplicationMap
-	} yield (application.code -> ApplicationDictItemFromJApplication(application))).toMap
-	
+	val appMapByCode: Map[Long, ApplicationDictItem] = (for {
+		application <- (dictionaryJson \ "applications").extract[List[JApplication]]
+	} yield application.code -> ApplicationDictItemFromJApplication(application)).toMap
+
 	/**
 	 * Holds a map (appName -> ApplicationDictItem)
 	 */
-	val appMapByName = (for {
+	val appMapByName: Map[String, ApplicationDictItem] = for {
 	  (appName, applicationDictItem) <- appMapByCode
-	} yield (applicationDictItem.name-> applicationDictItem)).toMap
+	} yield applicationDictItem.name-> applicationDictItem
   
 	// For debugging
-	def show() = println(appMapByCode) 
+	def show(): Unit = println(appMapByCode)
 }
 

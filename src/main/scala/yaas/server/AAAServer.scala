@@ -1,47 +1,41 @@
 package yaas.server
 
-import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-import scala.util.{Try, Success, Failure}
-import com.typesafe.config.ConfigFactory
-
-import yaas.dictionary.{DiameterDictionary, RadiusDictionary}
+import akka.actor.ActorSystem
 import yaas.config.ConfigManager
+import yaas.dictionary.{DiameterDictionary, RadiusDictionary}
+
+import scala.util.Try
 
 ////////////////////////////////////////////////////////////////////////
 // Main Diameter Object and application
 ////////////////////////////////////////////////////////////////////////
 
 object AAAServer extends App {
-  
-  java.security.Security.setProperty("networkaddress.cache.ttl", "30");
-  java.security.Security.setProperty("networkaddress.cache.negative.ttl", "20");
+
+  // Mostly for Kubernetes. We want to react fast to services pointing to different endpoints
+  java.security.Security.setProperty("networkaddress.cache.ttl", "30")
+  java.security.Security.setProperty("networkaddress.cache.negative.ttl", "20")
   
   // Set config.file property as aaa-<instance>.conf, where <instance> is -Dinstance value or "default"
-  val ti = System.getProperty("instance")
-  val instance = if(ti == null) "default" else ti
-  if(System.getProperty("config.file") == null && 
-      System.getProperty("config.url") == null &&
-      System.getProperty("config.resource") == null) 
-    System.setProperty("config.resource", s"aaa-${instance}.conf")
-  
-  // Logging configuration file is logback-<instance>.xml if found, otherwise logback.xml in the classpath
-  if(System.getProperty("logback.configurationFile") == null){
-    Try(getClass.getResource(s"/logback-${instance}.xml")) match {
-      case Success(r) => 
-        System.setProperty("logback.configurationFile", s"logback-${instance}.xml")
-      case Failure(e) =>
-    }
-  }
-  
+  private val instance = Option(System.getProperty("instance")).getOrElse("default")
+
+  // Will use the application.conf and logback.xml as configured in the usual config.file|url|resource
+  // and logback.configurationFile java switches but, if not present will try to use an -<instance> appended
+  // version of the resource in the classpath before trying with the canonical names (application.conf and logback.xml)
+  // Change bootstrap from application.conf to aaa-<instance>.conf
+  if(System.getProperty("config.file") == null && System.getProperty("config.url") == null && System.getProperty("config.resource") == null)
+    if(Try(getClass.getResource(s"aaa-$instance.conf")).isSuccess) System.setProperty("config.resource", s"aaa-$instance.conf")
+
+  if(System.getProperty("logback.configurationFile") == null)
+    if(Try(getClass.getResource(s"/logback-$instance.xml")).isSuccess) System.setProperty("logback.configurationFile", s"logback-$instance.xml")
+
   // Publish command line for the benefit of handlers
   ConfigManager.pushCommandLine(args)
 	
 	// Create dictionary. Just to do initialization of the Singleton
-	val diameterDictionary = DiameterDictionary
-	val radiusDictionary = RadiusDictionary
+	private val diameterDictionary = DiameterDictionary
+	private val radiusDictionary = RadiusDictionary
 	
 	// The router will create the peers and handlers
-  val actorSystem = ActorSystem("AAA")
-	val routerActor = actorSystem.actorOf(Router.props())
-	
+	ActorSystem("AAA").actorOf(Router.props())
 }

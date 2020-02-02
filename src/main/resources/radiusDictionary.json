@@ -21,7 +21,7 @@
                 "name": "User-Name",
                 "type": "String",
                 "encrypt": 0,
-                "hasTag": 0
+                "hasTag": false
 			},
 			{
 				"code": 2,
@@ -260,7 +260,14 @@
 			{
 				"code": 190,
 				"name": "Service-Name",
-				"type": "String"
+				"type": "String",
+				"hasTag": true
+			},
+			{
+				"code": 194,
+				"name": "Deactivate-Service-Name",
+				"type": "String",
+				"hasTag": true
 			}
 		],
 		"4874":

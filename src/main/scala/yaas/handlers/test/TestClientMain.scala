@@ -16,7 +16,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   val iamBaseURL = "http://localhost:19503/iam"
   val iamSecondaryBaseURL = "http://localhost:19504/iam"
   
-  // nRequests is 1000 or the value in YAAS_TEST_REQUESTS
+  // nRequests is 10000 or the value in YAAS_TEST_REQUESTS
   
   // _ is needed to promote the method (no arguments) to a function
   
@@ -44,7 +44,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       checkServerDiameterStats _,
       checkHttpStats("GET", 3) _,
       runJS(configObject.get) _,
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 2000, nThreads, "Radius Warmup") _,
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 5000, nThreads, "Radius Warmup") _,
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", nRequests, nThreads, "Free Wheel") _,
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, nThreads, "Database Lookup") _,
       checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests, nThreads, "Session storage (Start)") _,

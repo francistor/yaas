@@ -1,6 +1,6 @@
 {
 	"bindAddress": "0",
-	"bindPort": 3868,
+	"bindPort": 0,
 	"diameterHost": "",
 	"diameterRealm": "",
 	"vendorId": 1101,

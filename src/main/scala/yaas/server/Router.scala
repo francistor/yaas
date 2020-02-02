@@ -204,7 +204,7 @@ class Router() extends Actor with ActorLogging {
 	  
     log.info("Updating Diameter Peers")
     
-	  // Shutdown unconfigured peers and return clean list  
+	  // Shutdown un-configured peers and return clean list
 	  val cleanPeersHostMap = currPeerHostMap.flatMap { case (hostName, peerPointer) => 
 	    if(conf.get(hostName) == None){
 	      // Stop peer and return empty sequence

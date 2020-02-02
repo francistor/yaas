@@ -5,9 +5,10 @@ package yaas.dictionary
 import yaas.config.ConfigManager
 
 import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
 
+/**
+ * Hosts radius types enumeration
+ */
 object RadiusTypes {
   val NONE: Int = 0
 	val STRING: Int = 1
@@ -21,41 +22,54 @@ object RadiusTypes {
 	val INTEGER64 = 9
 }
 
-case class RadiusAVPAttributes(code: Int, name: String, radiusType: String, encrypt: Int, hasTag: Boolean, enumValues: Option[Map[String, Int]])
-class RadiusAVPAttributesSerializer extends CustomSerializer[RadiusAVPAttributes](implicit formats => (
+// Used for JSON encoding of the dictionary
+private case class RadiusAVPAttributes(code: Int, name: String, radiusType: String, encrypt: Int, hasTag: Boolean, enumValues: Option[Map[String, Int]])
+
+// CustomSerializer is parametrized with a function that receives one value of type Format and returns two partial functions
+private class RadiusAVPAttributesSerializer extends CustomSerializer[RadiusAVPAttributes](implicit formats => (
   {
     case jv: JValue =>
+			(jv \ "hasTag").extract[Option[Boolean]].getOrElse(false)
       RadiusAVPAttributes(
          (jv \ "code").extract[Int],
          (jv \ "name").extract[String],
          (jv \ "type").extract[String],
          (jv \ "encrypt").extract[Option[Int]].getOrElse(0),
-         jv \ "hasTag" match {
-           case JBool(true) => true
-           case _ => false
-         },
-         (jv \ "enumValues") match {
-           case JNothing => None
+				 (jv \ "hasTag").extract[Option[Boolean]].getOrElse(false),
+				 jv \ "enumValues" match {
            case JObject(items) =>
-             Some((for {
-               (k, v) <- items
-             } yield (k, v.extract[Int])).toMap)
+						 Some(items.map{ case (k, v) => (k, v.extract[Int])}.toMap)
            case _ => None
          }
       )
   },
   {
-    case v : RadiusAVPDictItem =>
+		// This is never used
+    case _ =>
       JObject()
   }))
-  
+
+/**
+ * Represents an entry in the Radius Dictionary
+ * @param code number for the code
+ * @param vendorId number for the vendor id
+ * @param name attribute name including vendor prefix
+ * @param radiusType one of the valid types in [[RadiusTypes]]
+ * @param encrypt encryption type. 0 for no encription
+ * @param hasTag true or false
+ * @param enumValues map from enumerated string constants to its corresponding numbers
+ * @param enumNames map from the enumerated contstants to its string representation
+ */
 case class RadiusAVPDictItem(code: Int, vendorId: Int, name: String, radiusType: Int, encrypt: Int, hasTag: Boolean, enumValues: Option[Map[String, Int]], enumNames: Option[Map[Int, String]])
 
-// Holds the parsed diameter dictionary with utility functions to use
-object RadiusDictionary {
-	val dictionaryJson = ConfigManager.getConfigObject("radiusDictionary.json")
+/**
+ * Holds the parsed Radius dictionary with utility functions to use
+ */
 
-	implicit var jsonFormats = DefaultFormats + new RadiusAVPAttributesSerializer
+object RadiusDictionary {
+	private val dictionaryJson = ConfigManager.getConfigObject("radiusDictionary.json")
+
+	private implicit val jsonFormats: Formats = DefaultFormats + new RadiusAVPAttributesSerializer
 	
 	private def getDictionaryItemFromAttributes(avpAttributes: RadiusAVPAttributes, vendorId: String, vendorMap: Map[String, String]) = {
 	  val vendorPrefix = if(vendorId == "0") "" else vendorMap(vendorId) + "-"
@@ -85,27 +99,27 @@ object RadiusDictionary {
 	/**
 	 * Holds a map vendorId -> vendorName
 	 */
-	val vendorNames = for {
+	val vendorNames: Map[String, String] = for {
 		(vendorId, vendorName) <- (dictionaryJson \ "vendor").extract[Map[String, String]]
-	} yield (vendorId -> vendorName)
+	} yield vendorId -> vendorName
 
 	/**
 	 * Holds a map ((vendorId, code) -> RadiusAVPDictItem)
 	 */
-	val avpMapByCode = for {
+	val avpMapByCode: Map[(Int, Int), RadiusAVPDictItem] = for {
 		(vendor, avps) <- (dictionaryJson \ "avp").extract[Map[String, JArray]]
 		jAttrs <- avps.arr
 		attrs = jAttrs.extract[RadiusAVPAttributes]
-	} yield ((vendor.toInt, attrs.code) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames))
+	} yield (vendor.toInt, attrs.code) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames)
 
 	/** 
-	 *  Holds a map (name -> RadiusAVPDitcitem)
+	 *  Holds a map (name -> RadiusAVPDictItem)
 	 */
-	val avpMapByName = for {
+	val avpMapByName: Map[String, RadiusAVPDictItem] = for {
 		(vendor, avps) <- (dictionaryJson \ "avp").extract[Map[String, JArray]]
     jAttrs <- avps.arr
     attrs = jAttrs.extract[RadiusAVPAttributes]
     vendorName = if(vendor == "0") "" else vendorNames(vendor) + "-"
-	} yield ((vendorName + attrs.name) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames))
+	} yield (vendorName + attrs.name) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames)
 }
 

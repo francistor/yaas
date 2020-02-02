@@ -177,7 +177,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       } 
       else {
         println("FINISHED")
-        System.exit(0)
+        //System.exit(0)
       }
     }
   }
