@@ -29,7 +29,7 @@ object HandlerConfigManager {
    * If an updated version is required, make sure to call <code>ConfigManager.refresh</code> before invoking 
    */
   def updateHandlerConfig(withReload: Boolean) = {
-    val jHandlers = if(withReload) ConfigManager.reloadConfigObject("handlers.json") else ConfigManager.getConfigObject("handlers.json")
+    val jHandlers = if(withReload) ConfigManager.reloadConfigObjectAsJson("handlers.json") else ConfigManager.getConfigObjectAsJson("handlers.json")
     handlerConfig = (for {
       handler <- jHandlers.extract[Seq[HandlerConfigEntry]]
       } yield (handler.name -> handler)).toMap

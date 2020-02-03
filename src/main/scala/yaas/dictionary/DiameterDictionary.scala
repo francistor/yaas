@@ -202,7 +202,7 @@ object DiameterDictionary {
     }
   }
   
-	private val dictionaryJson = ConfigManager.getConfigObject("diameterDictionary.json")
+	private val dictionaryJson = ConfigManager.getConfigObjectAsJson("diameterDictionary.json")
 
   private implicit val jsonFormats: DefaultFormats.type = DefaultFormats
   

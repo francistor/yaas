@@ -29,7 +29,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
   log.info("Instantiated AccessRequestHandler")
   
   // Get the database configuration
-  val dbConf = yaas.config.ConfigManager.getConfigObject("clientsDatabase.json")
+  val dbConf = yaas.config.ConfigManager.getConfigObjectAsJson("clientsDatabase.json")
   val nThreads = (dbConf \ "numThreads").extract[Int]
   
   val db = Database.forURL(
@@ -91,11 +91,11 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
     /**
      * Read configuration
      */
-    val jGlobalConfig = getConfigObject("handlerConf/globalConfig.json")
-    val jRealmConfig = getConfigObject("handlerConf/realmConfig.json")
-    val jServiceConfig = getConfigObject("handlerConf/serviceConfig.json")
-    val jRadiusClientConfig = getConfigObject("handlerConf/radiusClientConfig.json")
-    val jSpecialUsersConfig = getConfigObject("handlerConf/specialUsers.json")
+    val jGlobalConfig = getConfigObjectAsJson("handlerConf/globalConfig.json")
+    val jRealmConfig = getConfigObjectAsJson("handlerConf/realmConfig.json")
+    val jServiceConfig = getConfigObjectAsJson("handlerConf/serviceConfig.json")
+    val jRadiusClientConfig = getConfigObjectAsJson("handlerConf/radiusClientConfig.json")
+    val jSpecialUsersConfig = getConfigObjectAsJson("handlerConf/specialUsers.json")
     
     val request = ctx.requestPacket
     
@@ -107,8 +107,8 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
       
     // Priorities Client --> Realm --> Global
-    val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).
-      merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
+    val jConfig = jGlobalConfig.merge(jRealmConfig.forKey(realm, "DEFAULT")).
+      merge(jRadiusClientConfig.forKey(nasIpAddress, "DEFAULT"))
       
     if(false){
       log.debug("jGlobalConfig: {}\\n", pretty(jGlobalConfig))

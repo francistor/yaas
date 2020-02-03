@@ -1,21 +1,18 @@
 package yaas.config
 
 import com.typesafe.config.ConfigFactory
-import java.nio.file._
 import java.net.URL
 import scala.io.Source
-import scala.util.Try
 import scala.util.matching.Regex
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import scala.util.{Try, Success, Failure}
-
-import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 
 /**
- * Reads and caches JSON configuration files from java resources, files or URLs. The syntax MUST be Json.
+ * Reads and caches JSON configuration files from java resources, files or URLs. The syntax MUST be JSON, but
+ * allowing comments with //.
  * 
  * The class is a singleton and thread safe, thus usable anywhere in the code.
  * 
@@ -41,50 +38,46 @@ import org.slf4j.LoggerFactory
  */
 object ConfigManager {
   
-  val var1Regex = """\$\{(.+)\}""".r
-  val var2Regex = """%(.+)%""".r
+  private val var1Regex = """\$\{(.+)\}""".r
+  private val var2Regex = """%(.+)%""".r
   
-  val separator = System.lineSeparator
-  val ti = System.getProperty("instance")
-  val instance = if(ti == null) "default" else ti
+  private val separator = System.lineSeparator
+
+	private val instance = Option(System.getProperty("instance")).getOrElse("default")
   
-  val log = LoggerFactory.getLogger(ConfigManager.getClass)
-  
-  // Case classes for JSON deserialization of the configSearchRules file
-  case class SearchRule(nameRegex: Regex, locationType: String, base: Option[String])
+  private val log = LoggerFactory.getLogger(ConfigManager.getClass)
 		
-	val config = ConfigFactory.load()
+	private val config = ConfigFactory.load()
 	
-	// The default base is the location where the config.file or config.url file lives
-	val cFile = if(Option(System.getProperty("config.url")).nonEmpty){
-	  // URL was specified
-	  (new java.net.URL(System.getProperty("config.url"))).getPath
-	} 
-	else if(Option(System.getProperty("config.file")).nonEmpty){
-	  // File was specified
-	  "file:///" + (new java.io.File(System.getProperty("config.file"))).getCanonicalPath
-	}
-	else "/"
-	  
-	val ncFile = cFile.replace("\\", "/")
-	val defaultBase = ncFile.substring(0, ncFile.lastIndexOf("/") + 1)
-	
+	// The default base is the location where the config.file or config.url file lives (the first one specified)
+	private val ncFile = Option(System.getProperty("config.url")).map(new java.net.URL(_).getPath)										// Get the URL of the bootstrap config file
+		.getOrElse(Option(System.getProperty("config.file")).map(new java.io.File(_).getCanonicalPath).getOrElse("/"))  // Or the file, if the above was not set
+		.replace("\\", "/")																																					// Fix from windows
+	// Remove the file part
+	private val defaultBase = ncFile.substring(0, ncFile.lastIndexOf("/") + 1)
+
+	// Stores a parsed Search Rule
+	private case class SearchRule(nameRegex: Regex, locationType: String, base: Option[String])
+
 	// Parse the search rules specified in the config file
 	import scala.collection.JavaConversions._
-	val rules = config.getConfigList("aaa.configSearchRules").map(rule => 
+	private val rules = config.getConfigList("aaa.configSearchRules").map(rule =>
 	  if(rule.getString("locationType") == "resource") 
 	    SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), None)
 	  else SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), 
-	      // base is optional but throws exception if not found
+	      // base is optional but .getString would throw exception if not present. We convert it to None
 	      Try(rule.getString("base")) match {
 	        case Success(base) => Some(base)
 	        case Failure(_) => None
 	        }
 	      )).toList
 	
+
+	// If one of the "AsJson methods is invoked, the jValue is filled
+	case class ConfigObject(url: URL, value: String, jValue: JValue)
 	// Cache of read files
-  // Concurrent thread-safe map
-  val configObjectCache = new scala.collection.concurrent.TrieMap[String, JValue]
+	// Concurrent thread-safe map
+  private val configObjectCache = new scala.collection.concurrent.TrieMap[String, ConfigObject]
 	  
   /* Common configuration objects
       "diameterDictionary.json", 
@@ -97,15 +90,42 @@ object ConfigManager {
       "radiusClients.json",
       "handlers.json"
 	*/
+
+	/**
+	 * Retrieves the Configuration object from the specified URL
+	 * @param url the url to retrieve
+	 * @return Configuration Object as String
+	 */
+	private def retrieveURLString(url: URL): String = {
+		val source = Source.fromURL(url)
+		try {
+				source
+					.getLines.
+					flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
+					map(replaceVars).
+					mkString(separator)
+		}
+		catch {
+			case e: Throwable =>
+				log.debug(s"${url.getPath} not found")
+				throw e
+		}
+		finally{
+			// Could throw an exception
+			source.close
+		}
+	}
   
   /**
-   * Gets the URL of the specified resource.
+   * Gets the configuration object
    * 
    * Looks for the location using the configured SearchRules and tries to read it first from that
    * base location and then from the "<instance>"/ base location
    */
-  def getObjectURL(objectName: String) = {
-    def lookUp(modObjectName: String) = {
+  private def readConfigObject(objectName: String) = {
+
+    def tryReadConfigObject(modObjectName: String): ConfigObject = {
+			log.debug(s"Trying read of Configuration Object $modObjectName")
       val urlOption = rules.collectFirst(
         {
           case SearchRule(nameRegex, locationType, base) if modObjectName.matches(nameRegex.regex) =>
@@ -122,148 +142,201 @@ object ConfigManager {
       
       urlOption match {
         // Try to read it
-        case Some(url) =>  
-          Source.fromURL(url)
-          url
+        case Some(url) =>
+					val objectValue = retrieveURLString(url)
+					if(url.getPath.endsWith("json")) ConfigObject(url, objectValue, parse(objectValue))
+					else ConfigObject(url, objectValue, JNothing)
           
         case None =>
-          throw new java.util.NoSuchElementException(objectName)
+					log.debug(s"Do not know where to look for $objectName")
+          throw new java.util.NoSuchElementException(s"Do not know where to look for $objectName")
       }
     }
     
     // Try instance specific first. Then, regular object name
-    Try(lookUp(s"$instance/$objectName")).orElse(Try(lookUp(objectName))) match {
-      case Success(url) => url
-        
+    Try(tryReadConfigObject(s"$instance/$objectName")).orElse(Try(tryReadConfigObject(objectName))) match {
+      case Success(confObj) =>
+				confObj
+
       case _ =>
         throw new java.util.NoSuchElementException(objectName)
     }
   }
   
   /**
-   * Gets the configuration object as a string
+   * Reads the configuration object and caches it
    */
-  def readObject(objectName: String): String = {
-    val url = getObjectURL(objectName)
-    Source.fromURL(url).
-      getLines.
-      flatMap(l => if(l.trim.startsWith("#") || l.trim.startsWith("//")) Seq() else Seq(l)).
-      map(replaceVars(_)).
-      mkString(separator)
-  }
-  
-  /**
-   * Gets the configuration object as a JSON object and caches it
-   */
-  def readConfigObject(objectName: String): JValue = {
-    val parsed = parse(readObject(objectName))
-    configObjectCache(objectName) = parsed
-    parsed
+  private def cacheConfigObject(objectName: String): ConfigObject = {
+		val obj = readConfigObject(objectName)
+    configObjectCache(objectName) = obj
+    obj
   }
 
+	/**
+	 * Gets the Configuration Object in Raw format (as String)
+	 *
+	 * To be used by the applications to get the configuration object.
+	 *
+	 * Throws java.util.NoSuchElementException if the object name is not matched by any
+	 * name regular expression, or IOException if it could not be retrieved.
+	 *
+	 * @return The JSON contents of the Configuration Object.
+	 */
+	def getConfigObjectAsString(objectName: String): String = {
+		configObjectCache.getOrElse(objectName, cacheConfigObject(objectName)).value
+	}
+
   /**
-   * To be used by the applications to get the configuration object.
+   * Gets the Configuration Object in JSON format.
+	 *
+	 * To be used by the applications to get the configuration object.
    * 
    * Throws java.util.NoSuchElementException if the object name is not matched by any
-   * name regular expression, or IOException if could not be retrieved.
+   * name regular expression, or IOException if it could not be retrieved.
    * 
-   * @return The JSON contents of the object.
+   * @return The JSON contents of the Configuration Object.
    */
-	def getConfigObject(objectName: String): JValue = { 
-	  configObjectCache.getOrElse(objectName, readConfigObject(objectName))
+	def getConfigObjectAsJson(objectName: String): JValue = {
+	  configObjectCache.getOrElse(objectName, cacheConfigObject(objectName)).jValue
+	}
+
+	/**
+	 * Gets the URL of the Configuration Object.
+	 *
+	 * May get the info from the cache. If not present, the Config Object is retrieved
+	 * and stored in the cache
+	 *
+	 * Throws java.util.NoSuchElementException if the object name is not matched by any
+	 * name regular expression, or IOException if could not be retrieved.
+	 *
+	 * @param objectName the name of the object
+	 * @return the URL where the Configuration Object resides
+	 */
+	def getConfigObjectURL(objectName: String): URL = {
+		configObjectCache.getOrElse(objectName, cacheConfigObject(objectName)).url
+	}
+
+	/**
+	 * Forces the reloading of the specific Configuration Object and retrieves it
+	 *
+	 * Throws java.util.NoSuchElementException if the object name is not matched by any
+	 * name regular expression, or IOException if could not be retrieved.
+	 */
+	def reloadConfigObjectAsString(objectName: String): String = {
+		cacheConfigObject(objectName).value
 	}
 	
 	/**
-	 * Forces the reloading of the specific configuration object.
+	 * Forces the reloading of the specific Configuration Object and retrieves it
 	 * 
 	 * Throws java.util.NoSuchElementException if the object name is not matched by any
    * name regular expression, or IOException if could not be retrieved.
 	 */
-	def reloadConfigObject(objectName: String) = {
-	  readConfigObject(objectName)
+	def reloadConfigObjectAsJson(objectName: String): JValue = {
+		cacheConfigObject(objectName).jValue
 	}
 	
 	/**
-	 * Forces the reloading of all configuration objects.
+	 * Forces the reloading of all configuration objects in the cache.
 	 * 
 	 */
-	def reloadAllConfigObjects = {
-	  for(objectName <- configObjectCache.keySet) configObjectCache(objectName) = readConfigObject(objectName)
+	def reloadAllConfigObjects(): Unit = {
+		configObjectCache.foreach{case (k, _) => cacheConfigObject(k)}
 	}	
 	
 	/**
-	 * Helpers for Handlers
+	 * Helpers for Radius and Diameter Handlers
 	 */
-	var commandLine: Array[String] = Array()
+	private var commandLine: Array[String] = Array()
 	
-	def pushCommandLine(commandLine: Array[String]) = {
+	def pushCommandLine(commandLine: Array[String]): Unit = {
 	  this.commandLine = commandLine
 	}
 	
-	def popCommandLine = commandLine
+	def popCommandLine: Array[String] = commandLine
 	
 	def baseURL: String = {
 	  defaultBase
 	}
 	
 	
-	/** Helpers to extract from JValue
+	/**
+	 * Helpers to extract from JValue
 	 *  
-	 *  To be used in handlers. Given a JValue, if importing ConfigManager._, we can use
+	 * Defines implicit conversion of JValue to JDefault (a custom class), which has some helper methods to be
+	 * used in handlers. Given a JValue, if importing ConfigManager._, we can use
 	 *  
-	 *  jValue.jInt("mydomain.subKey", "key") to get an Int, or
-	 *  jValue.key("mydomain.subKey", "DEFAULT") to get a full json object
+	 * jValue.jInt("mydomain.subKey", "key") to get an Int, or
+	 * jValue.key("mydomain.subKey", "DEFAULT") to get a full json object under the specified key
 	 *  
 	 *  
 	 */
-	private implicit val formats = DefaultFormats
+	private implicit val formats: DefaultFormats.type = DefaultFormats
 	
+	@scala.annotation.tailrec
 	private def nextPath(jValue: JValue, path: List[String]): JValue = {
 	  path match {
 	    case Nil => jValue
 	    case head :: tail => nextPath(jValue \ head, tail)
 	  }
 	}
-	
-  def intFrom(jValue: JValue, path: List[String], default: Int) = { 
-	  nextPath(jValue, path).extract[Option[Int]].getOrElse(default)
-	}
-		
-	def longFrom(jValue: JValue, path: List[String], default: Long) = { 
-	  nextPath(jValue, path).extract[Option[Long]].getOrElse(default)
-	}
-	
-	def strFrom(jValue: JValue, path: List[String], default: String) = {
-	  nextPath(jValue, path).extract[Option[String]].getOrElse(default)
-	}
-	
-	
-	// And even more help
+
+	/**
+	 * Helper to include some extraction methods.
+	 *
+	 * There is an implicit conversion from JValue to this
+	 * @param jv the JSON value to convert
+	 */
 	class JDefault(jv: JValue) {
-	  def key(key: String, defaultKey: String) = {
-	    val dValue = jv \ key
-	    dValue match {
+
+		/**
+		 * Retrieves the JValue nested in the specified key or the default key if the former is not found
+		 * @param key property in the JSON to look for
+		 * @param defaultKey default property (e.g. DEFAULT)
+		 * @return JSON contents
+		 */
+	  def forKey(key: String, defaultKey: String): JValue = {
+	    jv \ key match {
 	      case JNothing => jv \ defaultKey
-	      case _ => dValue
+	      case v: JValue => v
 	    }
 	  }
-	  
-	  def jInt(path: String) = {
+
+		/**
+		 * Gets the integer in the specified path
+		 * @param path dot separated path
+		 * @return an Integer
+		 */
+	  def jInt(path: String): Option[Int] = {
 	    nextPath(jv, path.split("\\.").toList).extract[Option[Int]]
 	  }
-	  
-	  def jLong(path: String) = {
+
+		/**
+		 * Gets the long in the specified path
+		 * @param path dot separated path
+		 * @return a long value
+		 */
+	  def jLong(path: String): Option[Long] = {
 	    nextPath(jv, path.split("\\.").toList).extract[Option[Long]]
 	  }
-	  
-    def jStr(path: String) = {
+
+		/**
+		 * Gets the string in the specified path
+		 * @param path dot separated path
+		 * @return a string value
+		 */
+    def jStr(path: String): Option[String] = {
 	    nextPath(jv, path.split("\\.").toList).extract[Option[String]]
 	  }
 	}
 	
-	implicit def fromJValueToJDefault(jv: JValue) = new JDefault(jv)
-	
-	// Helper
+	implicit def fromJValueToJDefault(jv: JValue): JDefault = new JDefault(jv)
+
+	/**
+	 *
+	 * @param input string to convert
+	 * @return string with replaced values
+	 */
 	private def replaceVars(input: String) = {
 	  // Replacer is made of the environment and the system properties
 	  val varMap = System.getenv.toMap ++ System.getProperties.toMap

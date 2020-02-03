@@ -588,7 +588,7 @@ class Router() extends Actor with ActorLogging {
       try {
         fileName match {
           case Some(f) => 
-            ConfigManager.reloadConfigObject(f)
+            ConfigManager.reloadConfigObjectAsJson(f)
             
           case None =>
             ConfigManager.reloadAllConfigObjects

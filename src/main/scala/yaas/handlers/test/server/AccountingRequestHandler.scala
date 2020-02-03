@@ -23,7 +23,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
   /**
    * Read configuration
    */
-  val jGlobalConfig = getConfigObject("handlerConf/globalConfig.json")
+  val jGlobalConfig = getConfigObjectAsJson("handlerConf/globalConfig.json")
   val sessionCDRDir = (jGlobalConfig \ "cdrDir").extract[String] + "/session"
   val serviceCDRDir = (jGlobalConfig \ "cdrDir").extract[String] + "/service"
   
@@ -52,10 +52,10 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
     /**
      * Read configuration
      */
-    val jGlobalConfig = getConfigObject("handlerConf/globalConfig.json")
-    val jRealmConfig = getConfigObject("handlerConf/realmConfig.json")
-    val jServiceConfig = getConfigObject("handlerConf/serviceConfig.json")
-    val jRadiusClientConfig = getConfigObject("handlerConf/radiusClientConfig.json")
+    val jGlobalConfig = getConfigObjectAsJson("handlerConf/globalConfig.json")
+    val jRealmConfig = getConfigObjectAsJson("handlerConf/realmConfig.json")
+    val jServiceConfig = getConfigObjectAsJson("handlerConf/serviceConfig.json")
+    val jRadiusClientConfig = getConfigObjectAsJson("handlerConf/radiusClientConfig.json")
     
     val request = ctx.requestPacket
     
@@ -64,7 +64,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
     val userNameComponents = userName.split("@")
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
     
-    val jConfig = jGlobalConfig.merge(jRealmConfig.key(realm, "DEFAULT")).merge(jRadiusClientConfig.key(nasIpAddress, "DEFAULT"))
+    val jConfig = jGlobalConfig.merge(jRealmConfig.forKey(realm, "DEFAULT")).merge(jRadiusClientConfig.forKey(nasIpAddress, "DEFAULT"))
 
     // Check whether it is session or serviceCDR, and in that case, get serviceName
     val serviceName = 

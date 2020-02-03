@@ -1279,7 +1279,6 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
 */
 
   def runJS(scriptName: String)(): Unit = {
-    
     class Notifier {
       def end = nextTest
     }
@@ -1287,21 +1286,21 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     import javax.script._
     
     // Instantiate
-    val engine = new ScriptEngineManager().getEngineByName("nashorn");
+    val engine = new ScriptEngineManager().getEngineByName("nashorn")
     
     // Put objects in scope
     // Radius/Diameter/HTTP helper
   	engine.put("Yaas", YaasJS)
   	
   	// Base location of the script
-  	val scriptURL = ConfigManager.getObjectURL(scriptName).getPath.toString
+  	val scriptURL = ConfigManager.getConfigObjectURL(scriptName).getPath
   	engine.put("baseURL", scriptURL.substring(0, scriptURL.indexOf(scriptName)))
   	
   	// To signal finalization
   	// JScript will invoke Notifier.end
   	engine.put("Notifier", new Notifier)
   	
-  	// Excecute Javascript
-  	engine.eval(ConfigManager.readObject(scriptName));
+  	// Execute Javascript
+  	engine.eval(ConfigManager.getConfigObjectAsString(scriptName));
   }
 }

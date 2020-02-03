@@ -46,7 +46,7 @@ object DiameterConfigManager {
    * 
    * Cannot change.
    */
-  val diameterConfig = ConfigManager.getConfigObject("diameterServer.json").extract[DiameterServerConfig]
+  val diameterConfig = ConfigManager.getConfigObjectAsJson("diameterServer.json").extract[DiameterServerConfig]
   
   def isDiameterEnabled = diameterConfig.bindAddress.contains(".") && (diameterConfig.bindPort > 0)
   
@@ -66,7 +66,7 @@ object DiameterConfigManager {
    * Reloads the Diameter peer configuration reading it from the JSON configuration object.
    */
   def updateDiameterPeerConfig(withReload: Boolean) = {
-    val jPeers = if(withReload) ConfigManager.reloadConfigObject("diameterPeers.json") else ConfigManager.getConfigObject("diameterPeers.json")
+    val jPeers = if(withReload) ConfigManager.reloadConfigObjectAsJson("diameterPeers.json") else ConfigManager.getConfigObjectAsJson("diameterPeers.json")
     diameterPeerConfig = (for {
       peer <- jPeers.extract[Seq[DiameterPeerConfig]]
     } yield (peer.diameterHost -> peer)).toMap
@@ -76,7 +76,7 @@ object DiameterConfigManager {
    * Reloads the Diameter routes configuration reading it from the JSON configuration object. 
    */
   def updateDiameterRouteConfig(withReload: Boolean) = {
-    val jRoutes = if(withReload) ConfigManager.reloadConfigObject("diameterRoutes.json") else ConfigManager.getConfigObject("diameterRoutes.json")
+    val jRoutes = if(withReload) ConfigManager.reloadConfigObjectAsJson("diameterRoutes.json") else ConfigManager.getConfigObjectAsJson("diameterRoutes.json")
     diameterRouteConfig = jRoutes.extract[Seq[DiameterRouteConfig]]
   }
   

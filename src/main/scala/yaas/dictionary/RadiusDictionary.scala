@@ -67,7 +67,7 @@ case class RadiusAVPDictItem(code: Int, vendorId: Int, name: String, radiusType:
  */
 
 object RadiusDictionary {
-	private val dictionaryJson = ConfigManager.getConfigObject("radiusDictionary.json")
+	private val dictionaryJson = ConfigManager.getConfigObjectAsJson("radiusDictionary.json")
 
 	private implicit val jsonFormats: Formats = DefaultFormats + new RadiusAVPAttributesSerializer
 	

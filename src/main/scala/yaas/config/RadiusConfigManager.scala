@@ -47,7 +47,7 @@ object RadiusConfigManager {
    * 
    * Cannot change.
    */
-  val radiusConfig = ConfigManager.getConfigObject("radiusServer.json").extractOrElse[RadiusThisServerConfig](RadiusThisServerConfig("0", 0, 0, 0, 0, 0))
+  val radiusConfig = ConfigManager.getConfigObjectAsJson("radiusServer.json").extractOrElse[RadiusThisServerConfig](RadiusThisServerConfig("0", 0, 0, 0, 0, 0))
   
   def isRadiusServerEnabled = radiusConfig.bindAddress.contains(".")
   def isRadiusClientEnabled = radiusConfig.clientBasePort > 0
@@ -80,7 +80,7 @@ object RadiusConfigManager {
    * 
    */
   def updateRadiusServers(withReload: Boolean) = {
-    val jRadiusServers = if(withReload) ConfigManager.reloadConfigObject("radiusServers.json") else ConfigManager.getConfigObject("radiusServers.json")
+    val jRadiusServers = if(withReload) ConfigManager.reloadConfigObjectAsJson("radiusServers.json") else ConfigManager.getConfigObjectAsJson("radiusServers.json")
 
     radiusServers =  (for {
       server <- (jRadiusServers \ "servers").extract[List[RadiusServerConfig]]
@@ -91,7 +91,7 @@ object RadiusConfigManager {
     } yield (serverConfig.IPAddress, serverConfig)
     
     radiusServerGroups = (for {
-      group <- (ConfigManager.getConfigObject("radiusServers.json") \ "serverGroups").extract[List[RadiusServerGroupConfig]]
+      group <- (ConfigManager.getConfigObjectAsJson("radiusServers.json") \ "serverGroups").extract[List[RadiusServerGroupConfig]]
     } yield (group.name -> group)).toMap
   }
   
@@ -99,7 +99,7 @@ object RadiusConfigManager {
    * Reloads the Radius client map configuration reading it from the JSON configuration object. 
    */
   def updateRadiusClients(withReload: Boolean) = {
-    val jRadiusClients = if(withReload) ConfigManager.reloadConfigObject("radiusClients.json") else ConfigManager.getConfigObject("radiusClients.json")
+    val jRadiusClients = if(withReload) ConfigManager.reloadConfigObjectAsJson("radiusClients.json") else ConfigManager.getConfigObjectAsJson("radiusClients.json")
     radiusClients = (for {
       client <- jRadiusClients.extract[List[RadiusClientConfig]]
     } yield (client.IPAddress -> client)).toMap

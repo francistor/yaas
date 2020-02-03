@@ -73,26 +73,26 @@ object DiameterPeer {
   private val responseTimeoutMillis = globalConfig.getInt("responseTimeoutMillis")
 }
 
-/* 
+
+/**
+ * Actor executing holding the socket to a specific Diameter Peer.
+ *
+ * Executes the Diameter Base state machine (CER/CEA, DWR/DWA, DPR/DPA) and manages a map of the outstanding
+ * replies, to be routed to the sending Actor.
+ *
  * Peer created with "active" policy
- * 	- The actor is instantiated by the router, and marked as "Starting"
+ * 	- The actor is instantiated by the router, and marked as "Starting". The <code>config</code> has a value
  *  - The actor tries to establish the connection.
  *  	> Sends CER and sets timer
  *  	> When CEA is received, sends message to Router to be marked as "Running" and starts the DWR timer
- *  
+ *
  * Peer created with "passive" policy
  *  - The actor is instantiated when a connection is received, passing the connection. The Actor is not yet
- *  registered in the list of peers
+ *  registered in the list of peers. <code>config</code> is <code>None</code>
  *  - Waits for the reception of CER
  *  - Upon answering (CEA), sends message to Router to register in the list of peers as "Running" and starts the DWR timer
- *  
+ *
  *  In case of any error, the Actor sends itself a PoisonPill and terminates.
- */
-
-/**
- * Actor executing a DiameterPeer.
- * 
- * If created by the server ("active" policy), <code>config</code> has a value. Otherwise is set to None.
  */
 class DiameterPeer(val peerConfig: Option[DiameterPeerConfig], val metricsServer: ActorRef) extends Actor with ActorLogging {
   
