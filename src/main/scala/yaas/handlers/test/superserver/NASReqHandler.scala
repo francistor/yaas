@@ -32,7 +32,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
     
     val request = ctx.diameterRequest
     val framedInterfaceId: String = request >> "Framed-Interface-Id"
-    val chapIdent: String = (request >>> "CHAP-Auth") >> "CHAP-Ident"
+    val chapIdent: String = (request >:> "CHAP-Auth") >> "CHAP-Ident"
     
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << ("Class", framedInterfaceId) << ("Class", chapIdent)
@@ -47,7 +47,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
     
     val request = ctx.diameterRequest
     
-    if(request >>++ "User-Name" contains("sessiondb")){
+    if(request >>* "User-Name" contains("sessiondb")){
       if((request >> "Accounting-Record-Type").contentEquals("START_RECORD")){
         
           // Store in sessions database
@@ -64,7 +64,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
         } else if((request >> "Accounting-Record-Type").contentEquals("STOP_RECORD")){
           
           // Remove session
-           SessionDatabase.removeSession(request >>++ "Session-Id")
+           SessionDatabase.removeSession(request >>* "Session-Id")
         }
     }
     

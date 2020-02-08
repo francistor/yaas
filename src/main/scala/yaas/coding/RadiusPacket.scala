@@ -825,14 +825,14 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   /**
    * Adds AVP to packet, replacing the existing value
    */ 
-  def putOrReplace(avp: RadiusAVP[Any]) : RadiusPacket = :<< (avp: RadiusAVP[Any])
+  def putOrReplace(avp: RadiusAVP[Any]) : RadiusPacket = <:< (avp: RadiusAVP[Any])
   
   /**
   * Add AVP to packet if not already present.
   * 
   * Same as <code>putOrReplace</code>
   */
-  def :<< (avp: RadiusAVP[Any]) : RadiusPacket = {
+  def <:< (avp: RadiusAVP[Any]) : RadiusPacket = {
     this.removeAll(avp.code, avp.vendorId)
     avps :+= avp
     this
@@ -841,14 +841,14 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    /**
    * Adds AVP to packet, replacing the existing value. If the contents of the Options are empty, does nothing.
    */ 
-  def putOrReplace(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = :<< (avpOption: Option[RadiusAVP[Any]])
+  def putOrReplace(avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = <:< (avpOption: Option[RadiusAVP[Any]])
   
   /**
   * Adds AVP to packet, replacing the existing value. If the contents of the Options are empty, does nothing.
   * 
   * Same as <code>putOrReplace</code>
   */
-  def :<< (avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = {
+  def <:< (avpOption: Option[RadiusAVP[Any]]) : RadiusPacket = {
     avpOption.map(avp => {
       this.putOrReplace(avp)
     })
@@ -858,14 +858,14 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   /**
    * Adds AVP list to packet, replacing the existing value
    */ 
-  def putOrReplaceAll(avpList: List[RadiusAVP[Any]]) : RadiusPacket = :<< (avpList: List[RadiusAVP[Any]])
+  def putOrReplaceAll(avpList: List[RadiusAVP[Any]]) : RadiusPacket = <:< (avpList: List[RadiusAVP[Any]])
   
   /**
   * Adds AVP list to packet if not already present.
   * 
   * Same as <code>putOrReplace</code>
   */
-  def :<< (avpList: List[RadiusAVP[Any]]) : RadiusPacket = {
+  def <:< (avpList: List[RadiusAVP[Any]]) : RadiusPacket = {
     avpList.map(avp => {
       this.removeAll(avp.code, avp.vendorId)
       avps :+= avp
@@ -911,12 +911,12 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   /**
    * Extracts all AVP with the specified name from packet and force conversion to string. If multivalue, returns comma separated list
    */
-  def getAsString(attributeName: String): String = >>++ (attributeName: String)
+  def getAsString(attributeName: String): String = >>* (attributeName: String)
   
   /**
    * Extracts all AVP with the specified name from packet and force conversion to string. If multivalue, returns comma separated list
    */
-  def >>++ (attributeName: String): String = {
+  def >>* (attributeName: String): String = {
     RadiusDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps.filter(avp => avp.code == code).map(_.toString).mkString(",")
       case None => ""

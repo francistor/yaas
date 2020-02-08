@@ -366,7 +366,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           ok("Reject received correctly")
         } else fail("Response is not a reject")
         
-        if((response >>++ "Reply-Message") == "Proxy: Rejected by superserver!"){
+        if((response >>* "Reply-Message") == "Proxy: Rejected by superserver!"){
           ok("Reply message is correct")
         } else fail("Response message is incorrect")
         nextTest
@@ -865,7 +865,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
             
           sendRadiusGroupRequest(serverGroup, radiusPacket, 3000, 1).onComplete {
             case Success(response) =>
-              if(response.code == ACCOUNTING_RESPONSE|| (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>++ "User-Password") == password)) loop
+              if(response.code == ACCOUNTING_RESPONSE|| (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>* "User-Password") == password)) loop
               else promise.failure(new Exception("Bad Radius Response"))
               
             case Failure(e) =>

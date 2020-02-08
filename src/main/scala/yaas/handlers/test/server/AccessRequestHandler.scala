@@ -194,7 +194,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
             case Some("database") =>
               passwordOption match {
                 case Some(provisionedPassword) =>
-                  if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
+                  if (! (request >>* "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
                     log.debug("Incorrect password")
                     rejectReason = Some("Incorrect User-Name or User-Password")
                   }
@@ -211,7 +211,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
               } else {
                 subscriberEntry \ "password" match {
                   case JString(password) =>
-                    if (! (request >>++ "User-Password").equals(OctetOps.fromUTF8ToHex(password))){
+                    if (! (request >>* "User-Password").equals(OctetOps.fromUTF8ToHex(password))){
                       log.debug("Incorrect password")
                       rejectReason = Some(s"Incorrect Password for $userName")
                     }
@@ -260,7 +260,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
               sendRadiusGroupRequest(group, proxyRequest, proxyTimeoutMillis, proxyRetries).map { packet => 
                 if(packet.code == RadiusPacket.ACCESS_REJECT){
                   log.info(s"$userName rejected by proxy server")
-                  rejectReason = Some("Proxy: " + (packet >>++ "Reply-Message"))
+                  rejectReason = Some("Proxy: " + (packet >>* "Reply-Message"))
                 } else log.debug("received response")
                 
                 // Filter the valid AVPs from proxy
@@ -324,7 +324,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                         if(log.isDebugEnabled) log.debug("Adding addon service attributes: {}", addonServiceAttributes.map(_.pretty).mkString)
                         if(log.isDebugEnabled) log.debug("Adding non overridable addon service attributes: {}", noAddonServiceAttributes.map(_.pretty).mkString)
                         
-                        radiusResponse :<< addonServiceAttributes << noAddonServiceAttributes
+                        radiusResponse <:< addonServiceAttributes << noAddonServiceAttributes
                       case None =>
                     }
                   }

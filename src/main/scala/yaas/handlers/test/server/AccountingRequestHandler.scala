@@ -70,7 +70,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
     val serviceName = 
       if((jConfig \ "isSRC").extract[Option[Boolean]].getOrElse(false) == true){
         // Radius clients is an SRC
-        Some(request >>++ "Class")
+        Some(request >>* "Class")
       } else {
         val redbackServiceName = (request >> "Service-Name").map(_.stringValue)
         val hwServiceInfo = (request >> "Service-Info").map(_.stringValue)
@@ -106,7 +106,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
       else if((request >> "Acct-Status-Type").contentEquals("Stop")){
         
         // Remove session
-         SessionDatabase.removeSession(request >>++ "Acct-Session-Id")
+         SessionDatabase.removeSession(request >>* "Acct-Session-Id")
       } else if((request >> "Acct-Status-Type").contentEquals("Interim-Update")){
       
         // Update Session

@@ -335,23 +335,23 @@ The DiameterMessage includes a List of DiameterAVP which can be manipulated with
 `>>` or `get` extracts an Option[DiameterAVP], which is the first AVP with the specified name, and None
 if no match is found.
 
-`>>*` or `getDeep` does the same, but the name of the parameter may be nested, using dot notation (such
+`>>>` or `getDeep` does the same, but the name of the parameter may be nested, using dot notation (such
 as "Subscription-Id.IMSI".
 
-`>>>` or `getGroup` also does the same, but the extracted AVP is of type Grouped, which is useful sometimes
+`>:>` or `getGroup` also does the same, but the extracted AVP is of type Grouped, which is useful sometimes
 for type safety.
 
 `>>+` or `getAll`extracts a List of attributes with the specified name, instead of only the first one. This
 is not very usual in Diameter.
 
-`>>++` or `getAsString` extracts all the attributes with the specified name forcing conversion to a single
+`>>*` or `getAsString` extracts all the attributes with the specified name forcing conversion to a single
 string, comma separated if there are several values. Not very usual in Diameter.
 
 ### Adding AVP to the DiameterMessage
 
 `<<` or `put` adds an `DiameterAVP`, an `Option[DiameterAVP]` or a `List[DiameterAVP]` to the message.
 
-`<<<` or `putGroup` adds an `GroupedAVP` or `Option[GroupedAVP]` to the message. In reality, the above methods may also be used.
+`<:<` or `putGroup` adds an `GroupedAVP` or `Option[GroupedAVP]` to the message. In reality, the above methods may also be used.
 
 ### JSON format for Diameter messages
 
@@ -431,7 +431,7 @@ if no match is found.
 
 `>>+` or `getAll`extracts a List of attributes with the specified name, instead of only the first one.
 
-`>>++` or `getAsString` extracts all the attributes with the specified name forcing conversion to a single
+`>>*` or `getAsString` extracts all the attributes with the specified name forcing conversion to a single
 string, comma separated if there are several values. Not very usual in Diameter.
 
 The following extractors try to get a single attribute, with type String or Long, generating an exception
@@ -448,7 +448,7 @@ def L(attributeName: String)
 
 `<<?` or `putIfAbsent` adds a RadiusAVP, an Option[RadiusAVP] or a List[RadiusAVP] to the message if not already present
 
-`:<<` or `putOrReplace` adds a RadiusAVP, an Option[RadiusAVP] or a List[RadiusAVP] to the message, replacing the existing values
+`<:<` or `putOrReplace` adds a RadiusAVP, an Option[RadiusAVP] or a List[RadiusAVP] to the message, replacing the existing values
 
 ### Removing AVP from the RadiusPacket
 

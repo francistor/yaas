@@ -64,7 +64,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
         else if((request >> "Acct-Status-Type").contentEquals("Stop")){
           
           // Remove session
-           SessionDatabase.removeSession("SS-" + (request >>++ "Acct-Session-Id"))
+           SessionDatabase.removeSession("SS-" + (request >>* "Acct-Session-Id"))
         }
       }
       

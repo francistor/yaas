@@ -467,8 +467,8 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
  * 
  * Embedded AVP manipulation functions
  * 	<code>withAttr()</code>, or <code><--</code>: appends the attribute and returns a copy
- *  <code>get()</code>, or <code>>></code>: returns the first attribute with the specified name
- *  <code>get()</code>, or <code>>>+</code>: returns all attributes (List) with the specified name
+ *  <code>get()</code>, or <code>></code>: returns the first attribute with the specified name
+ *  <code>get()</code>, or <code>>+</code>: returns all attributes (List) with the specified name
  */
 class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendorId: Long, value: List[DiameterAVP[Any]]) extends DiameterAVP(code, isVendorSpecific, isMandatory, vendorId, value){
    /**
@@ -1106,9 +1106,9 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    /**
    * Adds a Grouped AVP to the message.
    * 
-   * Same as << and <code>put</code>. Used only for simmetry
+   * Same as << and <code>put</code>. Used only for symmetry
    */
-  def <<< (avp: GroupedAVP) : DiameterMessage = {
+  def <:< (avp: GroupedAVP) : DiameterMessage = {
     avps = avps :+ avp
     this
   }
@@ -1116,17 +1116,15 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Adds a Grouped AVP to the message.
    *
-   * Same as << and <code>put</code>. Used only for simmetry
+   * Same as << and <code>put</code>. Used only for symmetry
    */
-  def putGrouped(avp: GroupedAVP): DiameterMessage = <<< (avp: GroupedAVP)
+  def putGrouped(avp: GroupedAVP): DiameterMessage = <:< (avp: GroupedAVP)
 
   
    /**
    * Adds a grouped AVP to message.
-   * 
-   * Simple <code><<</code> may also be used.
    */
-  def <<< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
+  def <:< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
     avpOption match {
       case Some(avp) => 
         avps = avps :+ avp
@@ -1140,7 +1138,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    *
    * Simple <code>put</code> may also be used,
    */
-  def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <<< (avp: Option[GroupedAVP])
+  def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <:< (avp: Option[GroupedAVP])
   
   // Insert multiple values
   /**
@@ -1156,14 +1154,14 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Adds a list of Diameter AVPs to the message.
    */
-  def put(mavp : List[DiameterAVP[Any]]) : DiameterMessage = << (mavp : List[DiameterAVP[Any]])
+  def put(mavp : List[DiameterAVP[Any]]): DiameterMessage = << (mavp : List[DiameterAVP[Any]])
   
    /**
    * Extracts the first AVP with the specified name from message.
    * 
    * Same as <code>get</code>
    */
-  def >> (attributeName: String) : Option[DiameterAVP[Any]] = {
+  def >> (attributeName: String): Option[DiameterAVP[Any]] = {
     DiameterDictionary.getAttrCodeFromName(attributeName) match {
       case Some((vendorId, code)) =>
         avps.find(avp => avp.vendorId == vendorId && avp.code == code)
@@ -1174,14 +1172,24 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Extracts the first AVP with the specified name from message.
    */
-  def get(attributeName: String) : Option[DiameterAVP[Any]] = >> (attributeName: String)
+  def get(attributeName: String): Option[DiameterAVP[Any]] = >> (attributeName: String)
+
+  /**
+   * Get attribute with good performance
+   * @param vendorId the vendorId
+   * @param code the code
+   * @return
+   */
+  def get(vendorId: Int, code: Int): Option[DiameterAVP[Any]] = {
+    avps.find(avp => avp.vendorId == vendorId && avp.code == code)
+  }
   
   /**
    * Extracts the first grouped AVP with the specified name from message. Used for type safety.
    * 
    * Same as <code>getGroup</code>
    */
-  def >>> (attributeName: String) : Option[GroupedAVP] = {
+  def >:> (attributeName: String) : Option[GroupedAVP] = {
     DiameterDictionary.getAttrCodeFromName(attributeName) match {
       case Some((vendorId, code)) =>
         avps.find(avp => avp.vendorId == vendorId && avp.code == code) match {
@@ -1199,12 +1207,12 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Extracts the first grouped AVP with the specified name from message.
    */
-  def getGroup(attributeName: String) : Option[GroupedAVP] = >>> (attributeName: String)
+  def getGroup(attributeName: String) : Option[GroupedAVP] = >:> (attributeName: String)
 
   /**
    * Extracts the DiameterAVP from the full name using dot notation
    */
-  def >>* (attributeName: String): Option[DiameterAVP[Any]] = {
+  def >>> (attributeName: String): Option[DiameterAVP[Any]] = {
 
      // if avpOption is None, go for the avp in the DiameterMessage. Otherwise go for the AVP in this GroupedAVP
      @scala.annotation.tailrec
@@ -1241,7 +1249,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Extracts the DiameterAVP from the full name using dot notation
    */
-  def getDeep(attributeName: String): Option[DiameterAVP[Any]] = >>* (attributeName: String)
+  def getDeep(attributeName: String): Option[DiameterAVP[Any]] = >>> (attributeName: String)
   
   /**
    * Extracts a list with all attributes with the specified name.
@@ -1264,13 +1272,13 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list. If grouped, generates
    * name = value pairs
    */  
-  def getAsString(attributeName: String): String = >>++ (attributeName: String)
+  def getAsString(attributeName: String): String = >>* (attributeName: String)
     
   /**
    * Extracts AVP from message and force conversion to string. If multivalue, returns comma separated list. If grouped, generates
    * name = value pairs
    */
-  def >>++ (attributeName: String): String = {
+  def >>* (attributeName: String): String = {
     DiameterDictionary.avpMapByName.get(attributeName).map(_.code) match {
       case Some(code) => avps.filter(avp => avp.code == code).map(_.stringValue).mkString(",")
       case None => ""
@@ -1280,7 +1288,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Delete all AVP with the specified name.
    *
-   * @param attributeName
+   * @param attributeName the attribute
    */
   def removeAll(attributeName: String) : DiameterMessage = {
     DiameterDictionary.getAttrCodeFromName(attributeName) match {
@@ -1293,8 +1301,8 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
 
   /**
    * Delete all AVPs with the specified vendorId and code
-   * @param vendorId
-   * @param code
+   * @param vendorId the vendor id
+   * @param code the code
    */
   def removeAll(vendorId: Int, code: Int): DiameterMessage = {
     avps = avps.filter(avp => avp.vendorId != vendorId || avp.code != code)
@@ -1304,11 +1312,11 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Generates a <code>DiameterMessageKey</code> for stats.
    */
-  def key = {
-    val originHost = (this >> "Origin-Host").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
-    val originRealm = (this >> "Origin-Realm").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
-    val destinationHost = (this >> "Destination-Host").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
-    val destinationRealm = (this >> "Destination-Realm").map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+  def key: DiameterMessageKey = {
+    val originHost = get(0, 264).map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    val originRealm = get(0, 296).map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    val destinationHost = get(0, 293).map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
+    val destinationRealm = get(0, 283).map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
     
     DiameterMessageKey(originHost, originRealm, destinationHost, destinationRealm, applicationId.toString, commandCode.toString)
   }
@@ -1324,34 +1332,36 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    * Gets the command name.
    */
   def command: String = {
-    DiameterDictionary.appMapByCode.get(applicationId).map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
+    DiameterDictionary.appMapByCode.get(applicationId).flatMap(_.commandMapByCode.get(commandCode).map(_.name)).getOrElse("Unknown")
   }
   
   
   /**
    * To print the DiameterMessage CDR contents to file.
+   *
+   * @param format one instance subclassed from DiameterSerialFormat
    */
-  def getCDR(format: DiameterSerialFormat) = {
+  def getCDR(format: DiameterSerialFormat): String = {
     format match {
-      case f: JSONDiameterSerialFormat =>
+      case _: JSONDiameterSerialFormat =>
         compact(render(DiameterConversions.diameterMessageToJson(this) \ "avps"))
 
       case f: CSVDiameterSerialFormat =>
-        f.attrList.map(attr => s""""${DiameterConversions.DiameterAVP2String(getDeep(attr))}"""").mkString(",")
+        f.attrList.map(attr => s""""${getDeep("").map(_.stringValue).getOrElse("")}"""").mkString(",")
     }
   }
   
   /**
    * Pretty prints the DiameterMessage.
    */
-  override def toString = {
+  override def toString: String = {
     val header = s"req: $isRequest, pxabl: $isProxyable, err: $isError, ret: $isRetransmission, hbhId: $hopByHopId, e2eId: $endToEndId"
     val application = DiameterDictionary.appMapByCode.get(applicationId)
     val applicationName = application.map(_.name).getOrElse("Unknown")
-    val commandName = application.map(_.commandMapByCode.get(commandCode).map(_.name)).flatten.getOrElse("Unknown")
+    val commandName = application.flatMap(_.commandMapByCode.get(commandCode).map(_.name)).getOrElse("Unknown")
     val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty() + DiameterMessage.lineSeparator)
     
-    s"${DiameterMessage.lineSeparator}${applicationName} - ${commandName}${DiameterMessage.lineSeparator}${header}${DiameterMessage.lineSeparator}${prettyAVPs}"
+    s"${applicationName} - ${commandName}${DiameterMessage.lineSeparator}${header}${DiameterMessage.lineSeparator}${prettyAVPs}${DiameterMessage.lineSeparator}"
   }
   
   override def equals(other: Any): Boolean = {
@@ -1365,7 +1375,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
             x.isRequest != isRequest ||
             x.isProxyable != isProxyable ||
             x.isRetransmission != isRetransmission ||
-            !x.avps.sameElements(avps)) false else true
+            !(x.avps == avps)) false else true
       case _ => false
     }
   }
@@ -1376,7 +1386,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
  */
 object DiameterConversions {
   
-  implicit val jsonFormats = DefaultFormats + new DiameterMessageSerializer
+  private implicit val jsonFormats: Formats = DefaultFormats + new DiameterMessageSerializer
   
   def avpCompare(o: Option[DiameterAVP[Any]], other: String): Boolean = {
     o match {
@@ -1393,7 +1403,7 @@ object DiameterConversions {
   }
   
   /**
-   * This is to allow composing >> after >>>, which returns an Option
+   * This is to allow composing >> after >:>, which returns an Option
    */
   implicit def FromOptionGrouped(o: Option[GroupedAVP]): GroupedAVP = {
     o match {

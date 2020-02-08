@@ -138,7 +138,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     (message >> "Result-Code").get.toString mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
     
     // Dot notation in not grouped attribute
-    (message >>* "Result-Code").get.stringValue mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
+    (message >>> "Result-Code").get.stringValue mustEqual DiameterMessage.DIAMETER_UNABLE_TO_COMPLY.toString
   }
   
   "Adding and retrieving grouped avp to Diameter Message" in {
@@ -152,17 +152,17 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     diameterMessage << subsAVP
 
     // Retrieve full AVP
-    (diameterMessage >>> "Subscription-Id").get mustEqual subsAVP
+    (diameterMessage >:> "Subscription-Id").get mustEqual subsAVP
     
     // Retrieve value
-    ((diameterMessage >>> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
+    ((diameterMessage >:> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
 
     // Retrieve value using dot notation
-    (diameterMessage >>* "Subscription-Id.Subscription-Id-Data.Other") mustBe None
-    (diameterMessage >>* "Subscription-Id.Other") mustBe None
-    (diameterMessage >>* "Other") mustBe None
-    (diameterMessage >>* "Subscription-Id.Subscription-Id-Data").get mustEqual subsIdData
-    (diameterMessage >>* "Subscription-Id").get mustEqual subsAVP
+    (diameterMessage >>> "Subscription-Id.Subscription-Id-Data.Other") mustBe None
+    (diameterMessage >>> "Subscription-Id.Other") mustBe None
+    (diameterMessage >>> "Other") mustBe None
+    (diameterMessage >>> "Subscription-Id.Subscription-Id-Data").get mustEqual subsIdData
+    (diameterMessage >>> "Subscription-Id").get mustEqual subsAVP
 
   }
   
