@@ -263,6 +263,13 @@ object DiameterDictionary {
 	val appMapByName: Map[String, ApplicationDictItem] = for {
 	  (appName, applicationDictItem) <- appMapByCode
 	} yield applicationDictItem.name-> applicationDictItem
+
+	/**
+	 * Gets the code of the AVP in an Option or None if name not in dictionary
+	 */
+	def getAttrCodeFromName(name: String): Option[(Long, Long)] = {
+		avpMapByName.get(name).map(di => (di.vendorId, di.code))
+	}
   
 	// For debugging
 	def show(): Unit = println(appMapByCode)

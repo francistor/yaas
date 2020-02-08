@@ -7,6 +7,16 @@ import org.apache.ignite.cache.query.SqlFieldsQuery
 import org.apache.ignite.scalar._
 import scalar._
 
+/**
+ * Write 1000 entries in the CLIENT database
+ * username: user_<i>@clientdb.accept
+ * password: password!_<i>
+ * nasipaddress: 1.1.1.1
+ * nasport: <i>
+ *
+ * @param statsServer
+ * @param configObject
+ */
 class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
   if(cache$("CLIENTS").isEmpty){

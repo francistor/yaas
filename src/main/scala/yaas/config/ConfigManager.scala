@@ -11,15 +11,20 @@ import org.slf4j.LoggerFactory
 
 
 /**
- * Reads and caches JSON configuration files from java resources, files or URLs. The syntax MUST be JSON, but
- * allowing comments with //.
+ * Reads and caches configuration files from java resources, files or URLs.
+ *
+ * If the extension of the file is .json, tries to parse and cache the corresponding JSON. Otherwise the cache will
+ * store the raw string.
+ *
+ * Comments starting with // or # are allowed in the JSON files.
  * 
  * The class is a singleton and thread safe, thus usable anywhere in the code.
  * 
- * <code>getConfigObject</code> retrieves the contents of the specified configuration file from the cache, or reads it
+ * <code>getConfigObject[AsJson|AsString]</code> retrieves the contents of the specified configuration file from the cache, or reads it
  * if not available there, and caches it.
  * 
- * Entries are refreshed using <code>reloadConfigObject(objectName)</code> or <code>reloadAllConfigObjects</code>
+ * Entries are refreshed using <code>reloadConfigObject[AsJson|AsString](objectName)</code>, which returns the object,
+ * or <code>reloadAllConfigObjects</code>
  * 
  * The rules for where to get the configuration objects are stored in the configuration variable <code>configSearchRules</code>
  * that holds an array with the locations where to look for configuration objects
@@ -96,7 +101,7 @@ object ConfigManager {
 	 * @param url the url to retrieve
 	 * @return Configuration Object as String
 	 */
-	private def retrieveURLString(url: URL): String = {
+	private def retrieveURLAsString(url: URL): String = {
 		val source = Source.fromURL(url)
 		try {
 				source
@@ -143,7 +148,7 @@ object ConfigManager {
       urlOption match {
         // Try to read it
         case Some(url) =>
-					val objectValue = retrieveURLString(url)
+					val objectValue = retrieveURLAsString(url)
 					if(url.getPath.endsWith("json")) ConfigObject(url, objectValue, parse(objectValue))
 					else ConfigObject(url, objectValue, JNothing)
           

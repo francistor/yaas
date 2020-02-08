@@ -1,24 +1,24 @@
 package yaas.test
 
-import akka.actor.ActorSystem
-import akka.util.{ByteStringBuilder, ByteString}
-import akka.testkit.{TestKit}
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
-import org.scalatest.FlatSpec
+import java.nio.ByteOrder
 
+import akka.actor.ActorSystem
+import akka.testkit.TestKit
+import org.scalatest.{BeforeAndAfterAll, MustMatchers, WordSpecLike}
 import yaas.dictionary._
 import yaas.coding._
 import yaas.coding.DiameterConversions._
-
 import org.json4s._
 import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.{read, write, writePretty}
 
 class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
   
-  implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
+  private implicit val byteOrder: ByteOrder = java.nio.ByteOrder.BIG_ENDIAN
+
+  override def beforeAll {
+    System.setProperty("config.resource", "aaa-default.conf")
+  }
   
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -121,11 +121,6 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     val diameterMessage = new DiameterMessage(1000 /* applicationId */ , 2000 /* commandCode */, 99 /* h2hId */, 88 /* e2eId */, List(groupedAVP) /* value */, isRequest = true /* isRequest */)
     val serializedMessage = diameterMessage.getBytes
     val unserializedDiameterMessage = DiameterMessage(serializedMessage)
-    //unserializedDiameterMessage.applicationId must be (diameterMessage.applicationId)
-    //unserializedDiameterMessage.commandCode must be (diameterMessage.commandCode)
-    //unserializedDiameterMessage.hopByHopId must be (diameterMessage.hopByHopId)
-    //unserializedDiameterMessage.endToEndId must be (diameterMessage.endToEndId)
-    //unserializedDiameterMessage.avps mustEqual(List(groupedAVP))
     unserializedDiameterMessage mustEqual diameterMessage
   }
   
@@ -151,14 +146,24 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     val userIMSI = "99999"
     
     // Add AVP to Diameter message
-    val gavp: GroupedAVP = ("Subscription-Id", Seq(("Subscription-Id-Type" -> "EndUserIMSI"), ("Subscription-Id-Data", userIMSI)))
-    diameterMessage << gavp
+    val subsIdType: DiameterAVP[Any] = ("Subscription-Id-Type" -> "EndUserIMSI")
+    val subsIdData: DiameterAVP[Any] = ("Subscription-Id-Data", userIMSI)
+    val subsAVP: GroupedAVP = ("Subscription-Id", Seq()).withAttr(subsIdType).withAttr(subsIdData)
+    diameterMessage << subsAVP
+
+    // Retrieve full AVP
+    (diameterMessage >>> "Subscription-Id").get mustEqual subsAVP
     
     // Retrieve value
     ((diameterMessage >>> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
-    
+
     // Retrieve value using dot notation
-    (diameterMessage >>* "Subscription-Id.Subscription-Id-Data").get.stringValue mustEqual userIMSI
+    (diameterMessage >>* "Subscription-Id.Subscription-Id-Data.Other") mustBe None
+    (diameterMessage >>* "Subscription-Id.Other") mustBe None
+    (diameterMessage >>* "Other") mustBe None
+    (diameterMessage >>* "Subscription-Id.Subscription-Id-Data").get mustEqual subsIdData
+    (diameterMessage >>* "Subscription-Id").get mustEqual subsAVP
+
   }
   
   "DiameterMessage serialization and deserialization" in {

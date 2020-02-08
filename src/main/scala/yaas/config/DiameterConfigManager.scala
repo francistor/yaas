@@ -1,7 +1,6 @@
 package yaas.config
 
 import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
 import yaas.util.Net
 
@@ -35,10 +34,10 @@ case class DiameterRouteConfig(realm: String, applicationId: String, peers: Opti
 object DiameterConfigManager {
 
   // For deserialization of Json
-  private implicit val jsonFormats = DefaultFormats
+  private implicit val jsonFormats: DefaultFormats.type = DefaultFormats
   
   /*
-   * Values retreive the last known configuration 
+   * Values get the last known configuration
    */
 
   /**
@@ -46,55 +45,74 @@ object DiameterConfigManager {
    * 
    * Cannot change.
    */
-  val diameterConfig = ConfigManager.getConfigObjectAsJson("diameterServer.json").extract[DiameterServerConfig]
-  
-  def isDiameterEnabled = diameterConfig.bindAddress.contains(".") && (diameterConfig.bindPort > 0)
+  val diameterConfig: DiameterServerConfig = ConfigManager.getConfigObjectAsJson("diameterServer.json").extract[DiameterServerConfig]
+
+  /**
+   * Whether the Diameter stack must start up.
+   *
+   * It is so if the bindAddress is a valid address or 0.0.0.0
+   * @return true if Diameter is enabled
+   */
+  def isDiameterEnabled: Boolean = diameterConfig.bindAddress.contains(".") && (diameterConfig.bindPort > 0)
   
   /**
    * Holds a map from peer host names to peer configurations
    */
-  var diameterPeerConfig = Map[String, DiameterPeerConfig]()
+  var diameterPeerConfig: Map[String, DiameterPeerConfig] = Map[String, DiameterPeerConfig]()
   if(isDiameterEnabled) updateDiameterPeerConfig(true)
   
   /**
    * Holds the sequence of routes
    */
-  var diameterRouteConfig = Seq[DiameterRouteConfig]()
+  var diameterRouteConfig: Seq[DiameterRouteConfig] = Seq[DiameterRouteConfig]()
   if(isDiameterEnabled) updateDiameterRouteConfig(true)
-  
+
   /**
-   * Reloads the Diameter peer configuration reading it from the JSON configuration object.
+   * Reloads the Diameter peer configuration reading it from the JSON configuration object. If <code>withReload</code>
+   * is true, forces reading from the origin, which may not be needed if a previous
+   * <code>ConfigManager.reloadAllConfigObjects</code> has been invoked
+   * @param withReload true to force reading from source
    */
-  def updateDiameterPeerConfig(withReload: Boolean) = {
-    val jPeers = if(withReload) ConfigManager.reloadConfigObjectAsJson("diameterPeers.json") else ConfigManager.getConfigObjectAsJson("diameterPeers.json")
+  def updateDiameterPeerConfig(withReload: Boolean): Unit = {
+    val jPeers = if(withReload) ConfigManager.reloadConfigObjectAsJson("diameterPeers.json")
+                 else ConfigManager.getConfigObjectAsJson("diameterPeers.json")
     diameterPeerConfig = (for {
       peer <- jPeers.extract[Seq[DiameterPeerConfig]]
-    } yield (peer.diameterHost -> peer)).toMap
+    } yield peer.diameterHost -> peer).toMap
   }
   
    /**
-   * Reloads the Diameter routes configuration reading it from the JSON configuration object. 
+   * Reloads the Diameter routes configuration reading it from the JSON configuration object. If <code>withReload</code>
+   * is true, forces reading from the origin, which may not be needed if a previous
+   * <code>ConfigManager.reloadAllConfigObjects</code> has been invoked
+   * @param withReload true to force reading from source
    */
-  def updateDiameterRouteConfig(withReload: Boolean) = {
-    val jRoutes = if(withReload) ConfigManager.reloadConfigObjectAsJson("diameterRoutes.json") else ConfigManager.getConfigObjectAsJson("diameterRoutes.json")
+  def updateDiameterRouteConfig(withReload: Boolean): Unit = {
+    val jRoutes = if(withReload) ConfigManager.reloadConfigObjectAsJson("diameterRoutes.json")
+                  else ConfigManager.getConfigObjectAsJson("diameterRoutes.json")
     diameterRouteConfig = jRoutes.extract[Seq[DiameterRouteConfig]]
   }
-  
+
   /**
    * Gets the first Diameter Peer that conforms to the specification
+   * @param remoteIPAddress the address of the remote diameter server
+   * @param diameterHost the Origin-Host reported
+   * @return the DiameterPeerConfiguration if found, or None
    */
-  def findDiameterPeer(remoteIPAddress: String, diameterHost: String) = {
+  def findDiameterPeer(remoteIPAddress: String, diameterHost: String): Option[DiameterPeerConfig] = {
     diameterPeerConfig.collectFirst {
-      case (name, diameterPeer) if(Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork) && diameterHost == diameterPeer.diameterHost) => diameterPeer
+      case (_, diameterPeer) if Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork) && diameterHost == diameterPeer.diameterHost => diameterPeer
     } 
   }
-  
+
   /**
-   * Checks that there may be at least one Peer with the specified IP address
+   * Checks that there is at least one Peer with the specified IP address
+   * @param remoteIPAddress the IP address
+   * @return true if there is one peer in that range
    */
-  def validatePeerIPAddress(remoteIPAddress: String) = {
+  def validatePeerIPAddress(remoteIPAddress: String): Boolean = {
     diameterPeerConfig.collectFirst {
-      case (name, diameterPeer) if(Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork)) => diameterPeer
+      case (_, diameterPeer) if Net.isAddressInNetwork(remoteIPAddress, diameterPeer.originNetwork) => diameterPeer
     } .nonEmpty
   }
 }

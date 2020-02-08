@@ -355,8 +355,7 @@ class MetricsServer extends Actor with ActorLogging {
     .map{case (k, v) => MetricsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
     .toList   
   }
-  
-  
+
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Receive
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
@@ -541,9 +540,6 @@ class MetricsServer extends Actor with ActorLogging {
         case e: Throwable => sender ! akka.actor.Status.Failure(e)
       }
       
-    case a: Any => 
-      println(".........................")
-      println(a.getClass.toString)
-      println(".........................")
+    case _: Any =>
   }
 }

@@ -1,18 +1,16 @@
 package yaas.instrumentation
 
-import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill }
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.stream.ActorMaterializer
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl._
-import akka.http.scaladsl.server.Route
 import akka.pattern.ask
 import com.typesafe.config._
 import scala.util.{Success, Failure}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import yaas.server.Router._
-import yaas.server.DiameterPeerPointer
 import yaas.instrumentation.MetricsServer._
 
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
@@ -26,6 +24,15 @@ trait JsonSupport extends Json4sSupport {
   implicit val json4sFormats = org.json4s.DefaultFormats
 }
 
+/**
+ * JSON metrics are of the form
+ <code>
+ [
+   {"keymap":{"key1": "value1", "key2": "value2", ...}, "value": 0}}
+ ]
+ </code>
+ * @param metricsServer
+ */
 class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
   
   import InstrumentationRESTProvider._
@@ -188,11 +195,11 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
     }
     val inputKeys = params.get("agg").map(_.split(",").toList).getOrElse(allKeys)
     val invalidKeys = inputKeys.filter(!allKeys.contains(_))
-    if(invalidKeys.length == 0) complete((metricsServer ? GetMetrics(metricsType, statName, inputKeys)).mapTo[List[MetricsItem]])  
+    if(invalidKeys.length == 0) complete((metricsServer ? GetMetrics(metricsType, statName, inputKeys)).mapTo[List[MetricsItem]])
     else complete(StatusCodes.NotAcceptable, "Invalid aggregation key : " + invalidKeys.mkString(","))
   }
     
-  def restRoute = 
+  def restRoute =
     patch {
       pathPrefix("diameter"){
         pathPrefix("metrics" / "reset"){

@@ -1,66 +1,105 @@
 package yaas.handlers.test
 
-import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-
-import yaas.server._
-import yaas.coding._
+import akka.actor.ActorRef
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.stream.ActorMaterializer
+import de.heikoseeberger.akkahttpjson4s.Json4sSupport
+import org.json4s.JsonDSL._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
 import yaas.coding.DiameterConversions._
-import yaas.config.DiameterConfigManager
-import yaas.dictionary.DiameterDictionary
-import yaas.util.OctetOps
-import yaas.coding.RadiusPacket._
 import yaas.coding.RadiusConversions._
+import yaas.coding.RadiusPacket._
+import yaas.coding._
 import yaas.config.ConfigManager
-
-import scala.util.Try
-import scala.util.{Success, Failure}
-
-import yaas.server.MessageHandler
+import yaas.server.{MessageHandler, _}
+import yaas.util.OctetOps
 
 import scala.concurrent._
 import scala.concurrent.duration._
-
-import akka.stream.ActorMaterializer
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.HttpMethods._
-import de.heikoseeberger.akkahttpjson4s.Json4sSupport
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
+import scala.util.{Failure, Success, Try}
 
 
 trait JsonSupport extends Json4sSupport {
-  implicit val serialization = org.json4s.jackson.Serialization
-  implicit val json4sFormats = org.json4s.DefaultFormats
+  implicit val serialization: Serialization.type = org.json4s.jackson.Serialization
+  implicit val json4sFormats: DefaultFormats.type = org.json4s.DefaultFormats
 }
 
 abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[String]) extends MessageHandler(metricsServer, configObject) with JsonSupport {
   
   log.info("Instantiated Radius/Diameter client application")
-  
-  val nRequests = Option(System.getenv("YAAS_TEST_REQUESTS")).orElse(Option(System.getProperty("YAAS_TEST_REQUESTS"))).map(req => Integer.parseInt(req)).getOrElse(10000)
-  val doLoop = Option(System.getenv("YAAS_TEST_LOOP")).orElse(Option(System.getProperty("YAAS_TEST_LOOP"))).map(_.toBoolean).getOrElse(false)
-  val continueOnPerfError = Option(System.getenv("YAAS_CONTINUE_ON_PERF_ERROR")).orElse(Option(System.getProperty("YAAS_CONTINUE_ON_PERF_ERROR"))).map(_.toBoolean).getOrElse(false)
-  val nThreads = Option(System.getenv("YAAS_TEST_THREADS")).orElse(Option(System.getProperty("YAAS_TEST_THREADS"))).map(_.toInt).getOrElse(10)
 
-  implicit val materializer = ActorMaterializer()
-  val http = Http(context.system)
+  private def ok(msg: String = ""): Unit = println(s"\t[OK] $msg")
+  private def fail(msg: String = ""): Unit = println(s"\t[FAIL] $msg")
+  private def checkMetric(jMetric: JValue, targetCounter: Int, key: Map[String, String], legend: String): Unit = {
+    val counter = getCounterForKey(jMetric, key)
+    if(targetCounter == counter) ok(legend + ": " + counter) else fail(legend + ": " + counter + " expected: " + targetCounter)
+  }
+
+  /**
+   * Helper to get property from java properties or environment variables
+   * @param property name of the property
+   * @param defaultValue if not found
+   * @return found or default
+   */
+  def getIntFromEnv(property: String, defaultValue: Int): Int = {
+    Option(System.getenv(property)).orElse(Option(System.getProperty(property))).map(v => Integer.parseInt(v)).getOrElse(defaultValue)
+  }
+
+  /**
+   * Helper to get property from java properties or environment variables
+   * @param property name of the property
+   * @param defaultValue if not found
+   * @return found or default
+   */
+  def getBooleanFromEnv(property: String, defaultValue: Boolean): Boolean = {
+    Option(System.getenv(property)).orElse(Option(System.getProperty(property))).map(_.toBoolean).getOrElse(defaultValue)
+  }
+
+  /**
+   * Number of requests on each iteration
+   */
+  val nRequests: Int = getIntFromEnv("YAAS_TEST_REQUESTS", 10000)
+
+  /**
+   * Whether to run in a loop
+   */
+  val doLoop: Boolean = getBooleanFromEnv("YAAS_TEST_LOOP", defaultValue = false)
+
+  /**
+   * Do not stop if there was a timeout when executing performance testing
+   */
+  val continueOnPerfError: Boolean = getBooleanFromEnv("YAAS_CONTINUE_ON_PERF_ERROR", defaultValue = false)
+
+  /**
+   * Number of threads sending paralell requests
+   */
+  val nThreads: Int = getIntFromEnv("YAAS_TEST_THREADS", 10)
+
+  private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  private val http = Http(context.system)
   
   //////////////////////////////////////////////////////////////////////////////
   // Helper functions
+  //////////////////////////////////////////////////////////////////////////////
   
-  def waitJValue(r: Future[JValue]) = Await.result(r,  5 second)
-  
-  def waitInt(r: Future[Int]) = Await.result(r, 5 second)
-  
-  def intToIPAddress(i: Int) = {
+  private def waitJValue(r: Future[JValue]) = Await.result(r,  5.second)
+  private def waitInt(r: Future[Int]) = Await.result(r, 5.second)
+
+  // To simplify the management of IP addresses, we treat them sometimes as simple integers
+  private def intToIPAddress(i: Int) = {
     val bytes = Array[Byte]((i >> 24).toByte, (i >> 16).toByte, (i >> 8).toByte, (i % 8).toByte)
     java.net.InetAddress.getByAddress(bytes).getHostAddress
   }
-  
-  def jsonFromGet(url: String) = {
+
+  /**
+   * Wrappers of http requests
+   */
+  private def jsonFromGet(url: String) = {
     waitJValue(for {
       r <- http.singleRequest(HttpRequest(uri = url))
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
@@ -68,57 +107,53 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     )
   }
   
-  def jsonFromPostJson(url: String, json: String) = {
+  private def jsonFromPostJson(url: String, json: String) = {
     waitJValue(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
     } yield j)
   }
   
-  def jsonFromPostJsonWithErrorTrace(url: String, json: String) = {
+  private def jsonFromPostJsonWithErrorTrace(url: String, json: String) = {
     waitJValue(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
-      dummy = if(r.status.intValue() != 200) println(s"$url got ${r.status}")
+      _ = if(r.status.intValue() != 200) println(s"$url got ${r.status}")
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
     } yield j)
   }
   
-  def codeFromPostJson(url: String, json: String) = {
+  private def codeFromPostJson(url: String, json: String) = {
     waitInt(for {
       r <- http.singleRequest(HttpRequest(POST, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
     } yield r.status.intValue())
   }
   
-  def codeFromDelete(url: String) = {
+  private def codeFromDelete(url: String) = {
      waitInt(for {
       r <- http.singleRequest(HttpRequest(DELETE, uri = url))
     } yield r.status.intValue())   
   }
   
-  def patchJson(url: String, json: String) = {
+  private def codeFromPatchJson(url: String, json: String) = {
     waitInt(for {
       r <- http.singleRequest(HttpRequest(PATCH, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
     } yield r.status.intValue())
   }
-  
-  def ok(msg: String = "") = println(s"\t[OK] $msg")
-  
-  def fail(msg: String = "") = println(s"\t[FAIL] $msg")
-  
-  // Returns -1 on error
-  def getCounterForKey(stats: JValue, keyMap: Map[String, String]) = {
+
+  /**
+   *
+   * @param stats The json object received from the instrumentation server
+   * @param keyMap The full key whose value is to be retrieved, as a map of keys to values
+   * @return -1 in case of key not found
+   */
+  private def getCounterForKey(stats: JValue, keyMap: Map[String, String]) = {
     val out = for {
       JArray(statValues) <- stats
       statValue <- statValues
       JInt(counterValue) <- statValue \ "value" if((statValue \ "keyMap" diff keyMap) == Diff(JNothing, JNothing, JNothing))
     } yield counterValue
     
-    if(out.length == 0) -1 else out(0)
-  }
-  
-  def checkMetric(jMetric: JValue, targetCounter: Int, key: Map[String, String], legend: String) = {
-    val counter = getCounterForKey(jMetric, key)
-    if(targetCounter == counter) ok(legend + ": " + counter) else fail(legend + ": " + counter + " expected: " + targetCounter)
+    if(out.isEmpty) -1 else out.head.toInt
   }
   
   //////////////////////////////////////////////////////////////////////////////
@@ -137,15 +172,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   // peerCheckTimeSeconds should be configured with about 10 seconds. Starting the tests after
   // 15 seconds will give some time to retry connections that will have initially failed due 
   // to all servers starting at almost the same time
-  override def preStart = {
+  override def preStart: Unit = {
     context.system.scheduler.scheduleOnce(7 seconds, self, "Start")
   }
   
   // To receive the start message
-  override def receive = {
+  override def receive: Receive = {
     case "Start" =>
       // Start testing
-      nextTest
+      nextTest()
       
     case message: Any => 
       super.receive(message)
@@ -156,7 +191,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   println("STARTING TESTS")
   
-  var lastTestIdx = -1
+  private var lastTestIdx = -1
   def nextTest(): Unit = {
     lastTestIdx = lastTestIdx + 1
     if(tests.length > lastTestIdx)
@@ -186,31 +221,43 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   /////////////////////////////////////////////////////////////////////////
   // Test functions
   /////////////////////////////////////////////////////////////////////////
-  
+
+  /**
+   * Snooze for some milliseconds
+   * @param millis sleep time
+   */
   def sleep(millis: Int)(): Unit = {
     Thread.sleep(millis)
     nextTest
   }
-  
-  // Finishes the tests because does not call nextText
-  def stop(): Unit = {
+
+  /**
+   * Finishes the tests because does not call nextText
+   */
+  def stop()(): Unit = {
     println("Tests stopped")
-    System.exit(0);
   }
   
-  def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
+  private def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
       println(s"[TEST] $url connected to $connectedPeer")
       val peerStatus = jsonFromGet(s"${url}/diameter/peers")
       if((peerStatus \ connectedPeer \ "status").extract[Int] == PeerStatus.STATUS_READY) ok(s"Connected to $connectedPeer") else fail(s"Not connected to $connectedPeer") 
       nextTest
   }
   
-  def checkNotConnectedPeer(url: String, notConnectedPeer: String)(): Unit = {
+  private def checkNotConnectedPeer(url: String, notConnectedPeer: String)(): Unit = {
       println(s"[TEST] $url connected to notConnectedPeer")
       val peerStatus = jsonFromGet(s"${url}/diameter/peers")
       if((peerStatus \ notConnectedPeer \ "status").extract[Int] != PeerStatus.STATUS_READY) ok(s"$notConnectedPeer status is != 2") else fail(s"Connected to $notConnectedPeer") 
       nextTest
   }
+
+  def checkClientConnectedPeer(connectedPeer: String)(): Unit = checkConnectedPeer(s"$clientMetricsURL", connectedPeer)
+  def checkServerConnectedPeer(connectedPeer: String)(): Unit = checkConnectedPeer(s"$serverMetricsURL", connectedPeer)
+  def checkSuperServerConnectedPeer(connectedPeer: String)(): Unit = checkConnectedPeer(s"$superServerMetricsURL", connectedPeer)
+  def checkClientNotConnectedPeer(connectedPeer: String)(): Unit = checkNotConnectedPeer(s"$clientMetricsURL", connectedPeer)
+  def checkServerNotConnectedPeer(connectedPeer: String)(): Unit = checkNotConnectedPeer(s"$serverMetricsURL", connectedPeer)
+  def checkSuperServerNotConnectedPeer(connectedPeer: String)(): Unit = checkNotConnectedPeer(s"$superServerMetricsURL", connectedPeer)
   
   def clientPeerConnections(): Unit = {
       // Test-Client is connected to server.yaasserver, and not connected to non-existing-server.yaasserver
@@ -218,7 +265,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       val testClientPeers = jsonFromGet(s"${clientMetricsURL}/diameter/peers")
       if((testClientPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
       if((testClientPeers \ "non-existing-server.yaasserver" \ "status").extract[Int] != PeerStatus.STATUS_READY) ok("non-existing-server status is != 2") else fail("Connected to non-existing-server!") 
-      nextTest
+      nextTest()
   }
   
   def serverPeerConnections(): Unit = {
@@ -227,15 +274,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       val testServerPeers = jsonFromGet(s"${serverMetricsURL}/diameter/peers")
       if((testServerPeers \ "superserver.yaassuperserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to supersserver") else fail("Not connected to superserver") 
       if((testServerPeers \ "client.yaasclient" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to client") else fail("Not connected to client")
-      nextTest
+      nextTest()
   }
   
   def superserverPeerConnections(): Unit = {
-      // Test-SuperServer is connected to client.yaasclient and superserver.yaassuperserver
+      // Test-SuperServer is connected to server.yaasserver
       println("[TEST] Superserver Peer connections")
       val testSuperServerPeers = jsonFromGet(s"${superServerMetricsURL}/diameter/peers")
       if((testSuperServerPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
-      nextTest
+      nextTest()
   }
   
   /*
@@ -291,12 +338,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) 
           fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
         else {
-          ok("Password attribute and class received correctly")
+          ok("Password attribute received correctly")
         }
-        nextTest
+
+        nextTest()
       case Failure(ex) => 
         fail("Response not received")
-        nextTest
+        nextTest()
     }
   }
   
