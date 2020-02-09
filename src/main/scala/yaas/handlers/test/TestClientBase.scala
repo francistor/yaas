@@ -173,7 +173,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   // 15 seconds will give some time to retry connections that will have initially failed due 
   // to all servers starting at almost the same time
   override def preStart: Unit = {
-    context.system.scheduler.scheduleOnce(7 seconds, self, "Start")
+    context.system.scheduler.scheduleOnce(3 seconds, self, "Start")
   }
   
   // To receive the start message
@@ -557,7 +557,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     sendDiameterRequest(request, 3000).onComplete{
       case Success(answer) =>
         // Check answer
-        if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
+        if(answer.L("Result-Code") == DiameterMessage.DIAMETER_SUCCESS) ok("Received Success Result-Code") else fail("Not received success code")
         
         // Find session
         val session = jsonFromGet(sessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
@@ -601,7 +601,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     sendDiameterRequest(gxRequest, 3000).onComplete{
       case Success(answer) =>
         // Check answer in binary format
-        if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) ok("Received Success Result-Code") else fail("Not received success code")
+        if(answer.L("Result-Code") == DiameterMessage.DIAMETER_SUCCESS) ok("Received Success Result-Code") else fail("Not received success code")
         
         // Check answer in JSON format
         val gxResponse: JValue = answer
@@ -965,7 +965,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
             sendDiameterRequest(request, 5000).onComplete{
               case Success(answer) =>
                 // Check answer
-                if(avpCompare(answer >> "Result-Code", DiameterMessage.DIAMETER_SUCCESS)) loop
+                if(answer.L("Result-Code") == DiameterMessage.DIAMETER_SUCCESS) loop
                 else promise.failure(new Exception("Bad answer"))
         
               case Failure(e) =>

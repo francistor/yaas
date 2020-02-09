@@ -270,6 +270,8 @@ object DiameterDictionary {
 	def getAttrCodeFromName(name: String): Option[(Long, Long)] = {
 		avpMapByName.get(name).map(di => (di.vendorId, di.code))
 	}
+
+	val unknownDiameterDictionaryItem: BasicAVPDictItem = BasicAVPDictItem(0, 0, "Unknown", DiameterTypes.NONE)
   
 	// For debugging
 	def show(): Unit = println(appMapByCode)

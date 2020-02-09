@@ -24,8 +24,8 @@ class DefaultCCHandler(statsServer: ActorRef, configObject: Option[String]) exte
     // The server echoes back the subscription-id-data as the user-name and sets Granted-Service-Units to 3600 time units
     
     val request = ctx.diameterRequest
-    val subscriptionIdType: String = request >:> "Subscription-Id" >> "Subscription-Id-Type"
-    val subscriptionIdData: String = request >:> "Subscription-Id" >> "Subscription-Id-Data"
+    val subscriptionIdType: String = request >-> "Subscription-Id" >> "Subscription-Id-Type"
+    val subscriptionIdData: String = request >-> "Subscription-Id" >> "Subscription-Id-Data"
   
     
     val subscriptionIdAVP: GroupedAVP = ("Subscription-Id" -> List(("Subscription-Id-Type" -> subscriptionIdType), ("Subscription-Id-Data" -> subscriptionIdData)))

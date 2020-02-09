@@ -23,9 +23,9 @@ class GxHandler(statsServer: ActorRef, configObject: Option[String]) extends Mes
     // Echoes the subscription-id in the charging rule name
     val request = ctx.diameterRequest
     val answer = DiameterMessage.answer(request)
-    val subscriptionIdData: String = request >:> "Subscription-Id" >> "Subscription-Id-Data"
+    val subscriptionIdData: String = request >-> "Subscription-Id" >> "Subscription-Id-Data"
     answer << 
-      ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) <:< ("3GPP-Charging-Rule-Install" -> Seq(("3GPP-Charging-Rule-Name" -> subscriptionIdData)))
+      ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) <-< ("3GPP-Charging-Rule-Install" -> Seq(("3GPP-Charging-Rule-Name" -> subscriptionIdData)))
       
     sendDiameterAnswer(answer)
   }

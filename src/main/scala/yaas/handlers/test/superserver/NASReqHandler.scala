@@ -32,7 +32,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
     
     val request = ctx.diameterRequest
     val framedInterfaceId: String = request >> "Framed-Interface-Id"
-    val chapIdent: String = (request >:> "CHAP-Auth") >> "CHAP-Ident"
+    val chapIdent: String = (request >-> "CHAP-Auth") >> "CHAP-Ident"
     
     val answer = DiameterMessage.answer(ctx.diameterRequest)
     answer << ("Result-Code" -> DiameterMessage.DIAMETER_SUCCESS) << ("Class", framedInterfaceId) << ("Class", chapIdent)

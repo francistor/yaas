@@ -16,8 +16,15 @@ import scala.util.matching.Regex
 
 /**
  * Diameter coding error.
+ * @param msg the message
  */
 class DiameterCodingException(val msg: String) extends java.lang.Exception(msg: String)
+
+/**
+ * AVP extraction exception
+ * @param msg the message
+ */
+class DiameterExtractionException(val msg: String) extends java.lang.Exception(msg: String)
 
 /**
  * DiameterAVP Builder via apply.
@@ -27,8 +34,6 @@ object DiameterAVP {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
   
   val ipv6PrefixRegex: Regex = """(.+)/([0-9]+)""".r
-
-  private val voidDictItem = BasicAVPDictItem(0, 0, "Unknown", DiameterTypes.NONE)
   
   /**
    * Builds a Diameter AVP from the received bytes.
@@ -127,14 +132,14 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
   implicit val byteOrder: ByteOrder = DiameterAVP.byteOrder
 
   /**
+   * Holds the dictionary entry for this AVP
+   */
+  val dictionaryItem: DiameterAVPDictItem = DiameterDictionary.avpMapByCode.getOrElse((vendorId, code), DiameterDictionary.unknownDiameterDictionaryItem)
+
+  /**
    * Holds the name of the attribute
    */
   val name: String = getName
-
-  /**
-   * Holds the dictionary entry for this AVP
-   */
-  val dictionaryDef: DiameterAVPDictItem = DiameterDictionary.avpMapByCode.getOrElse((vendorId, code), DiameterAVP.voidDictItem)
 
   /**
    * Serializes the AVP
@@ -202,6 +207,13 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
    * To get names and values use <code>pretty</code>
    */
   override def toString: String = stringValue
+
+  /**
+   * Returns the To be overriden in concrete classes.
+   * @return the contents of the AVP as a Long, if possible
+   *
+   */
+  def longValue: Long
   
   /**
    * Returns a copy of this AVP.
@@ -229,7 +241,7 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
       case thisAVP : GroupedAVP =>
         thisAVP.value.foldRight("\n")((avp, acc) => acc + avp.pretty(indent + 1) + "\n")
       case thisAVP : EnumeratedAVP =>
-        dictionaryDef match {
+        dictionaryItem match {
           case di : EnumeratedAVPDictItem =>
             di.codes.getOrElse(thisAVP.value, thisAVP.value.toString)
           case _ => "ERROR"
@@ -246,7 +258,7 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
    * Name of the AVP as it appears in the dictionary.
    */
   def getName: String = {
-    DiameterDictionary.avpMapByCode.get((vendorId, code)).map(_.name).getOrElse("UNKNOWN")
+    dictionaryItem.name
   }
   
   /**
@@ -255,7 +267,7 @@ abstract class DiameterAVP[+A](val code: Long, val isVendorSpecific: Boolean, va
    * Values in <code>DiameterTypes</code>
    */
   def getType: Int = {
-    DiameterDictionary.avpMapByCode.get((vendorId, code)).map(_.diameterType).getOrElse(DiameterTypes.NONE)
+    dictionaryItem.diameterType
   }
 }
 
@@ -288,6 +300,13 @@ class UnknownAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   }
 
   /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("UnknownAVP cannot be extracted as Long")
+  }
+
+  /**
    * List are immutable, so we are not copying it
    * @return the copied AVP
    */
@@ -317,6 +336,13 @@ class OctetStringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   override def stringValue: String = {
     OctetOps.octetsToString(value)
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("OctetStringAVP cannot be extracted as Long")
+  }
   
   override def copy = new OctetStringAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -341,6 +367,11 @@ class Integer32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, 
   override def stringValue: String = {
     value.toString
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new Integer32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -365,6 +396,11 @@ class Integer64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, 
   override def stringValue: String = {
     value.toString
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new Integer64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -389,6 +425,11 @@ class Unsigned32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def stringValue: String = {
     value.toString
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new Unsigned32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -414,6 +455,11 @@ class Unsigned64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   override def stringValue: String = {
     value.toString
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new Unsigned64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -436,6 +482,11 @@ class Float32AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue: String = {
     value.toString
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new Float32AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -458,6 +509,11 @@ class Float64AVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue: String = {
     value.toString
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new Float64AVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -507,6 +563,13 @@ class GroupedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
         s""""${inAVP.getName}"="${inAVP.stringValue}""""
       }.mkString(",") +
       "}"
+  }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("GroupedAVP cannot be extracted as Long")
   }
 
   override def copy: GroupedAVP = new GroupedAVP(code, isVendorSpecific, isMandatory, vendorId, value.map(_.copy))
@@ -607,6 +670,13 @@ class AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, ve
   override def stringValue: String = {
     value.getHostAddress
   }
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("AddressAVP cannot be extracted as Long")
+  }
   
   override def copy = new AddressAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -654,6 +724,11 @@ class TimeAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean, vendo
   }
   
   override def stringValue: String = new java.text.SimpleDateFormat("YYYY-MM-dd'T'hh:mm:ss").format(value)
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value
   
   override def copy = new TimeAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -674,6 +749,13 @@ class UTF8StringAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
   
   override def stringValue: String = value
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("UTF8StringAVP cannot be extracted as Long")
+  }
   
   override def copy = new UTF8StringAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -695,6 +777,13 @@ class DiameterIdentityAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Bo
 
   override def stringValue: String = value
 
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("DiameterIdentityAVP cannot be extracted as Long")
+  }
+
   override def copy = new DiameterIdentityAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
@@ -715,6 +804,13 @@ class DiameterURIAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
 
   override def stringValue: String = value
 
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("DiameterURIAVP cannot be extracted as Long")
+  }
+
   override def copy = new DiameterURIAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
 
@@ -734,6 +830,11 @@ class EnumeratedAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
 
   override def stringValue: String = DiameterDictionary.avpMapByCode.get((vendorId, code)).map{case EnumeratedAVPDictItem(_, _, _, _, _ , codes) => codes.getOrElse(value, "Unknown value")}.getOrElse("Unknown type")
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = value.toLong
   
   override def copy = new EnumeratedAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -754,6 +855,13 @@ class IPFilterRuleAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolea
   }
 
   override def stringValue: String = value
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("IPFilterRuleAVP cannot be extracted as Long")
+  }
   
   override def copy = new IPFilterRuleAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -772,6 +880,13 @@ class IPv4AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   def getPayloadBytes: ByteString = ByteString.fromArray(value.getAddress)
   
   override def stringValue: String = value.getHostAddress
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("IPv4AddressAVP cannot be extracted as Long")
+  }
   
   override def copy = new IPv4AddressAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -790,6 +905,13 @@ class IPv6AddressAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean
   def getPayloadBytes: ByteString = ByteString.fromArray(value.getAddress)
   
   override def stringValue: String = value.getHostAddress
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("IPv6AddressAVP cannot be extracted as Long")
+  }
   
   override def copy = new IPv6AddressAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -808,7 +930,7 @@ class IPv6PrefixAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
       val it = bytes.iterator
       val prefixLen = UByteString.getUnsignedByte(it.drop(1)) // Ignore the first byte (reserved) and read the second, which is the prefix length
       val prefix = java.net.InetAddress.getByAddress(it.getBytes(it.len).padTo[Byte, Array[Byte]](16, 0))
-      prefix.getHostAddress + "/" + prefixLen
+      s"${prefix.getHostAddress}/$prefixLen"
     })
   }
   
@@ -827,6 +949,13 @@ class IPv6PrefixAVP(code: Long, isVendorSpecific: Boolean, isMandatory: Boolean,
   }
   
   override def stringValue: String = value
+
+  /**
+   * @return the contents of the AVP as a Long, if possible
+   */
+  override def longValue: Long = {
+    throw new DiameterExtractionException("IPv6PrefixAVP cannot be extracted as Long")
+  }
   
   override def copy = new IPv6PrefixAVP(code, isVendorSpecific, isMandatory, vendorId, value)
 }
@@ -1108,7 +1237,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    * 
    * Same as << and <code>put</code>. Used only for symmetry
    */
-  def <:< (avp: GroupedAVP) : DiameterMessage = {
+  def <-< (avp: GroupedAVP) : DiameterMessage = {
     avps = avps :+ avp
     this
   }
@@ -1118,13 +1247,13 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    *
    * Same as << and <code>put</code>. Used only for symmetry
    */
-  def putGrouped(avp: GroupedAVP): DiameterMessage = <:< (avp: GroupedAVP)
+  def putGrouped(avp: GroupedAVP): DiameterMessage = <-< (avp: GroupedAVP)
 
   
    /**
    * Adds a grouped AVP to message.
    */
-  def <:< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
+  def <-< (avpOption: Option[GroupedAVP]) : DiameterMessage = {
     avpOption match {
       case Some(avp) => 
         avps = avps :+ avp
@@ -1138,7 +1267,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    *
    * Simple <code>put</code> may also be used,
    */
-  def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <:< (avp: Option[GroupedAVP])
+  def putGrouped(avp: Option[GroupedAVP]): DiameterMessage = <-< (avp: Option[GroupedAVP])
   
   // Insert multiple values
   /**
@@ -1189,7 +1318,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
    * 
    * Same as <code>getGroup</code>
    */
-  def >:> (attributeName: String) : Option[GroupedAVP] = {
+  def >-> (attributeName: String) : Option[GroupedAVP] = {
     DiameterDictionary.getAttrCodeFromName(attributeName) match {
       case Some((vendorId, code)) =>
         avps.find(avp => avp.vendorId == vendorId && avp.code == code) match {
@@ -1207,7 +1336,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Extracts the first grouped AVP with the specified name from message.
    */
-  def getGroup(attributeName: String) : Option[GroupedAVP] = >:> (attributeName: String)
+  def getGroup(attributeName: String) : Option[GroupedAVP] = >-> (attributeName: String)
 
   /**
    * Extracts the DiameterAVP from the full name using dot notation
@@ -1230,7 +1359,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
                avp match {
                  case v : GroupedAVP =>
                    getNextAVP(tail, v.get(head))
-                 case v =>
+                 case _ =>
                    // Trying to extract from a non grouped AVP
                    None
                }
@@ -1308,7 +1437,33 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     avps = avps.filter(avp => avp.vendorId != vendorId || avp.code != code)
     this
   }
-    
+
+  /**
+   * Simple string extractor
+   * @param key the attribute to extract in dot format
+   */
+  def S(key: String): String = {
+    getDeep(key) match {
+      case Some(avp) =>
+        avp.stringValue
+      case _ =>
+        throw new DiameterExtractionException(s"$key not found")
+    }
+  }
+
+  /**
+   * Simple string extractor
+   * @param key the attribute to extract in dot format
+   */
+  def L(key: String): Long = {
+    getDeep(key) match {
+      case Some(avp) =>
+        avp.longValue
+      case _ =>
+        throw new DiameterExtractionException(s"$key not found")
+    }
+  }
+
   /**
    * Generates a <code>DiameterMessageKey</code> for stats.
    */
@@ -1347,7 +1502,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
         compact(render(DiameterConversions.diameterMessageToJson(this) \ "avps"))
 
       case f: CSVDiameterSerialFormat =>
-        f.attrList.map(attr => s""""${getDeep("").map(_.stringValue).getOrElse("")}"""").mkString(",")
+        f.attrList.map(_ => s""""${getDeep("").map(_.stringValue).getOrElse("")}"""").mkString(",")
     }
   }
   
@@ -1361,7 +1516,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
     val commandName = application.flatMap(_.commandMapByCode.get(commandCode).map(_.name)).getOrElse("Unknown")
     val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty() + DiameterMessage.lineSeparator)
     
-    s"${applicationName} - ${commandName}${DiameterMessage.lineSeparator}${header}${DiameterMessage.lineSeparator}${prettyAVPs}${DiameterMessage.lineSeparator}"
+    s"$applicationName - $commandName${DiameterMessage.lineSeparator}$header${DiameterMessage.lineSeparator}$prettyAVPs${DiameterMessage.lineSeparator}"
   }
   
   override def equals(other: Any): Boolean = {
@@ -1388,27 +1543,13 @@ object DiameterConversions {
   
   private implicit val jsonFormats: Formats = DefaultFormats + new DiameterMessageSerializer
   
-  def avpCompare(o: Option[DiameterAVP[Any]], other: String): Boolean = {
-    o match {
-      case Some(avp) => avp.toString == other
-      case None => if(other == "") true else false
-    }
-  }
-  
-  def avpCompare(o: Option[DiameterAVP[Any]], other: Long): Boolean = {
-    o match {
-      case Some(avp) => avp.toString == other.toString
-      case None => false
-    }
-  }
-  
   /**
    * This is to allow composing >> after >:>, which returns an Option
    */
   implicit def FromOptionGrouped(o: Option[GroupedAVP]): GroupedAVP = {
     o match {
       case Some(avp) => avp
-      case None => ("EMPTY-GROUPED", Seq())
+      case None => throw new DiameterExtractionException("Cannot extract from empty grouped AVP")
     }
   }
   
@@ -1421,7 +1562,7 @@ object DiameterConversions {
       case None => ""
     }
   }
-  
+
   /**
    * Simple Diameter AVP from tuple (name, value).
    */
@@ -1491,6 +1632,7 @@ object DiameterConversions {
         new IPv6AddressAVP(code, isVendorSpecific, isMandatory, vendorId, java.net.InetAddress.getByName(attrValue))
 
       case DiameterTypes.RADIUS_IPV6PREFIX =>
+        // TODO: Check syntax using regex
         new IPv6PrefixAVP(code, isVendorSpecific, isMandatory, vendorId, attrValue)
     }
   }
@@ -1579,9 +1721,10 @@ object DiameterConversions {
    * Only works for one-level grouped AVP.
    */
   implicit def GroupedDiameterAVP2Seq(avp: GroupedAVP) : Seq[(String, String)] = {
-    (for {
-      avpElement <- avp.value
-    } yield (DiameterDictionary.avpMapByCode.get(avpElement.vendorId, avpElement.code).map(_.name).getOrElse("Unknown") -> avpElement.stringValue))
+    val v = avp.value
+    for {
+      avpElement <- v
+    } yield DiameterDictionary.avpMapByCode.get((avpElement.vendorId, avpElement.code)).map(_.name).getOrElse("Unknown") -> avpElement.stringValue
   }
   
   /**
@@ -1603,8 +1746,7 @@ object DiameterConversions {
     
     new GroupedAVP(code, isVendorSpecific, isMandatory, vendorId, avpList.toList)
   }
-  
-  
+
   /**
    * Helpers for custom DiameterMessage Serializer.
    * 
@@ -1733,35 +1875,36 @@ object DiameterConversions {
   
   /**
    * Custom JSON serializer for the DiameterMessage.
+   *
    */
   class DiameterMessageSerializer extends CustomSerializer[DiameterMessage](implicit jsonFormats => (
   {
     case jv: JValue =>
       
       try {
-        val avps = (jv \ "avps") match {
+        val avps = jv \ "avps" match {
           case JObject(javps) => for { jField <- javps} yield JField2DiameterAVP(jField)
           case _ => List()
         }
         
-        val applicationId = (jv \ "applicationId") match {
+        val applicationId = jv \ "applicationId" match {
           case JString(v) => DiameterDictionary.appMapByName(v).code
           case JInt(v) => v.toLong
           case _ => throw new DiameterCodingException("Bad applicationId value")
         }
         
-        val commandCode = (jv \ "commandCode") match {
+        val commandCode = jv \ "commandCode" match {
           case JString(v) => DiameterDictionary.appMapByCode(applicationId).commandMapByName(v).code
           case JInt(v) => v.toInt
           case _ => throw new DiameterCodingException("Bad commandCode value")
         }
         
-        val hopByHopId = (jv \ "hopByHopId") match {
+        val hopByHopId = jv \ "hopByHopId" match {
           case JInt(v) => v.toInt
           case _ => IDGenerator.nextHopByHopId
         }
         
-        val endToEndId = (jv \ "endToEndId") match {
+        val endToEndId = jv \ "endToEndId" match {
           case JInt(v) => v.toInt
           case _ => IDGenerator.nextEndToEndId
         }

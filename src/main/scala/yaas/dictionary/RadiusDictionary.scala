@@ -121,5 +121,14 @@ object RadiusDictionary {
     attrs = jAttrs.extract[RadiusAVPAttributes]
     vendorName = if(vendor == "0") "" else vendorNames(vendor) + "-"
 	} yield (vendorName + attrs.name) -> getDictionaryItemFromAttributes(attrs, vendor, vendorNames)
+
+	/**
+	 * Gets the code of the AVP in an Option or None if name not in dictionary
+	 */
+	def getAttrCodeFromName(name: String): Option[(Long, Long)] = {
+		avpMapByName.get(name).map(di => (di.vendorId, di.code))
+	}
+
+	val unknownRadiusDictionaryItem: RadiusAVPDictItem = RadiusAVPDictItem(0, 0, "UNKNOWN", RadiusTypes.NONE, 0, hasTag = false, None, None)
 }
 

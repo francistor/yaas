@@ -338,7 +338,7 @@ if no match is found.
 `>>>` or `getDeep` does the same, but the name of the parameter may be nested, using dot notation (such
 as "Subscription-Id.IMSI".
 
-`>:>` or `getGroup` also does the same, but the extracted AVP is of type Grouped, which is useful sometimes
+`>->` or `getGroup` also does the same, but the extracted AVP is of type Grouped, which is useful sometimes
 for type safety.
 
 `>>+` or `getAll`extracts a List of attributes with the specified name, instead of only the first one. This
@@ -351,7 +351,7 @@ string, comma separated if there are several values. Not very usual in Diameter.
 
 `<<` or `put` adds an `DiameterAVP`, an `Option[DiameterAVP]` or a `List[DiameterAVP]` to the message.
 
-`<:<` or `putGroup` adds an `GroupedAVP` or `Option[GroupedAVP]` to the message. In reality, the above methods may also be used.
+`<-<` or `putGroup` adds an `GroupedAVP` or `Option[GroupedAVP]` to the message. In reality, the above methods may also be used.
 
 ### JSON format for Diameter messages
 
