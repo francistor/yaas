@@ -4,6 +4,7 @@ import org.json4s._
 
 import yaas.util.Net
 
+
 /**
  * Represents the basic properties of the Diameter Server, as defined in the <code>diameterServer.json</code> configuration object
  */

@@ -18,6 +18,7 @@ import yaas.coding._
 import yaas.config.ConfigManager
 import yaas.server.{MessageHandler, _}
 import yaas.util.OctetOps
+import yaas.config._
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -241,7 +242,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   private def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
       println(s"[TEST] $url connected to $connectedPeer")
       val peerStatus = jsonFromGet(s"${url}/diameter/peers")
-      if((peerStatus \ connectedPeer \ "status").extract[Int] == PeerStatus.STATUS_READY) ok(s"Connected to $connectedPeer") else fail(s"Not connected to $connectedPeer") 
+      if((peerStatus \ connectedPeer \ "status").extract[Int] == PeerStatus.STATUS_READY) ok(s"Connected to $connectedPeer") else fail(s"Not connected to $connectedPeer")
       nextTest
   }
   

@@ -39,25 +39,20 @@ Outgoing messages (create actor messages)
 
  */
 
-import akka.actor.{ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill}
-import akka.event.{Logging, LoggingReceive}
-import scala.concurrent.Future
-import scala.concurrent.duration._
-import scala.util.{Try, Success, Failure}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
+import akka.event.LoggingReceive
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.util.ByteString
 import com.typesafe.config.ConfigFactory
-
-import yaas.config.{DiameterConfigManager, DiameterRouteConfig, DiameterPeerConfig}
-import yaas.config.{RadiusConfigManager, RadiusThisServerConfig, RadiusPorts, RadiusServerConfig, RadiusServerGroupConfig, RadiusClientConfig}
-import yaas.config.{HandlerConfigManager, HandlerConfigEntry}
-import yaas.coding.DiameterMessage
 import yaas.coding.DiameterConversions._
-import yaas.coding.RadiusPacket
+import yaas.coding.{DiameterMessage, RadiusPacket}
+import yaas.config._
+import yaas.instrumentation.{MetricsOps, MetricsServer}
 import yaas.server.RadiusActorMessages._
-import yaas.instrumentation.MetricsServer
-import yaas.instrumentation.MetricsOps
+
+import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 
 /********************************
@@ -77,13 +72,13 @@ case class DiameterPeerPointer(config: DiameterPeerConfig, status: Int, actorRef
 /********************************
   Instrumental Radius classes
  ********************************/
-case class RadiusEndpointStatus(val endPointType: Int, val port: Int, var quarantineTimestamp: Long, var accErrors: Int) {
+case class RadiusEndpointStatus(endPointType: Int, port: Int, var quarantineTimestamp: Long, var accErrors: Int) {
   
-  def addErrors(errors: Int) = {
+  def addErrors(errors: Int): Unit = {
     accErrors = accErrors + errors
   }
   
-  def reset = {
+  def reset(): Unit = {
     accErrors = 0
   }
 }
@@ -91,8 +86,8 @@ case class RadiusEndpointStatus(val endPointType: Int, val port: Int, var quaran
 /*
  * Used to store the radius servers configuration and runtime status. The availability is tracked per port
  */
-case class RadiusServerPointer(val name: String, val IPAddress: String, val secret: String, val quarantineTimeMillis: Int, val errorLimit: Int,
-    val endpointMap: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
+case class RadiusServerPointer(name: String, IPAddress: String, secret: String, quarantineTimeMillis: Int, errorLimit: Int,
+															 endpointMap: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
     
     
 ///////////////////////////////////////////////////////////////////////////////
@@ -101,18 +96,42 @@ case class RadiusServerPointer(val name: String, val IPAddress: String, val secr
 
 // Best practise
 object Router {
-  def props() = Props(new Router())
-  
-  // Actor messages
+  def props(): Props = Props(new Router())
+
+	// Actor Messages
+
+	/**
+	 * Sent by Router to a handler actor. The owner will be the Originating peer
+	 * @param message the Diameter Message sent
+	 * @param owner origin Peer
+	 */
   case class RoutedDiameterMessage(message: DiameterMessage, owner: ActorRef)
+
+	/**
+	 * Notification from Peer that is not available anymore
+	 */
   case class PeerDown()
+
+	/**
+	 * Sent by the RadiusClient to notify statistics
+	 * @param stats statistics object
+	 */
   case class RadiusClientStats(stats: Map[RadiusEndpoint, (Int, Int)])
-  
-  // Instrumentation messages
+
+	/**
+	 * To answer with Peer Stats
+	 */
   case object IXGetPeerStatus
+
+	/**
+	 * Notification that the configuration has changed
+	 * @param fileName don't know
+	 */
   case class IXReloadConfig(fileName: Option[String])
-  
-  // Housekeeping
+
+	/**
+	 * Auto-sent periodically to check if the Peer table has changed
+	 */
   case object PeerCheck
 }
 
@@ -121,53 +140,40 @@ class Router() extends Actor with ActorLogging {
   
   import Router._
   
-  val config = ConfigFactory.load().getConfig("aaa")
+  private val config = ConfigFactory.load().getConfig("aaa")
   
-  val peerCheckTimeSeconds = config.getInt("diameter.peerCheckTimeSeconds")
+  private val peerCheckTimeSeconds = config.getInt("diameter.peerCheckTimeSeconds")
   
-    // Create stats server
-  val metricsServer = context.actorOf(MetricsServer.props)
+	// Create stats server
+  private val metricsServer = context.actorOf(MetricsServer.props())
   
   // Start sessions database and IPAM REST server
-	val databaseRole = config.getString("sessionsDatabase.role")
-	if(databaseRole != "none") yaas.database.SessionDatabase.init
+	private val databaseRole = config.getString("sessionsDatabase.role")
+	if(databaseRole != "none") yaas.database.SessionDatabase.init()
 	if(databaseRole == "server") context.actorOf(yaas.database.SessionRESTProvider.props(metricsServer))
-  
-  // Empty initial maps to working objects
-  // Diameter
-	var diameterServerIPAddress = "0.0.0.0"
-	var diameterServerPort = 0
-	var peerHostMap : scala.collection.mutable.Map[String, DiameterPeerPointer] = scala.collection.mutable.Map()
-	var handlerMap: Map[String, ActorRef] = Map()
-	var diameterRoutes : Seq[DiameterRoute] = Seq()
-	
-	// Radius
-	var radiusServerIPAddress = "0.0.0.0"
-	var radiusServerAuthPort = 0
-	var radiusServerAcctPort = 0
-	var radiusServerCoAPort = 0
-	var radiusServers = Map[String, RadiusServerPointer]()
-  var radiusServerGroups = Map[String, RadiusServerGroupConfig]()
-	var radiusClients = Map[String, RadiusClientConfig]()
-	
-	// First update of diameter configuration
-  val diameterConfig = DiameterConfigManager.diameterConfig
-  diameterServerIPAddress = diameterConfig.bindAddress
-  diameterServerPort = diameterConfig.bindPort
 
-  // First update of radius configuration
-  val radiusConfig = RadiusConfigManager.radiusConfig
-  radiusServerIPAddress = radiusConfig.bindAddress
-  radiusServerAuthPort = radiusConfig.authBindPort
-  radiusServerAcctPort = radiusConfig.acctBindPort
-  radiusServerCoAPort = radiusConfig.coABindPort
-  radiusServerGroups = RadiusConfigManager.radiusServerGroups
-  radiusServers = getRadiusServers(RadiusConfigManager.radiusServers)
+	private var handlerMap: Map[String, ActorRef] = Map()
   
+  // Initial Diameter Configuration
+	private val diameterConfig = DiameterConfigManager.diameterConfig
+	private var diameterServerIPAddress = diameterConfig.bindAddress
+	private var diameterServerPort = diameterConfig.bindPort
+	private var peerHostMap : scala.collection.mutable.Map[String, DiameterPeerPointer] = scala.collection.mutable.Map()
+	private var diameterRoutes : Seq[DiameterRoute] = Seq()
+	
+	// Initial Radius Configuration
+	private val radiusConfig = RadiusConfigManager.radiusConfig
+	private var radiusServerIPAddress = radiusConfig.bindAddress
+	private var radiusServerAuthPort = radiusConfig.authBindPort
+	private var radiusServerAcctPort = radiusConfig.acctBindPort
+	private var radiusServerCoAPort = radiusConfig.coABindPort
+	private var radiusServers: Map[String, RadiusServerPointer] = getRadiusServers(RadiusConfigManager.radiusServers)
+	private var radiusServerGroups: Map[String, RadiusServerGroupConfig] = RadiusConfigManager.radiusServerGroups
+	
   // Diameter Server socket
-  implicit val actorSytem = context.system
-  implicit val materializer = ActorMaterializer()
-  implicit val executionContext = context.dispatcher
+  private implicit val actorSytem: ActorSystem = context.system
+  private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  private implicit val executionContext: ExecutionContextExecutor = context.dispatcher
     
   if(DiameterConfigManager.isDiameterEnabled){
     startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
@@ -183,7 +189,7 @@ class Router() extends Actor with ActorLogging {
   }
   
   // Radius client
-  val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled) 
+  private val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled)
     Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, metricsServer), "RadiusClient"))
     else None
   

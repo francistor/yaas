@@ -2,11 +2,15 @@ package yaas.config
 
 import com.typesafe.config.ConfigFactory
 import java.net.URL
+
+import akka.actor.ActorRef
+
 import scala.io.Source
 import scala.util.matching.Regex
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import scala.util.{Try, Success, Failure}
+
+import scala.util.{Failure, Success, Try}
 import org.slf4j.LoggerFactory
 
 
