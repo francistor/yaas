@@ -1479,18 +1479,20 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   /**
    * Gets the application name.
    */
-  def application : String = {
-    DiameterDictionary.appMapByCode.get(applicationId).map(_.name).getOrElse("Unknown")
-  }
+  val application : String = DiameterDictionary.appMapByCode.get(applicationId).map(_.name).getOrElse("Unknown")
   
   /**
    * Gets the command name.
    */
-  def command: String = {
-    DiameterDictionary.appMapByCode.get(applicationId).flatMap(_.commandMapByCode.get(commandCode).map(_.name)).getOrElse("Unknown")
+  val command: String = DiameterDictionary.appMapByCode.get(applicationId).flatMap(_.commandMapByCode.get(commandCode).map(_.name)).getOrElse("Unknown")
+
+  /**
+   * Gets the destination realm
+   */
+  def destinationRealm: String = {
+    get(0, 283).map(_.stringValue).getOrElse(DiameterMessage.EMPTY_FIELD)
   }
-  
-  
+
   /**
    * To print the DiameterMessage CDR contents to file.
    *

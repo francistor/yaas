@@ -4,6 +4,11 @@ import org.json4s._
 
 import yaas.util.Net
 
+object PeerStatus {
+  val STATUS_DOWN = 0
+  val STATUS_STARTING = 1
+  val STATUS_READY = 2
+}
 
 /**
  * Represents the basic properties of the Diameter Server, as defined in the <code>diameterServer.json</code> configuration object

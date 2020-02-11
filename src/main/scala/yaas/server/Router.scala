@@ -55,46 +55,6 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 
-/********************************
-  Instrumental Diameter classes
- ********************************/
-
-case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
-
-// Peer tables are made of these items
-object PeerStatus {
-  val STATUS_DOWN = 0
-  val STATUS_STARTING = 1
-  val STATUS_READY = 2
-}
-case class DiameterPeerPointer(config: DiameterPeerConfig, status: Int, actorRefOption: Option[ActorRef])
-
-/********************************
-  Instrumental Radius classes
- ********************************/
-case class RadiusEndpointStatus(endPointType: Int, port: Int, var quarantineTimestamp: Long, var accErrors: Int) {
-  
-  def addErrors(errors: Int): Unit = {
-    accErrors = accErrors + errors
-  }
-  
-  def reset(): Unit = {
-    accErrors = 0
-  }
-}
-
-/*
- * Used to store the radius servers configuration and runtime status. The availability is tracked per port
- */
-case class RadiusServerPointer(name: String, IPAddress: String, secret: String, quarantineTimeMillis: Int, errorLimit: Int,
-															 endpointMap: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
-    
-    
-///////////////////////////////////////////////////////////////////////////////
-// Router
-///////////////////////////////////////////////////////////////////////////////
-
-// Best practise
 object Router {
   def props(): Props = Props(new Router())
 
@@ -137,9 +97,30 @@ object Router {
 
 // Manages Routes, Peers and Handlers
 class Router() extends Actor with ActorLogging {
-  
-  import Router._
-  
+
+	import Router._
+
+	case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
+
+	// Peer tables are made of these items
+	case class DiameterPeerPointer(config: DiameterPeerConfig, status: Int, actorRefOption: Option[ActorRef])
+
+	case class RadiusEndpointStatus(endPointType: Int, port: Int, var quarantineTimestamp: Long, var accErrors: Int) {
+
+		def addErrors(errors: Int): Unit = {
+			accErrors = accErrors + errors
+		}
+
+		def reset(): Unit = {
+			accErrors = 0
+		}
+	}
+
+	/*
+   * Used to store the radius servers configuration and runtime status. The availability is tracked per port
+   */
+	case class RadiusServerPointer(name: String, IPAddress: String, secret: String, quarantineTimeMillis: Int, errorLimit: Int, endpointMap: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
+
   private val config = ConfigFactory.load().getConfig("aaa")
   
   private val peerCheckTimeSeconds = config.getInt("diameter.peerCheckTimeSeconds")
@@ -156,18 +137,18 @@ class Router() extends Actor with ActorLogging {
   
   // Initial Diameter Configuration
 	private val diameterConfig = DiameterConfigManager.diameterConfig
-	private var diameterServerIPAddress = diameterConfig.bindAddress
-	private var diameterServerPort = diameterConfig.bindPort
+	private val diameterServerIPAddress = diameterConfig.bindAddress
+	private val diameterServerPort = diameterConfig.bindPort
 	private var peerHostMap : scala.collection.mutable.Map[String, DiameterPeerPointer] = scala.collection.mutable.Map()
 	private var diameterRoutes : Seq[DiameterRoute] = Seq()
 	
 	// Initial Radius Configuration
 	private val radiusConfig = RadiusConfigManager.radiusConfig
-	private var radiusServerIPAddress = radiusConfig.bindAddress
-	private var radiusServerAuthPort = radiusConfig.authBindPort
-	private var radiusServerAcctPort = radiusConfig.acctBindPort
-	private var radiusServerCoAPort = radiusConfig.coABindPort
-	private var radiusServers: Map[String, RadiusServerPointer] = getRadiusServers(RadiusConfigManager.radiusServers)
+	private val radiusServerIPAddress = radiusConfig.bindAddress
+	private val radiusServerAuthPort = radiusConfig.authBindPort
+	private val radiusServerAcctPort = radiusConfig.acctBindPort
+	private val radiusServerCoAPort = radiusConfig.coABindPort
+	private var radiusServers: Map[String, RadiusServerPointer] = Map()
 	private var radiusServerGroups: Map[String, RadiusServerGroupConfig] = RadiusConfigManager.radiusServerGroups
 	
   // Diameter Server socket
@@ -177,21 +158,22 @@ class Router() extends Actor with ActorLogging {
     
   if(DiameterConfigManager.isDiameterEnabled){
     startDiameterServerSocket(diameterServerIPAddress, diameterServerPort)
-    peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
+    peerHostMap = updatePeerHostMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
     diameterRoutes = updateDiameterRoutes(DiameterConfigManager.diameterRouteConfig)
   }
   
   // Radius server actors
   if(RadiusConfigManager.isRadiusServerEnabled){
-    if(radiusServerAuthPort > 0 ) newRadiusAuthServerActor(radiusServerIPAddress, radiusServerAuthPort)
-    if(radiusServerAcctPort > 0 ) newRadiusAcctServerActor(radiusServerIPAddress, radiusServerAcctPort)
-    if(radiusServerCoAPort > 0 ) newRadiusCoAServerActor(radiusServerIPAddress, radiusServerCoAPort)
+    if(radiusServerAuthPort > 0 ) context.actorOf(RadiusServer.props(radiusServerIPAddress, radiusServerAuthPort, metricsServer), "RadiusAuthServer")
+    if(radiusServerAcctPort > 0 ) context.actorOf(RadiusServer.props(radiusServerIPAddress, radiusServerAcctPort, metricsServer), "RadiusAcctServer")
+    if(radiusServerCoAPort > 0 ) context.actorOf(RadiusServer.props(radiusServerIPAddress, radiusServerCoAPort, metricsServer), "RadiusCoAServer")
   }
   
   // Radius client
-  private val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled)
+  private val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled) {
+		radiusServers = getRadiusServers(RadiusConfigManager.radiusServers, radiusServers)
     Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, metricsServer), "RadiusClient"))
-    else None
+	} else None
   
   // Initialize handlers
   handlerMap = updateHandlerMap(HandlerConfigManager.handlerConfig, handlerMap)
@@ -206,26 +188,27 @@ class Router() extends Actor with ActorLogging {
 	/**
 	 * Will create the actors for the configured peers and shutdown the ones not configured anymore.
 	 */
-	def updateDiameterPeerMap(conf: Map[String, DiameterPeerConfig], currPeerHostMap: Map[String, DiameterPeerPointer]) = {
+	private def updatePeerHostMap(confPeerHostMap: Map[String, DiameterPeerConfig], currPeerHostMap: Map[String, DiameterPeerPointer]) = {
 	  
     log.info("Updating Diameter Peers")
     
 	  // Shutdown un-configured peers and return clean list
-	  val cleanPeersHostMap = currPeerHostMap.flatMap { case (hostName, peerPointer) => 
-	    if(conf.get(hostName) == None){
-	      // Stop peer and return empty sequence
-	      log.info(s"Removing peer $hostName")
-	      peerPointer.actorRefOption.map(context.stop(_)); Seq()}
-	    else
-	      // Leave as it is
-	      Seq((hostName, peerPointer))
-	  }
-	  
+		val cleanPeersHostMap = currPeerHostMap.filter{
+			case (hostName, peerPointer) =>
+				if(confPeerHostMap.get(hostName).isEmpty) {
+					// Stop peer and return empty sequence
+					log.info(s"Removing peer $hostName")
+					peerPointer.actorRefOption.foreach(context.stop)
+					false
+				}
+				else true
+		}
+
     // For each one of the peers in the new configuration map
-	  val newPeerHostMap = conf.map { case (hostName, peerConfig) =>
+		scala.collection.mutable.Map() ++ confPeerHostMap.map { case (hostName, peerConfig) =>
 	    cleanPeersHostMap.get(hostName) match {
+				// Not in old map or disconnected --> No Actor associated
 	      case None | Some(DiameterPeerPointer(_, PeerStatus.STATUS_DOWN, _)) =>
-	        // Not found or disconnected --> No Actor associated
 	        if(peerConfig.connectionPolicy.equalsIgnoreCase("active")){
 	          // Create peer actor that will try to connect
 	          log.info(s"Retrying connection to $hostName")
@@ -236,39 +219,39 @@ class Router() extends Actor with ActorLogging {
 	          log.debug(s"Waiting for connection from $hostName")
 	          (hostName, DiameterPeerPointer(peerConfig, PeerStatus.STATUS_DOWN, None))
 	        }
+				// Was in the previous map and was not down. Leave as it is
 	      case Some(dpp) =>
 	        (hostName, dpp)
 	    }
 	  }
-	  
-	  // Update maps
-	  scala.collection.mutable.Map() ++ newPeerHostMap
 	}
-  
-  def updateHandlerMap(conf: Map[String, HandlerConfigEntry], currHandlerMap: Map[String, ActorRef]) = {
+
+	/**
+	 * Create/Destroy handlers to adjust to current configuration
+	 */
+  private def updateHandlerMap(conf: Map[String, HandlerConfigEntry], currHandlerMap: Map[String, ActorRef]) = {
+
     log.info("Updating Handlers")
-    
-    // Shutdown unconfigured handlers
-    val cleanHandlerMap = currHandlerMap.flatMap { case (handlerName, handlerActor) =>
-      if(conf.get(handlerName) == None) {
-        log.info(s"Stopping handler $handlerName")
-        context.stop(handlerActor); Seq()} else Seq((handlerName, handlerActor))
-    }
+		val cleanHandlerMap = currHandlerMap.filter{ case (handlerName, handlerActor) =>
+				if(conf.get(handlerName).isEmpty) {
+					log.info(s"Stopping handler $handlerName")
+					context.stop(handlerActor)
+					false
+				} else true
+		}
     
     // Create new handlers if needed
-    val newHandlerMap = conf.map { case (name, hce) => 
-      if(cleanHandlerMap.get(name) == None){
+		Map() ++ conf.map { case (name, hce) =>
+      if(cleanHandlerMap.get(name).isEmpty){
         log.info(s"Creating handler $name")
         (name, context.actorOf(Props(Class.forName(hce.clazz).asInstanceOf[Class[Actor]], metricsServer, hce.config), name + "-handler"))
       }
       // Already created
       else (name, cleanHandlerMap(name))
     }
-    
-    Map() ++ newHandlerMap
   }
 	
-	def updateDiameterRoutes(conf: Seq[DiameterRouteConfig]) = {
+	private def updateDiameterRoutes(conf: Seq[DiameterRouteConfig]) = {
 	  log.info("Updating Diameter Routes")
 	  
 	  // Just copy
@@ -276,9 +259,11 @@ class Router() extends Actor with ActorLogging {
 	    route <- conf
 	  } yield DiameterRoute(route.realm, route.applicationId, route.peers, route.policy, route.handler)
 	}
-	
-	// Utility function to get a route
-  def findRoute(realm: String, application: String, nonLocal: Boolean /* If true, force that the route is not local (i.e. no handler) */) : Option[DiameterRoute] = {
+
+	/**
+	 * 	Utility function to get a route
+	 */
+  private def findRoute(realm: String, application: String, nonLocal: Boolean /* If true, force that the route is not local (i.e. no handler) */) : Option[DiameterRoute] = {
     diameterRoutes.find{ route => 
       (route.realm == "*" || route.realm == realm) && 
       (route.application == "*" || route.application == application) &&
@@ -289,62 +274,57 @@ class Router() extends Actor with ActorLogging {
   ////////////////////////////////////////////////////////////////////////
   // Radius configuration
   ////////////////////////////////////////////////////////////////////////
-  
-  def getRadiusServers(newServersConfig: Map[String, RadiusServerConfig]) = {
+  // TODO: RadiusEndpointStatus should be dynamically created and deleted
+	/**
+	 * Updates the Radius Servers List
+	 */
+  private def getRadiusServers(newServersConfig: Map[String, RadiusServerConfig], currServersConfig: Map[String, RadiusServerPointer]) = {
+
     log.info("Updating Radius Servers")
-    
-    // clean radius server list
-    val cleanRadiusServers = radiusServers.flatMap { case(oldServerName, oldServer) => {
-        // Keep only entries for servers with matching names and same configuration
-        newServersConfig.get(oldServerName) match {
-          case Some(newServer) =>
-            if(newServer.IPAddress == oldServer.IPAddress &&
-               newServer.errorLimit == oldServer.errorLimit &&
-               newServer.quarantineTimeMillis == oldServer.quarantineTimeMillis &&
-               newServer.secret == oldServer.secret) Seq((oldServerName, oldServer)) 
-              else Seq()
-           
-          case None => Seq()
-        }
-      }
-    }
-    
+
+		val cleanRadiusServers = currServersConfig.filter{ case(oldServerName, oldServer) => {
+				// Keep only entries for servers with matching names and same configuration
+				newServersConfig.get(oldServerName) match {
+					case Some(newServer) =>
+						if(newServer.IPAddress == oldServer.IPAddress &&
+							newServer.errorLimit == oldServer.errorLimit &&
+							newServer.quarantineTimeMillis == oldServer.quarantineTimeMillis &&
+							newServer.secret == oldServer.secret) true
+						else false
+
+					case None => false
+				}
+			}
+		}
+
     // create missing servers
     newServersConfig.map { case(newServerName, config) => {
         cleanRadiusServers.get(newServerName) match {
+					// Create new
           case None =>
             val endPoints = scala.collection.mutable.Map[Int, RadiusEndpointStatus]()
-            if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, 0, 0)
-            if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = new RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, 0, 0)
-            if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = new RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, 0, 0)
+            if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, 0, 0)
+            if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, 0, 0)
+            if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, 0, 0)
             
-            (newServerName, new RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
-          case Some(rs) => (newServerName, rs)
+            (newServerName, RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
+
+					// Keep existing
+          case Some(rs) =>
+						(newServerName, rs)
         }
       }
     }
-  }   
-  
-  def newRadiusAuthServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort, metricsServer), "RadiusAuthServer")
   }
-  
-  def newRadiusAcctServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort, metricsServer), "RadiusAcctServer")
-  }
-    
-  def newRadiusCoAServerActor(ipAddress: String, bindPort: Int) = {
-    context.actorOf(RadiusServer.props(ipAddress, bindPort, metricsServer), "RadiusCoAServer")
-  }
-  
 
   ////////////////////////////////////////////////////////////////////////
   // Diameter socket
   ////////////////////////////////////////////////////////////////////////
-  def startDiameterServerSocket(ipAddress: String, port: Int) = {
+  private def startDiameterServerSocket(ipAddress: String, port: Int): Unit = {
     
     val futBinding = Tcp().bind(ipAddress, port).toMat(Sink.foreach(connection => {
-      val remoteAddress = connection.remoteAddress.getAddress().getHostAddress()
+
+      val remoteAddress = connection.remoteAddress.getAddress.getHostAddress
       log.info("Connection from {}", remoteAddress)
       
       // Check that there is at last one peer configured with that IP Address
@@ -353,20 +333,17 @@ class Router() extends Actor with ActorLogging {
         connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
       } else {
         // Create handling actor and send it the connection. The Actor will register itself as peer or die
-        val peerActor = context.actorOf(DiameterPeer.props(None, metricsServer))
-        peerActor ! connection
+        context.actorOf(DiameterPeer.props(None, metricsServer)) ! connection
       }
     }))(Keep.left).run()
     
-    futBinding.onComplete(t => {
-      t match {
-        case Success(binding) =>
-          log.info("Diameter socket bound to " + binding.localAddress.getHostString + ":" + binding.localAddress.getPort)
-        case Failure(exception) =>
-          log.error("Could not bind socket {}", exception.getMessage())
-          context.system.terminate()
-      }
-    })
+    futBinding.onComplete {
+			case Success(binding) =>
+				log.info("Diameter socket bound to " + binding.localAddress.getHostString + ":" + binding.localAddress.getPort)
+			case Failure(exception) =>
+				log.error("Could not bind diameter socket {}", exception.getMessage)
+				context.system.terminate()
+		}
   }
   
   ////////////////////////////////////////////////////////////////////////
@@ -374,18 +351,14 @@ class Router() extends Actor with ActorLogging {
   // Peer lifecycle and routing
   ////////////////////////////////////////////////////////////////////////
 
-	def receive  = LoggingReceive {
-	  
-	  /*
-	   * Diameter messages
-	   */
-	  
+	def receive: Receive = LoggingReceive {
+
 	  // Request received
 	  case message : DiameterMessage =>
 	    // If origin is local, force that the route must not be also local, in order to avoid loops
 	    val forceNotLocal = sender.path.name.endsWith("-handler")
 	    
-	    findRoute(message >> "Destination-Realm", message.application, forceNotLocal) match {
+	    findRoute(message.destinationRealm, message.application, forceNotLocal) match {
 	      case Some(DiameterRoute(_, _, _, _, Some(handler))) =>
 	        // Handle locally
 	        handlerMap.get(handler) match {
@@ -400,11 +373,11 @@ class Router() extends Actor with ActorLogging {
 	      case Some(DiameterRoute(_, _, Some(peers), policy, _)) =>
 	        // Get the diameterPointers whose name is in the peers list for this message and are active
 	        val candidatePeers = peerHostMap.filter{case (host, peerPtr) => peers.contains(host) && peerPtr.status == PeerStatus.STATUS_READY}
-	        if(candidatePeers.size == 0){
+	        if(candidatePeers.isEmpty){
 	          	log.warning("Peer not available among {}", peers)
 	            MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	        } else {
-	          (if(policy == Some("fixed")) candidatePeers.values.head else scala.util.Random.shuffle(candidatePeers.values).head) match {
+	          (if(policy.contains("fixed")) candidatePeers.values.head else scala.util.Random.shuffle(candidatePeers.values).head) match {
 	            case DiameterPeerPointer(_, _, Some(actorRef)) => 
 	              actorRef ! RoutedDiameterMessage(message, context.sender)
 	            case _ => 
@@ -605,7 +578,7 @@ class Router() extends Actor with ActorLogging {
           if(fileName.contains("diameterPeers.json") || fileName.isEmpty){
             // Update the underlying config object and then the router map
             DiameterConfigManager.updateDiameterPeerConfig(false)
-            peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
+            peerHostMap = updatePeerHostMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
           }
           if(fileName.contains("diameterRoutes.json") || fileName.isEmpty){
             DiameterConfigManager.updateDiameterRouteConfig(false)
@@ -617,7 +590,7 @@ class Router() extends Actor with ActorLogging {
         if(fileName.contains("radiusServers.json") || fileName.isEmpty){
           RadiusConfigManager.updateRadiusServers(false)
           radiusServerGroups = RadiusConfigManager.radiusServerGroups
-          radiusServers = getRadiusServers(RadiusConfigManager.radiusServers)
+          radiusServers = getRadiusServers(RadiusConfigManager.radiusServers, radiusServers)
         }
         
         if(fileName.contains("radiusClients.json") || fileName.isEmpty){
@@ -641,7 +614,7 @@ class Router() extends Actor with ActorLogging {
       // Check peer status. Will use last peer table if not updated by a reload
       if(DiameterConfigManager.isDiameterEnabled){
         log.debug("Peer status checking")
-        peerHostMap = updateDiameterPeerMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
+        peerHostMap = updatePeerHostMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
         context.system.scheduler.scheduleOnce(peerCheckTimeSeconds seconds, self, PeerCheck)
       }
 	}
