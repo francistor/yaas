@@ -44,7 +44,6 @@ import akka.event.LoggingReceive
 import akka.stream._
 import akka.stream.scaladsl._
 import com.typesafe.config.ConfigFactory
-import yaas.coding.DiameterConversions._
 import yaas.coding.{DiameterMessage, RadiusPacket}
 import yaas.config._
 import yaas.instrumentation.{MetricsOps, MetricsServer}
@@ -100,6 +99,10 @@ class Router() extends Actor with ActorLogging {
 
 	import Router._
 
+	/**
+	 * Config storage helper classes
+	 */
+
 	case class DiameterRoute(realm: String, application: String, peers: Option[List[String]], policy: Option[String], handler: Option[String])
 
 	// Peer tables are made of these items
@@ -120,6 +123,10 @@ class Router() extends Actor with ActorLogging {
    * Used to store the radius servers configuration and runtime status. The availability is tracked per port
    */
 	case class RadiusServerPointer(name: String, IPAddress: String, secret: String, quarantineTimeMillis: Int, errorLimit: Int, endpointMap: scala.collection.mutable.Map[Int, RadiusEndpointStatus])
+
+	/**
+	 * End
+	 */
 
   private val config = ConfigFactory.load().getConfig("aaa")
   
@@ -171,7 +178,7 @@ class Router() extends Actor with ActorLogging {
   
   // Radius client
   private val radiusClientActor = if(RadiusConfigManager.isRadiusClientEnabled) {
-		radiusServers = getRadiusServers(RadiusConfigManager.radiusServers, radiusServers)
+		radiusServers = updateRadiusServers(RadiusConfigManager.radiusServers, radiusServers)
     Some(context.actorOf(RadiusClient.props(radiusServerIPAddress, radiusConfig.clientBasePort, radiusConfig.numClientPorts, metricsServer), "RadiusClient"))
 	} else None
   
@@ -278,43 +285,41 @@ class Router() extends Actor with ActorLogging {
 	/**
 	 * Updates the Radius Servers List
 	 */
-  private def getRadiusServers(newServersConfig: Map[String, RadiusServerConfig], currServersConfig: Map[String, RadiusServerPointer]) = {
+  private def updateRadiusServers(newServersConfig: Map[String, RadiusServerConfig], currServersConfig: Map[String, RadiusServerPointer]) = {
 
     log.info("Updating Radius Servers")
 
-		val cleanRadiusServers = currServersConfig.filter{ case(oldServerName, oldServer) => {
-				// Keep only entries for servers with matching names and same configuration
-				newServersConfig.get(oldServerName) match {
-					case Some(newServer) =>
-						if(newServer.IPAddress == oldServer.IPAddress &&
-							newServer.errorLimit == oldServer.errorLimit &&
-							newServer.quarantineTimeMillis == oldServer.quarantineTimeMillis &&
-							newServer.secret == oldServer.secret) true
-						else false
+		val cleanRadiusServers = currServersConfig.filter{ case(oldServerName, oldServer) =>
+			// Keep only entries for servers with matching names and same configuration
+			newServersConfig.get(oldServerName) match {
+				case Some(newServer) =>
+					if(newServer.IPAddress == oldServer.IPAddress &&
+						newServer.errorLimit == oldServer.errorLimit &&
+						newServer.quarantineTimeMillis == oldServer.quarantineTimeMillis &&
+						newServer.secret == oldServer.secret) true
+					else false
 
-					case None => false
-				}
+				case None => false
 			}
 		}
 
     // create missing servers
-    newServersConfig.map { case(newServerName, config) => {
-        cleanRadiusServers.get(newServerName) match {
-					// Create new
-          case None =>
-            val endPoints = scala.collection.mutable.Map[Int, RadiusEndpointStatus]()
-            if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, 0, 0)
-            if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, 0, 0)
-            if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, 0, 0)
-            
-            (newServerName, RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
+    newServersConfig.map { case(newServerName, config) =>
+			cleanRadiusServers.get(newServerName) match {
+				// Create new
+				case None =>
+					val endPoints = scala.collection.mutable.Map[Int, RadiusEndpointStatus]()
+					if(config.ports.auth != 0) endPoints(RadiusPacket.ACCESS_REQUEST) = RadiusEndpointStatus(RadiusPacket.ACCESS_REQUEST, config.ports.auth, 0, 0)
+					if(config.ports.acct != 0) endPoints(RadiusPacket.ACCOUNTING_REQUEST) = RadiusEndpointStatus(RadiusPacket.ACCOUNTING_REQUEST, config.ports.acct, 0, 0)
+					if(config.ports.coA != 0) endPoints(RadiusPacket.COA_REQUEST) = RadiusEndpointStatus(RadiusPacket.COA_REQUEST, config.ports.coA, 0, 0)
 
-					// Keep existing
-          case Some(rs) =>
-						(newServerName, rs)
-        }
-      }
-    }
+					(newServerName, RadiusServerPointer(config.name, config.IPAddress, config.secret, config.quarantineTimeMillis, config.errorLimit, endPoints))
+
+				// Keep existing
+				case Some(rs) =>
+					(newServerName, rs)
+			}
+		}
   }
 
   ////////////////////////////////////////////////////////////////////////
@@ -329,8 +334,8 @@ class Router() extends Actor with ActorLogging {
       
       // Check that there is at last one peer configured with that IP Address
       if(!DiameterConfigManager.validatePeerIPAddress(remoteAddress)){
-        log.warning("No valid peer found for {}", remoteAddress);
-        connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
+        log.warning("No valid peer found for {}", remoteAddress)
+				connection.handleWith(Flow.fromSinkAndSource(Sink.cancelled, Source.empty))
       } else {
         // Create handling actor and send it the connection. The Actor will register itself as peer or die
         context.actorOf(DiameterPeer.props(None, metricsServer)) ! connection
@@ -359,17 +364,17 @@ class Router() extends Actor with ActorLogging {
 	    val forceNotLocal = sender.path.name.endsWith("-handler")
 	    
 	    findRoute(message.destinationRealm, message.application, forceNotLocal) match {
+				// If route declares a handler, handle locally
 	      case Some(DiameterRoute(_, _, _, _, Some(handler))) =>
-	        // Handle locally
 	        handlerMap.get(handler) match {
 	          case Some(handlerActor) =>  
 	            handlerActor ! RoutedDiameterMessage(message, context.sender)
 	          case None => 
-	            log.warning("Attempt to route message to a non exising handler {}", handler)
+	            log.warning("Attempt to route message to a non existing handler {}", handler)
 	            MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	        }
 	      
-	      // Send to Peer
+	      // If route specifies a set of peers, sent it there, after selecting one of them
 	      case Some(DiameterRoute(_, _, Some(peers), policy, _)) =>
 	        // Get the diameterPointers whose name is in the peers list for this message and are active
 	        val candidatePeers = peerHostMap.filter{case (host, peerPtr) => peers.contains(host) && peerPtr.status == PeerStatus.STATUS_READY}
@@ -381,79 +386,39 @@ class Router() extends Actor with ActorLogging {
 	            case DiameterPeerPointer(_, _, Some(actorRef)) => 
 	              actorRef ! RoutedDiameterMessage(message, context.sender)
 	            case _ => 
-	              log.warning("This should never happen {}", peers(0))
+	              log.warning("This should never happen {}. DiameterPeerPointer READY but without reference to Actor")
 	              MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	          }
 	        }
 	        
 	      // No route
 	      case _ =>
-	        log.warning("No route found for {} and {}", message >> "Destination-Realm", message.application)
+	        log.warning("No route found for {} and {}", message.destinationRealm, message.application)
 	        MetricsOps.pushDiameterReceivedDropped(metricsServer, message) 
 	    }
 	    
     /*
      * Radius messages
      */
-	  case RadiusClientStats(stats) =>
-	    val currentTimestamp = System.currentTimeMillis
-	    
-	    // Iterate through all the configured endpoints
-	    // If there are stats reported, update the endpoint status
-	    for {
-	      (serverName, radiusServerPointer) <- radiusServers
-	      (_, epStatus) <- radiusServerPointer.endpointMap
-	    } {
-	      Try(java.net.InetAddress.getByName(radiusServerPointer.IPAddress).getHostAddress()) match {
-	        case Success(ipAddr) =>
-	          stats.get(RadiusEndpoint(ipAddr, epStatus.port)) match {
-    	        case Some((successes, errors)) => 
-    	          // Only if not in quarantine
-    	          if(epStatus.quarantineTimestamp < currentTimestamp) {
-      	          // If there are successes, reset the old errors if any
-      	          if(successes > 0) epStatus.reset
-      	          // Add the errors if there are only errors
-      	          else epStatus.addErrors(errors)
-      	          
-      	          // Put in quarantine if necessary
-      	          if(epStatus.accErrors > radiusServerPointer.errorLimit){
-      	            log.info("Too many timeouts. Radius Server Endpoint {}/{}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, ipAddr, epStatus.port, radiusServerPointer.quarantineTimeMillis)
-      	            epStatus.quarantineTimestamp = currentTimestamp + radiusServerPointer.quarantineTimeMillis
-      	            epStatus.reset
-      	          }
-    	          } 
-    	          
-    	        case _ =>
-    	          // No stats reported in the interval for this endpoint
-	        }
-	        case Failure(e) =>
-	          // Unresolvable IP address
-	      }
-	      
-	    }
-	    
-	  case RadiusServerRequest(packet, actorRef, origin, secret) =>
-	    packet.code match {
-	    case RadiusPacket.ACCESS_REQUEST =>
-  	    handlerMap.get("AccessRequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
-    	    case None => log.warning("No handler defined for Access-Request")
-    	  }
 
-	    case RadiusPacket.ACCOUNTING_REQUEST =>
-  	    handlerMap.get("AccountingRequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
-    	    case None => log.warning("No handler defined for Accounting-Request")
-    	  }
+		/**
+		 * Requests received by server socket
+		 */
+		case RadiusServerRequest(packet, actorRef, origin, secret) =>
+			(packet.code match {
+				case RadiusPacket.ACCESS_REQUEST => handlerMap.get("AccessRequestHandler")
+				case RadiusPacket.ACCOUNTING_REQUEST  => handlerMap.get("AccountingRequestHandler")
+				case RadiusPacket.COA_REQUEST => handlerMap.get("CoARequestHandler")
+				case _ => None
+			}) match {
+				case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
+				case None => log.warning(s"No handler defined for packet type ${packet.code}")
+			}
 
-	    case RadiusPacket.COA_REQUEST =>
-  	    handlerMap.get("CoARequestHandler") match {
-    	    case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
-    	    case None => log.warning("No handler defined for CoA-Request")
-    	  }
-	    }
-	    
-	  case RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusId, retryNum) =>
+		/**
+		 * Client request generated by handler
+		 */
+		case RadiusGroupClientRequest(radiusPacket, serverGroupName, radiusId, retryNum) =>
 	    // Find the radius destination
 	    radiusServerGroups.get(serverGroupName) match {
 	      
@@ -462,7 +427,7 @@ class Router() extends Actor with ActorLogging {
 	        val now = System.currentTimeMillis
 	        val availableServers = serverGroup.servers.filter(
 	          radiusServers(_).endpointMap.get(radiusPacket.code) match {
-	            case Some(ep) if(ep.quarantineTimestamp < now) => true
+	            case Some(ep) if ep.quarantineTimestamp < now => true
 	            case _ => false
 	          }
 	        )
@@ -470,7 +435,7 @@ class Router() extends Actor with ActorLogging {
 	        
 	        // Get candidate servers. If no available servers, ignore status if policy contains "clear"
 	        val servers = 
-	          if(availableServers.length > 0) {
+	          if(availableServers.nonEmpty) {
 	            availableServers 
 	          }
 	          else if (serverGroup.policy.contains("clear")) {
@@ -482,21 +447,22 @@ class Router() extends Actor with ActorLogging {
 	        val nServers = servers.length
 	        if(nServers > 0) {
 	          // (radiusId - retryNum) >> 3 is a stable number across retransmissions (up to 8). See yaas.util.IDGenerator
-	          val requestId = ((radiusId - retryNum) >> 3)
-	          
+	          val requestId = (radiusId - retryNum) >> 3
+
+						// The index of the server to try is the retry-number plus 0 (fixed policy) or a random number but fixed across retransmissions (requestId % nServers is used)
             val serverIndex = (retryNum + (if(serverGroup.policy.contains("random")) (requestId % nServers).toInt else 0)) % nServers
-            val radiusServerPointer = radiusServers(servers(serverIndex))
+            val selectedServer = radiusServers(servers(serverIndex))
             
             // Name is converted to address here. If cannot be done, put immediately in quarantine
-            val endPoint = radiusServerPointer.endpointMap(radiusPacket.code)
-            Try(java.net.InetAddress.getByName(radiusServerPointer.IPAddress).getHostAddress()) match {
+            val endPoint = selectedServer.endpointMap(radiusPacket.code)
+            Try(java.net.InetAddress.getByName(selectedServer.IPAddress).getHostAddress) match {
 	            case Success(endpointIPAddress) =>
-	              radiusClientActor.get ! RadiusClientRequest(radiusPacket, RadiusEndpoint(endpointIPAddress, endPoint.port), radiusServerPointer.secret, sender, radiusId)
+	              radiusClientActor.get ! RadiusClientRequest(radiusPacket, RadiusEndpoint(endpointIPAddress, endPoint.port), selectedServer.secret, sender, radiusId)
                     
 	            case Failure(_) =>
-	              log.info("Bad resolution. Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, endPoint.port, radiusServerPointer.quarantineTimeMillis)
-	              endPoint.quarantineTimestamp = System.currentTimeMillis() + radiusServerPointer.quarantineTimeMillis
-	              endPoint.reset
+	              log.info("Bad name resolution. Radius Server Endpoint {}:{} now in quarantine for {} milliseconds", selectedServer.name, endPoint.port, Math.max(30000, selectedServer.quarantineTimeMillis))
+	              endPoint.quarantineTimestamp = System.currentTimeMillis() + Math.max(30000, selectedServer.quarantineTimeMillis)
+	              endPoint.reset()
 	          }
 	        }
           else log.warning("No available server found for group {}. Discarding packet", serverGroupName)
@@ -504,19 +470,59 @@ class Router() extends Actor with ActorLogging {
 	      case None =>
 	        log.warning("Radius server group {} not found", serverGroupName)
 	    }
+
+		/**
+		 * Stats report from RadiusClient Actor
+		 */
+		case RadiusClientStats(stats) =>
+			val currentTimestamp = System.currentTimeMillis
+
+			// Iterate through all the configured endpoints
+			// If there are stats reported, update the endpoint status
+			for {
+				(_, radiusServerPointer) <- radiusServers
+				(_, epStatus) <- radiusServerPointer.endpointMap
+			} {
+				Try(java.net.InetAddress.getByName(radiusServerPointer.IPAddress).getHostAddress) match {
+					case Success(ipAddr) =>
+						stats.get(RadiusEndpoint(ipAddr, epStatus.port)) match {
+							case Some((successes, errors)) =>
+								// Only if not in quarantine
+								if(epStatus.quarantineTimestamp < currentTimestamp) {
+									// If there are successes, reset the old errors if any
+									if(successes > 0) epStatus.reset()
+									// Add the errors if there are only errors
+									else epStatus.addErrors(errors)
+
+									// Put in quarantine if necessary
+									if(epStatus.accErrors > radiusServerPointer.errorLimit){
+										log.info("Too many timeouts. Radius Server Endpoint {}/{}:{} now in quarantine for {} milliseconds", radiusServerPointer.name, ipAddr, epStatus.port, radiusServerPointer.quarantineTimeMillis)
+										epStatus.quarantineTimestamp = currentTimestamp + radiusServerPointer.quarantineTimeMillis
+										epStatus.reset()
+									}
+								}
+
+							case _ =>
+							// No stats reported in the interval for this endpoint
+						}
+					case Failure(_) =>
+					// Unresolvable IP address
+				}
+
+			}
 	    
 	  /*
 	   * Peer lifecycle
 	   */
 	  case diameterPeerConfig : DiameterPeerConfig =>
-	    // Actor has successfully processed a CER/CEA exchange. Register in map, but
-	    // check there is not already an actor for the same peer.
+	    // Actor has successfully processed a CER/CEA exchange.
+			// Register in map, but check there is not already an actor for the same peer.
 	    // If another actor exists and is "Ready", leave as it is and kill this new Actor. Otherwise, destroy the other actor.
 	    peerHostMap.get(diameterPeerConfig.diameterHost) match {
 	      case Some(DiameterPeerPointer(config, status, actorRefOption)) =>
 	        
-	        if(actorRefOption == None || actorRefOption == Some(sender)){
-	          // If no actor or same Actor, this is us
+	        if(actorRefOption.isEmpty || actorRefOption.contains(sender)){
+	          // If no actor or same Actor, this is us (passive or active policy, respectively)
 	          log.info("Established a peer relationship with {}", config)
 	          peerHostMap(diameterPeerConfig.diameterHost) = DiameterPeerPointer(config, PeerStatus.STATUS_READY, Some(sender))
 	        } else {
@@ -527,7 +533,7 @@ class Router() extends Actor with ActorLogging {
               // Kill this new redundant connection
               context.stop(sender)
 	          } else {
-	            // Kill the other Actor
+	            // Kill the other Actor, because the one reporting is READY and the other one is not
 	            log.info("Won the race. Established a peer relationship with {}", config)
 	            peerHostMap(diameterPeerConfig.diameterHost) = DiameterPeerPointer(config, PeerStatus.STATUS_READY, Some(sender))
 	            log.info("Stopping redundant Actor")
@@ -542,7 +548,7 @@ class Router() extends Actor with ActorLogging {
 	    
 	  case PeerDown =>
 	    // Find the peer whose Actor is the one sending the down message
-	    peerHostMap.find{case (hostName, peerPointer) => peerPointer.actorRefOption.map(r => r.compareTo(sender) == 0).getOrElse(false)} match {
+	    peerHostMap.find{case (_, peerPointer) => peerPointer.actorRefOption.exists(_.compareTo(sender) == 0)} match {
 	      case Some((hostName, peerPointer)) => 
 	        log.info("Unregistering peer actor for {}", hostName)
 	        peerHostMap(hostName) = DiameterPeerPointer(peerPointer.config, PeerStatus.STATUS_DOWN, None)
@@ -557,7 +563,7 @@ class Router() extends Actor with ActorLogging {
     case IXGetPeerStatus =>
       val peerStatus: scala.collection.immutable.Map[String, MetricsOps.DiameterPeerStatus] = for {
         (hostName, dpp) <- peerHostMap.toMap
-      } yield (hostName, MetricsOps.DiameterPeerStatus(dpp.config.copy(), dpp.status))
+      } yield (hostName, MetricsOps.DiameterPeerStatus(dpp.config, dpp.status))
       
       sender ! peerStatus
 
@@ -570,7 +576,7 @@ class Router() extends Actor with ActorLogging {
             ConfigManager.reloadConfigObjectAsJson(f)
             
           case None =>
-            ConfigManager.reloadAllConfigObjects
+            ConfigManager.reloadAllConfigObjects()
         }
         
         // Reconfigure Diameter
@@ -590,7 +596,7 @@ class Router() extends Actor with ActorLogging {
         if(fileName.contains("radiusServers.json") || fileName.isEmpty){
           RadiusConfigManager.updateRadiusServers(false)
           radiusServerGroups = RadiusConfigManager.radiusServerGroups
-          radiusServers = getRadiusServers(RadiusConfigManager.radiusServers, radiusServers)
+          radiusServers = updateRadiusServers(RadiusConfigManager.radiusServers, radiusServers)
         }
         
         if(fileName.contains("radiusClients.json") || fileName.isEmpty){
@@ -606,7 +612,7 @@ class Router() extends Actor with ActorLogging {
         sender ! "OK"
       } 
       catch {
-        case e: NoSuchElementException => sender ! s"${fileName.getOrElse("all")} not found"
+        case _: NoSuchElementException => sender ! s"${fileName.getOrElse("all")} not found"
         case e: java.io.IOException => sender ! akka.actor.Status.Failure(e)
       }
       
@@ -615,18 +621,18 @@ class Router() extends Actor with ActorLogging {
       if(DiameterConfigManager.isDiameterEnabled){
         log.debug("Peer status checking")
         peerHostMap = updatePeerHostMap(DiameterConfigManager.diameterPeerConfig, peerHostMap.toMap)
-        context.system.scheduler.scheduleOnce(peerCheckTimeSeconds seconds, self, PeerCheck)
+        context.system.scheduler.scheduleOnce(peerCheckTimeSeconds.seconds, self, PeerCheck)
       }
 	}
 	
-	override def preStart = {
+	override def preStart: Unit = {
 	  // Start peer check timer
-    context.system.scheduler.scheduleOnce(peerCheckTimeSeconds seconds, self, PeerCheck)
+    context.system.scheduler.scheduleOnce(peerCheckTimeSeconds.seconds, self, PeerCheck)
   }
   
   // Cleanup
-  override def postStop = {
-    val databaseRole = config.getString("sessionsDatabase.role")
-    if(databaseRole != "none") yaas.database.SessionDatabase.close
+  override def postStop: Unit = {
+    val sessionDatabaseRole = config.getString("sessionsDatabase.role")
+    if(sessionDatabaseRole != "none") yaas.database.SessionDatabase.close()
   }
 }

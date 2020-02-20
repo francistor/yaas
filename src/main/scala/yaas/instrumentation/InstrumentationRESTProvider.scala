@@ -269,10 +269,11 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
     val bindFuture = Http().bindAndHandle(new RestRouteProvider().restRoute ~ prometheusRoute ~ configRoute, bindAddress, bindPort)
     
     bindFuture.onComplete {
-      case Success(binding) =>
-        log.info("Instrumentation REST server bound to {}", binding.localAddress)
+      case Success(_) =>
+        log.info("Instrumentation REST server bound to {}:{}", bindAddress, bindPort)
       case Failure(e) =>
         log.error(e.getMessage)
+        System.exit(-1)
     }
   }
   

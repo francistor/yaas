@@ -1,17 +1,16 @@
 package yaas.server
 
-import akka.actor.{Actor, ActorRef, Props, Cancellable}
-import akka.actor.ActorLogging
-import akka.event.{LoggingReceive}
-import scala.concurrent.duration._
-import scala.concurrent.{Promise, Future}
-import scala.util.{Success, Failure}
-import akka.actor.actorRef2Scala
-import scala.{Left, Right}
-import yaas.coding.{DiameterMessage, DiameterMessageKey, RadiusPacket}
-import yaas.server.Router._
-import yaas.server.RadiusActorMessages._
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, actorRef2Scala}
+import akka.event.LoggingReceive
+import akka.stream.ActorMaterializer
+import yaas.coding.{DiameterMessage, RadiusPacket}
 import yaas.instrumentation.MetricsOps
+import yaas.server.RadiusActorMessages._
+import yaas.server.Router._
+
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContextExecutor, Future, Promise}
+import scala.util.{Failure, Success}
 
 // Diameter Exceptions
 class DiameterResponseException(msg: String) extends Exception(msg)
@@ -35,13 +34,14 @@ object MessageHandler {
 }
 
 /**
- * Base class for all handlers, including also methods for sending messages
+ * Base class for all handlers, including also methods for sending messages.
+ *
  */
 class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extends Actor with ActorLogging {
   
   import MessageHandler._
   
-  implicit val executionContext = context.system.dispatcher
+  implicit val executionContext: ExecutionContextExecutor = context.system.dispatcher
   
   ////////////////////////////////
   // Diameter 
@@ -49,8 +49,10 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   
   /**
    * Sends a Diameter Answer.
+   *
+   * To be used in handler classes.
    */
-  def sendDiameterAnswer(answerMessage: DiameterMessage) (implicit ctx: DiameterRequestContext) = {
+  def sendDiameterAnswer(answerMessage: DiameterMessage) (implicit ctx: DiameterRequestContext): Unit = {
     ctx.originActor ! answerMessage
     
     MetricsOps.pushDiameterHandlerServer(statsServer, ctx.diameterRequest, answerMessage, ctx.requestTimestamp)
@@ -63,7 +65,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
    * To be used externally. Will use internal Actor message to avoid thread synchronization issues. It may be used from
    * any thread
    */
-  def sendDiameterRequest(requestMessage: DiameterMessage, timeoutMillis: Int) = {
+  def sendDiameterRequest(requestMessage: DiameterMessage, timeoutMillis: Int): Future[DiameterMessage] = {
     val promise = Promise[DiameterMessage]
     val requestTimestamp = System.currentTimeMillis
     
@@ -75,12 +77,13 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
       case Success(ans) =>
         MetricsOps.pushDiameterHandlerClient(statsServer, requestMessage.key, ans, requestTimestamp)
       case Failure(ex) =>
+        log.debug("Diameter timeout: {}", ex.getMessage)
         MetricsOps.pushDiameterHandlerClientTimeout(statsServer, requestMessage.key)
     }
   }
   
   // For internal use
-  private def sendDiameterRequestInternal(promise: Promise[DiameterMessage], requestMessage: DiameterMessage, timeoutMillis: Int) = {
+  private def sendDiameterRequestInternal(promise: Promise[DiameterMessage], requestMessage: DiameterMessage, timeoutMillis: Int): Unit = {
     // Publish in request map
     diameterRequestMapIn(requestMessage.endToEndId, timeoutMillis, promise)
     
@@ -89,20 +92,20 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     log.debug(">> Diameter request sent\n {}\n", requestMessage.toString())
   }
   
-  // To be overriden in Handler Classes
-  def handleDiameterMessage(ctx: DiameterRequestContext) = {
+  // To be overridden in Handler Classes
+  def handleDiameterMessage(ctx: DiameterRequestContext): Unit = {
     log.warning("Default Diameter handleMessage does nothing")
   }
   
   ////////////////////////////////
   // Diameter Request Map
   ////////////////////////////////
-  case class DiameterRequestMapEntry(promise: Promise[DiameterMessage], timer: Cancellable)
+  private case class DiameterRequestMapEntry(promise: Promise[DiameterMessage], timer: Cancellable)
   private val diameterRequestMap = scala.collection.mutable.Map[Long, DiameterRequestMapEntry]()
   
-  private def diameterRequestMapIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]) = {
+  private def diameterRequestMapIn(e2eId: Long, timeoutMillis: Int, promise: Promise[DiameterMessage]): Unit = {
     // Schedule timer
-    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, DiameterRequestTimeout(e2eId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis.milliseconds, self, DiameterRequestTimeout(e2eId))
  
     // Add to map
     diameterRequestMap.put(e2eId, DiameterRequestMapEntry(promise, timer))
@@ -110,7 +113,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     log.debug("Diameter RequestMap In -> {}", e2eId)
   }
   
-  private def diameterRequestMapOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]) = {
+  private def diameterRequestMapOut(e2eId: Long, messageOrError: Either[DiameterMessage, Exception]): Unit = {
     // Remove Map entry
     diameterRequestMap.remove(e2eId) match {
       case Some(requestEntry) =>
@@ -122,7 +125,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
             log.debug("Diameter Request Map Out <- {}", e2eId)
             requestEntry.promise.success(diameterAnswer)
             
-          // If error, fullfull promise with error
+          // If error, fulfill promise with error
           case Right(e) =>
             log.debug("Diameter Timeout <- {}", e2eId)
             requestEntry.promise.failure(e)
@@ -139,18 +142,19 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   /**
    * Sends a Radius Response packet
    */
-  def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext) = {
+  def sendRadiusResponse(responsePacket: RadiusPacket)(implicit ctx: RadiusRequestContext): Unit = {
     ctx.originActor ! RadiusServerResponse(responsePacket, ctx.origin, ctx.secret)
     
     MetricsOps.pushRadiusHandlerResponse(statsServer, ctx.origin, ctx.requestPacket.code, responsePacket.code, ctx.receivedTimestamp)
-    log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
+    if(log.isDebugEnabled) log.debug(">> Radius response sent\n {}\n", responsePacket.toString())
   }
   
   /**
    * To be used by the handler to signal to the stats that the packet has been dropped
    */
-  def dropRadiusPacket(implicit ctx: RadiusRequestContext) = {
+  def dropRadiusPacket(implicit ctx: RadiusRequestContext): Unit = {
     MetricsOps.pushRadiusHandlerDrop(statsServer, ctx.origin, ctx.requestPacket.code)
+    if(log.isDebugEnabled) log.debug(">> Dropping request \n {}\n", ctx.requestPacket.toString())
   }
   
   /**
@@ -164,6 +168,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     val sentTimestamp = System.currentTimeMillis
     
     // The baseRadiusId will be stable across retransmissions
+    // See comment in IDGenerator
     val baseRadiusId = prevRadiusId match {
       case Some(rId) => rId
       case None => yaas.util.IDGenerator.nextRadiusId
@@ -172,11 +177,11 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     self ! RadiusGroupRequestInternal(promise, serverGroupName, requestPacket, baseRadiusId, timeoutMillis, retries, retryNum)
     
     promise.future.recoverWith {
-      case e if(retries > 0) =>
+      case _ if retries > 0 =>
         MetricsOps.pushRadiusHandlerRetransmission(statsServer, serverGroupName, requestPacket.code)
         sendRadiusGroupRequest(serverGroupName, requestPacket, timeoutMillis, retries - 1, retryNum + 1, Some(baseRadiusId))
     }.andThen {
-      case Failure(e) =>
+      case Failure(_) =>
         MetricsOps.pushRadiusHandlerTimeout(statsServer, serverGroupName, requestPacket.code)
       case Success(responsePacket) =>
         MetricsOps.pushRadiusHandlerRequest(statsServer, serverGroupName, requestPacket.code, responsePacket.code, sentTimestamp) 
@@ -184,7 +189,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   }
   
   // To be used internally
-  private def sendRadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, baseRadiusId: Long, timeoutMillis: Int, retries: Int, retryNum: Int) = {
+  private def sendRadiusGroupRequestInternal(promise: Promise[RadiusPacket], serverGroupName: String, requestPacket: RadiusPacket, baseRadiusId: Long, timeoutMillis: Int, retries: Int, retryNum: Int): Unit = {
     
     val radiusId = baseRadiusId + retryNum
     
@@ -197,8 +202,8 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     log.debug(">> Radius request sent\n {}\n", requestPacket.toString())
   }
   
-  // To be overriden in Handler Classes
-  def handleRadiusMessage(radiusRequestContext: RadiusRequestContext) = {
+  // To be overridden in Handler Classes
+  def handleRadiusMessage(radiusRequestContext: RadiusRequestContext): Unit = {
     log.warning("Default radius handleMessage does nothing")
   }
   
@@ -208,9 +213,9 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   case class RadiusRequestMapEntry(promise: Promise[RadiusPacket], timer: Cancellable, sentTimestamp: Long)
   private val radiusRequestMap = scala.collection.mutable.Map[Long, RadiusRequestMapEntry]()
   
-  private def radiusRequestMapIn(radiusId: Long, timeoutMillis: Int, promise: Promise[RadiusPacket]) = {
+  private def radiusRequestMapIn(radiusId: Long, timeoutMillis: Int, promise: Promise[RadiusPacket]): Unit = {
     // Schedule timer
-    val timer = context.system.scheduler.scheduleOnce(timeoutMillis milliseconds, self, MessageHandler.RadiusRequestTimeout(radiusId))
+    val timer = context.system.scheduler.scheduleOnce(timeoutMillis.milliseconds, self, MessageHandler.RadiusRequestTimeout(radiusId))
     
     // Add to map
     radiusRequestMap.put(radiusId, RadiusRequestMapEntry(promise, timer, System.currentTimeMillis))
@@ -218,7 +223,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     log.debug("Radius Request Map In -> {}", radiusId)
   }
   
-  private def radiusRequestMapOut(radiusId: Long, radiusPacketOrError: Either[RadiusPacket, Exception]) = {
+  private def radiusRequestMapOut(radiusId: Long, radiusPacketOrError: Either[RadiusPacket, Exception]): Unit  = {
     radiusRequestMap.remove(radiusId) match {
       case Some(requestEntry) =>
         requestEntry.timer.cancel()
@@ -240,7 +245,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   ////////////////////////////////
   // Actor receive method
   ////////////////////////////////
-  def receive  = LoggingReceive {
+  def receive: Receive = LoggingReceive {
     
     // Diameter
     case DiameterRequestTimeout(e2eId) =>
@@ -251,7 +256,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
       handleDiameterMessage(DiameterRequestContext(diameterRequest, originActor, System.currentTimeMillis))
       
     case diameterAnswer: DiameterMessage =>
-      log.debug("<< Diameter anwer received\n {}\n", diameterAnswer.toString())
+      log.debug("<< Diameter answer received\n {}\n", diameterAnswer.toString())
       diameterRequestMapOut(diameterAnswer.endToEndId, Left(diameterAnswer))
       
     case DiameterRequestInternal(promise, requestMessage, timeoutMillis) =>
@@ -280,17 +285,15 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   ////////////////////////////////
   object YaasJS {
     
-    import org.json4s._
-    import org.json4s.jackson.JsonMethods._
-    import yaas.coding.RadiusConversions._
-    import yaas.coding.DiameterConversions._
-    
     import akka.http.scaladsl.Http
     import akka.http.scaladsl.model._
-    import akka.http.scaladsl.model.HttpMethods._
     import akka.http.scaladsl.unmarshalling.Unmarshal
-    implicit val materializer = akka.stream.ActorMaterializer()
-    val http = Http(context.system)
+    import org.json4s._
+    import org.json4s.jackson.JsonMethods._
+    import yaas.coding.DiameterConversions._
+    import yaas.coding.RadiusConversions._
+    private implicit val materializer: ActorMaterializer = akka.stream.ActorMaterializer()
+    private val http = Http(context.system)
     
     /**
      * This function has to be exposed to the Javascript engine
@@ -300,7 +303,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   	 * 
   	 * callback has the form "function(err, response)"
      */
-    def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject) = {
+    def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
         
       val responseFuture = sendRadiusGroupRequest(serverGroupName, parse(requestPacket), timeoutMillis, retries)
       responseFuture.onComplete{
@@ -314,7 +317,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
       }
     }
     
-    def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: jdk.nashorn.api.scripting.JSObject) = {
+    def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
       val responseFuture = sendDiameterRequest(parse(requestMessage), timeoutMillis)
       responseFuture.onComplete{
         case Success(response) =>
@@ -327,7 +330,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
       }
     }
     
-    def httpRequest(url: String, method: String, json: String, callback: jdk.nashorn.api.scripting.JSObject) = {
+    def httpRequest(url: String, method: String, json: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
       val responseFuture = http.singleRequest(HttpRequest(HttpMethods.getForKey(method).get, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
       (for {
         re <- responseFuture
