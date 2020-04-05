@@ -33,6 +33,8 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       testAccountingRequestWithDrop _,
       sleep(6000) _,
       checkSuperserverRadiusStats _,
+      sleep(86400),
+      stop(),
       checkServerRadiusStats _,
       checkClientRadiusStats _,
       testAccountingInterim _,

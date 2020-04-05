@@ -1,12 +1,23 @@
 package yaas.instrumentation
 
-import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 import yaas.server.RadiusActorMessages.RadiusEndpoint
 
+/**
+ * Companion object of the MetricsServer Actor, including the object definitions used there
+ */
 object MetricsServer {
   
-  def props() = Props(new MetricsServer)
-  
+  def props(): Props = Props(new MetricsServer)
+
+  class InvalidLabelException(val msg: String) extends Exception(msg: String)
+  class InvalidMetricException(val msg: String) extends Exception(msg: String)
+
+  /*
+  Definitions of messages to MetricsServer
+   */
+
+  // Re-setter messages
   case object DiameterMetricsReset
   case object RadiusMetricsReset
   case object HttpMetricsReset
@@ -15,40 +26,46 @@ object MetricsServer {
   case class DiameterPeerQueueSize(dp: String, size: Int)
   case class RadiusClientQueueSizes(sizes: Map[RadiusEndpoint, Int])
   
-  // Get metrics messages
+  // Get metrics message
   class Metrics
   object DiameterMetrics extends Metrics
   object RadiusMetrics extends Metrics
   object HttpMetrics extends Metrics
   object SessionMetrics extends Metrics
   case class GetMetrics(metricType: Metrics, metricName: String, params: List[String])
-  
+
+  /**
+   * Defines an entry holding a metric item
+   * @param keyMap Definition of the metric stored, as a set of keys->values
+   * @param value the value of the metric stored
+   */
   case class MetricsItem(keyMap: Map[String, String], value: Long)
   
   trait MetricKey {
-    def getValue(key : String) :String 
-    def getAggrValue(keyList : List[String]) : List[String]
-  }
-  
-  trait DiameterMetricKey extends MetricKey {    
+    def getLabelValue(key: String): String
+
+    def getAllLabels: List[String]
+
     /**
-     * Given a set of keys (e.g. List("ap", "cm")) returns the corresponding values of this DiameterMetricsItem, to be used as a key
-     * for aggregation
+     * Given a set of labels  (e.g. List("ap", "cm")) returns the corresponding values of this MetricKey, to be used as a key
+     * for aggregation. If "all", all the labels are used
      */
-    def getAggrValue(keyList : List[String]) = {
-      for {
-        key <- keyList
-      } yield getValue(key)
-    }
+    def getLabelValues(labelList: List[String]): Seq[String] = labelList.map(getLabelValue)
+
+    def getKeyMap: Map[String, String] = getAllLabels.map(l => (l, getLabelValue(l))).toMap
   }
+
+  trait DiameterMetricKey extends MetricKey
   
   class DiameterPeerMetricsKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricKey {
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
         case "peer" => peer
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm")
   }
   
   /*
@@ -56,109 +73,118 @@ object MetricsServer {
    * or = origin realm / "<void>"
    * dh = destination host / "<void>"
    * dr = destination realm / "<void>"
-   * ap = application Id (note the id is stored as a string)
-   * cm = command Code (note the code is stored as a string)
-   * rc = diameter result code (note the code is stored as a string). 
+   * ap = application Id (notice the id is stored as a string)
+   * cm = command Code (notice the code is stored as a string)
+   * rc = diameter result code (notice the code is stored as a string).
    * rt = response time (ceil(l2(rt)) in milliseconds) 
    *  
    */
   
   // Peer Metrics
-  case class DiameterRequestReceivedKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm)
+  case class DiameterRequestReceivedKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm) {
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm")
+  }
+
   case class DiameterAnswerReceivedKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm) {
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "rt" => rt
         case "rc" => rc
-        case k: String => super.getValue(k)
+        case k: String => super.getLabelValue(k)
       }
     }
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
   }
-  case class DiameterRequestTimeoutKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm)
+
+  case class DiameterRequestTimeoutKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm) {
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm")
+  }
+
   case class DiameterAnswerSentKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm){
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "rc" => rc
-        case k: String => super.getValue(k)
+        case k: String => super.getLabelValue(k)
       }
     }
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm", "rc")
   }
   
-  case class DiameterRequestSentKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm)
-  
+  case class DiameterRequestSentKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm){
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm")
+  }
+
   case class DiameterAnswerDiscardedKey(peer: String, oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String) extends DiameterPeerMetricsKey(peer, oh, or, dh, dr, ap, cm){
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "rc" => rc
-        case k: String => super.getValue(k)
+        case k: String => super.getLabelValue(k)
       }
     }
+    override def getAllLabels = List("peer", "oh", "or", "dh", "dr", "ap", "cm", "rc")
   }
 
   // Router Metrics
   case class DiameterRequestDroppedKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricKey {
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
         key match {
           case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
+          case l => throw new InvalidLabelException(l)
         }
       }
+    override def getAllLabels = List("oh", "or", "dh", "dr", "ap", "cm", "rc")
   }
-  
-  
+
   // Handler Metrics
   class DiameterHandlerMetricsKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterMetricKey {
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "oh" => oh; case "or" => or; case "dh" => dh; case "dr" => dr; case "ap" => ap; case "cm" => cm;
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("oh", "or", "dh", "dr", "ap", "cm")
   }
   
   case class DiameterHandlerServerKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterHandlerMetricsKey(oh, or, dh, dr, ap, cm){
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "rc" => rc
         case "rt" => rt
-        case k: String => super.getValue(k)
+        case k: String => super.getLabelValue(k)
       }
     }
+    override def getAllLabels = List("oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
   }
+
   case class DiameterHandlerClientKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String, rc: String, rt: String) extends DiameterHandlerMetricsKey(oh, or, dh, dr, ap, cm){
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "rc" => rc
         case "rt" => rt
-        case k: String => super.getValue(k)
+        case k: String => super.getLabelValue(k)
       }
     }
+    override def getAllLabels = List("oh", "or", "dh", "dr", "ap", "cm", "rc", "rt")
   }
+
   case class DiameterHandlerClientTimeoutKey(oh: String, or: String, dh: String, dr: String, ap: String, cm: String) extends DiameterHandlerMetricsKey(oh, or, dh, dr, ap, cm)
   
   case class DiameterPeerQueueSizeKey(peer: String) extends DiameterMetricKey {
-    override def getValue(key : String) = {
+    override def getLabelValue(key : String): String = {
       key match {
         case "peer" => peer
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("peer")
   }
   
   /////////////////////////////////////////////////////////////////////////////////////////////
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////
   
-  trait RadiusMetricKey extends MetricKey {
-    def getValue(key: String) : String
-    
-    /**
-     * Given a set of keys (e.g. List("io", "ra")) returns the corresponding values of this DiameterMetricsItem, to be used as a key
-     * for aggregation
-     */
-    def getAggrValue(keyList : List[String]) = {
-      for {
-        key <- keyList
-      } yield getValue(key)
-    }
-  }
+  trait RadiusMetricKey extends MetricKey
   
   /*
    * group = radius group name
@@ -171,196 +197,250 @@ object MetricsServer {
   
   // Server Metrics
   case class RadiusServerRequestKey(rh: String, rq: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rq")
   }
   case class RadiusServerDropKey(rh: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh;
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh")
   }
+
   case class RadiusServerResponseKey(rh: String, rs: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rs" => rs
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rs")
   }
   
   // Client Metrics
   case class RadiusClientRequestKey(rh: String, rq: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rq")
   }
+
   case class RadiusClientResponseKey(rh: String, rq: String, rs: String, rt: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq; case "rs" => rs; case "rt" => rt
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rq", "rs", "rt")
   }
+
   case class RadiusClientTimeoutKey(rh: String, rq: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rq")
   }
+
   case class RadiusClientDroppedKey(rh: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh;
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh")
   }
   
   // Handler Metrics
   case class RadiusHandlerResponseKey(rh: String, rq: String, rs: String, rt: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq; case "rs" => rs; case "rt" => rt
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rq", "rs", "rt")
   }
+
   case class RadiusHandlerDroppedKey(rh: String, rq: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq
+        case l => throw new InvalidLabelException(l)
       }
     }
+
+    override def getAllLabels = List("rh", "rq")
   }
+
   case class RadiusHandlerRequestKey(rh: String, rq: String, rs: String, rt: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh; case "rq" => rq; case "rs" => rs; case "rt" => rt
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh", "rq", "rs", "rt")
   }
   case class RadiusHandlerRetransmissionKey(group: String, rq: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "group" => group; case "rq" => rq
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("group", "rq")
   }
   case class RadiusHandlerTimeoutKey(group: String, rq: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "group" => group; case "rq" => rq
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("group", "rq")
   }
   
   case class RadiusClientQueueSizeKey(rh: String) extends RadiusMetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "rh" => rh
+        case l => throw new InvalidLabelException(l)
       }
     }
+    override def getAllLabels = List("rh")
   }
 
-  
   //////////////////////////////////////////
   // Http
   //////////////////////////////////////////
   
   class HttpMetricKey(oh: String, method: String, path: String, rc: String) extends MetricKey {
-    def getValue(key : String) = {
+    def getLabelValue(key : String): String = {
       key match {
         case "oh" => oh; case "method" => method; case "path" => path; case "rc" => rc;
+        case l => throw new InvalidLabelException(l)
       }
     }
-    
-    /**
-     * Given a set of keys (e.g. List("oh", "rc")) returns the corresponding values of this HttpMetricsItem, 
-     * to be used as a key for aggregation
-     */
-    def getAggrValue(keyList : List[String]) = {
-      for {
-        key <- keyList
-      } yield getValue(key)
-    }
+    override def getAllLabels = List("oh", "method", "path", "rc")
   }
   
   case class HttpOperationKey(oh: String, method: String, path: String, rc: String) extends HttpMetricKey(oh, method, path, rc)
-  
-} 
 
+  //////////////////////////////////////////
+  // SessionGroups
+  //////////////////////////////////////////
+  case class SessionGroupMetricKey(labelValues: Map[String, String]) extends MetricKey {
+    override def getLabelValue(key: String): String = labelValues.getOrElse(key, "")
+
+    override def getAllLabels = List("g0", "g1", "g2", "g3", "g4")
+  }
+}
+
+/**
+ * Holds all the Metrics, which are updated by the reception of Actor messages and can be retrieved also as repsonse
+ * to some messages
+ */
 class MetricsServer extends Actor with ActorLogging {
   
   import MetricsServer._
+  import scala.collection.mutable
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Diameter
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Peer Counters
   
-  // Contain the counter value for each received combination of keys
-  private var diameterRequestReceivedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterAnswerReceivedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterRequestTimeoutCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterAnswerSentCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterRequestSentCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterAnswerDiscardedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  // Contains the counter value for each received combination of keys
+  private var diameterRequestReceivedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterAnswerReceivedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterRequestTimeoutCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterAnswerSentCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterRequestSentCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterAnswerDiscardedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
   
   // Router Metrics
-  private var diameterRequestDroppedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterRequestDroppedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
   
   // Handler Metrics
-  private var diameterHandlerServerCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterHandlerClientCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  private var diameterHandlerClientTimeoutCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterHandlerServerCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterHandlerClientCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+  private var diameterHandlerClientTimeoutCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
   
   // Queue Metrics
-  private var diameterPeerQueueSizeGauge = scala.collection.mutable.Map[DiameterPeerQueueSizeKey, Long]()
+  private var diameterPeerQueueSizeGauge = mutable.Map[DiameterPeerQueueSizeKey, Long]()
   
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Radius
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  private var radiusServerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusServerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusServerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusServerRequestCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusServerDroppedCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusServerResponseCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-  private var radiusClientRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusClientResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusClientTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusClientDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientRequestCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientResponseCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientTimeoutCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusClientDroppedCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-  private var radiusHandlerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusHandlerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusHandlerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusHandlerRetransmissionCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-  private var radiusHandlerTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerResponseCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerDroppedCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerRequestCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerRetransmissionCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+  private var radiusHandlerTimeoutCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-  private var radiusClientQueueSizeGauge = scala.collection.mutable.Map[RadiusClientQueueSizeKey, Long]()
+  private var radiusClientQueueSizeGauge = mutable.Map[RadiusClientQueueSizeKey, Long]()
   
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Http
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  private var httpOperationsCounter = scala.collection.mutable.Map[HttpMetricKey, Long]().withDefaultValue(0)
+  private var httpOperationsCounter = mutable.Map[HttpMetricKey, Long]().withDefaultValue(0)
   
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  
-  def getMetrics[A <: MetricKey](metricsMap: scala.collection.mutable.Map[A, Long], keys: List[String]): List[MetricsItem] = {
-    // The key for the aggregation is the list of values for the specified keys
-    metricsMap.groupBy{case (metricsKey, value) => metricsKey.getAggrValue(keys)} 
-    .map{case (k, v) => MetricsItem(keys.zip(k).toMap, v.values.reduce(_+_))}
-    .toList   
+
+
+  /**
+   * Given a set of labels, aggregate the metrics on those labels
+   * @param metricsMap
+   * @param labels
+   * @tparam A
+   * @return
+   */
+  def getMetrics[A <: MetricKey](metricsMap: mutable.Map[A, Long], labels: List[String]): List[MetricsItem] = {
+    if(metricsMap.isEmpty) List()
+    else {
+      // If labels is empty then use all labels. If a single elemement "all", do aggregate all entries.
+      // The list of all labels may be taken from any metric in the list
+      val myLabels =
+        if (labels.isEmpty) metricsMap.keys.head.getAllLabels
+        else if(labels.equals(List("all"))) List[String]()
+        else labels
+
+      metricsMap.groupBy { case (metricsKey, _) => metricsKey.getLabelValues(myLabels) } // Map of label values to a metrics submap with those values for the labels
+        .map { case (k, v) => MetricsItem(myLabels.zip(k).toMap, v.values.sum) } // Generate a MetricsItem with keyMap label=labelValue and the sum of values
+        .toList
+    }
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Receive
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////// 
   
-  def receive = {
+  def receive: Receive = {
     /*
      * Statistics update
      */
@@ -378,10 +458,10 @@ class MetricsServer extends Actor with ActorLogging {
     case s: DiameterHandlerServerKey => diameterHandlerServerCounter(s) = diameterHandlerServerCounter(s) + 1
     case s: DiameterHandlerClientKey => diameterHandlerClientCounter(s) = diameterHandlerClientCounter(s) + 1
     case s: DiameterHandlerClientTimeoutKey => diameterHandlerClientTimeoutCounter(s) = diameterHandlerClientTimeoutCounter(s) + 1
-    
+
     case DiameterPeerQueueSize(pn, size) => 
       if(size == -1) diameterPeerQueueSizeGauge.remove(DiameterPeerQueueSizeKey(pn)) else diameterPeerQueueSizeGauge(DiameterPeerQueueSizeKey(pn)) = size
-    
+
     // Radius
     case s: RadiusServerRequestKey => radiusServerRequestCounter(s) = radiusServerRequestCounter(s) + 1
     case s: RadiusServerDropKey => radiusServerDroppedCounter(s) = radiusServerDroppedCounter(s) + 1
@@ -397,51 +477,46 @@ class MetricsServer extends Actor with ActorLogging {
     case s: RadiusHandlerDroppedKey => radiusHandlerDroppedCounter(s) = radiusHandlerDroppedCounter(s) + 1
     case s: RadiusHandlerTimeoutKey => radiusHandlerTimeoutCounter(s) = radiusHandlerTimeoutCounter(s) + 1
     case s: RadiusHandlerRetransmissionKey => radiusHandlerRetransmissionCounter(s) = radiusHandlerRetransmissionCounter(s) + 1
-    
+
     case RadiusClientQueueSizes(sizes) =>
-      // Convert the map to mutable
-      val mutableSizes = scala.collection.mutable.Map[RadiusEndpoint, Int]()
-      sizes.map(size => mutableSizes += size)
-      radiusClientQueueSizeGauge = for{(endPoint, size) <- mutableSizes} yield (RadiusClientQueueSizeKey(s"${endPoint.ipAddress}:${endPoint.port}"), size.toLong)
-    
+      radiusClientQueueSizeGauge = mutable.Map[RadiusClientQueueSizeKey, Long]() ++ sizes.map { case (endPoint, qSize) => (RadiusClientQueueSizeKey(s"${endPoint.ipAddress}:${endPoint.port}"), qSize.toLong)}
+
     // Http
     case s: HttpOperationKey => httpOperationsCounter(s) = httpOperationsCounter(s) + 1
     
     // Reset
     case DiameterMetricsReset =>      
-      diameterRequestReceivedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterAnswerReceivedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterRequestTimeoutCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterAnswerSentCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterRequestSentCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterAnswerDiscardedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterRequestReceivedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterAnswerReceivedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterRequestTimeoutCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterAnswerSentCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterRequestSentCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterAnswerDiscardedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
 
-      diameterRequestDroppedCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterRequestDroppedCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
   
-      diameterHandlerServerCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterHandlerClientCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-      diameterHandlerClientTimeoutCounter = scala.collection.mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
-  
-      diameterPeerQueueSizeGauge = scala.collection.mutable.Map[DiameterPeerQueueSizeKey, Long]()
+      diameterHandlerServerCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterHandlerClientCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
+      diameterHandlerClientTimeoutCounter = mutable.Map[DiameterMetricKey, Long]().withDefaultValue(0)
       
     case RadiusMetricsReset =>
-      radiusServerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusServerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusServerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusServerRequestCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusServerDroppedCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusServerResponseCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-      radiusClientRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusClientResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusClientTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusClientDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientRequestCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientResponseCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientTimeoutCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusClientDroppedCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
   
-      radiusHandlerResponseCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusHandlerDroppedCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusHandlerRequestCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusHandlerRetransmissionCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
-      radiusHandlerTimeoutCounter = scala.collection.mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerResponseCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerDroppedCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerRequestCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerRetransmissionCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
+      radiusHandlerTimeoutCounter = mutable.Map[RadiusMetricKey, Long]().withDefaultValue(0)
       
     case HttpMetricsReset =>
-      httpOperationsCounter = scala.collection.mutable.Map[HttpMetricKey, Long]().withDefaultValue(0)
+      httpOperationsCounter = mutable.Map[HttpMetricKey, Long]().withDefaultValue(0)
 
     /*
      * Statistics query
@@ -463,6 +538,8 @@ class MetricsServer extends Actor with ActorLogging {
           case "diameterHandlerClientTimeout" => sender ! getMetrics(diameterHandlerClientTimeoutCounter, paramList)
           
           case "diameterPeerQueueSize" => sender ! getMetrics(diameterPeerQueueSizeGauge, paramList)
+
+          case _ => throw new InvalidMetricException(s"Unknown metric $metricName")
         }
       } 
       catch {
@@ -487,7 +564,9 @@ class MetricsServer extends Actor with ActorLogging {
           case "radiusHandlerRetransmission" => sender ! getMetrics(radiusHandlerRetransmissionCounter, paramList)
           case "radiusHandlerTimeout" => sender ! getMetrics(radiusHandlerTimeoutCounter, paramList)
           
-          case "radiusClientQueueSize" => sender ! getMetrics(radiusClientQueueSizeGauge, paramList) 
+          case "radiusClientQueueSize" => sender ! getMetrics(radiusClientQueueSizeGauge, paramList)
+
+          case _ => throw new InvalidMetricException(s"Unknown metric $metricName")
         }
       } 
       catch {
@@ -498,48 +577,39 @@ class MetricsServer extends Actor with ActorLogging {
       try{
         metricName match {
           case "httpOperation" => sender ! getMetrics(httpOperationsCounter, paramList)
+
+          case _ => throw new InvalidMetricException(s"Unknown metric $metricName")
         }
       }
       catch {
         case e: Throwable => sender ! akka.actor.Status.Failure(e)
       }
       
-    // paramList will be a list of integers corresponding to the positions to be aggregated
+    // paramList will be a list such as ["g1", "g2", ...]
     case GetMetrics(SessionMetrics, metricName, paramList) =>
-     try {
+      try {
         metricName match {
-          case "sessions" => 
-            // getSessions : List[(String, Long)], where "String" is "keyValue1,keyValue2,..."
-            // metricItems : List[MetricsItem], where a MetricsItem contains a Map[key, keyValue] and a counter
-            val metricsItems = yaas.database.SessionDatabase.getSessionGroups.map(item => {
+          case "sessions" =>
+            // Generate a Map[SessionGroupMetricKey, Long]
+            val metricsMap = mutable.Map[SessionGroupMetricKey, Long]() ++ yaas.database.SessionDatabase.getSessionGroups.map(item => {
               val keyValues = item._1.split(",")
+
               val keyMap = (for {
-                i <- 0 to (keyValues.length - 1)
+                i <- 0 until keyValues.length
               } yield (s"g$i", keyValues(i))).toMap
-              
-              MetricsItem(keyMap, item._2)
-            })
-            
-            // Now we must aggregate the results as specified in the paramsList
-            val aggregatedMetricItems = 
-              if(paramList.length == 0 || paramList.length > 4) metricsItems
-              
-            else metricsItems.
-              // Group by same values of parameter values, turned into a map key->value
-              // This generates a Map[Map[String, String] -> List[MetricsItem]]
-              groupBy(item => paramList.map(param => (param, item.keyMap(param))).toMap).
-              // Which has to be turned into a List[MetricsItem]
-              map{
-                case (keyMap, values) => MetricsItem(keyMap, values.map(_.value).reduce(_+_))
-              }
-            
-            sender ! aggregatedMetricItems.toList
+
+              (SessionGroupMetricKey(keyMap), item._2)
+            }).toMap
+
+            sender ! getMetrics(metricsMap, paramList)
+
+          case _ => throw new InvalidMetricException(s"Unknown metric $metricName")
         }
       }
       catch {
         case e: Throwable => sender ! akka.actor.Status.Failure(e)
       }
-      
+
     case _: Any =>
   }
 }

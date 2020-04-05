@@ -24,6 +24,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
+// TODO: Test group metrics
 
 trait JsonSupport extends Json4sSupport {
   implicit val serialization: Serialization.type = org.json4s.jackson.Serialization

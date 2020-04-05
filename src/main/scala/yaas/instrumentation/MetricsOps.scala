@@ -30,8 +30,8 @@ object MetricsOps {
   /////////////////////////////////////////
   
   case class DiameterPeerStatus(config: DiameterPeerConfig, status: Int)
-  
-  def updateDiameterPeerQueueGauge(metricsActor: ActorRef, peerName: String, size: Int) = {
+
+  def updateDiameterPeerQueueGauge(metricsActor: ActorRef, peerName: String, size: Int): Unit = {
     metricsActor ! DiameterPeerQueueSize(peerName, size)
   }
   

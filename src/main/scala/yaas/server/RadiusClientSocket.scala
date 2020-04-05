@@ -1,42 +1,43 @@
 package yaas.server
 
-import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill }
-import akka.event.{ Logging, LoggingReceive }
-import akka.io.{IO, Udp}
-
 import java.net.InetSocketAddress
 
-import yaas.config.RadiusConfigManager
-import yaas.coding.RadiusPacket
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.io.{IO, Udp}
 import yaas.server.RadiusActorMessages._
 
 object RadiusClientSocket {
-    def props(bindIPAddress: String, bindPort: Int) = Props(new RadiusClientSocket(bindIPAddress, bindPort))
+    def props(bindIPAddress: String, bindPort: Int): Props = Props(new RadiusClientSocket(bindIPAddress, bindPort))
 }
 
+/**
+ * Implements a sender of Radius requests using a specific address and port
+ * @param bindIPAddress the IP address to which the radius client binds
+ * @param bindPort the origin client Port
+ */
 class RadiusClientSocket(bindIPAddress: String, bindPort: Int) extends Actor with ActorLogging {
-  
-  import RadiusClientSocket._
   
   import context.system
   
   // TODO: Handle bind error
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(bindIPAddress, bindPort))
   
-  def receive = {
+  def receive: Receive = {
     case Udp.Bound(localAddress: InetSocketAddress) =>
       log.info(s"Client socket bound to $localAddress")
       context.become(ready(sender))
+
+    case Udp.CommandFailed(_) =>
+      log.error("Could not bind radius client to {}:{}", bindIPAddress, bindPort)
+      System.exit(-1)
   }
   
   def ready(udpEndPoint: ActorRef): Receive = {
     case Udp.Received(data, remote) =>
-      val radiusEndpoint = RadiusEndpoint(remote.getAddress().getHostAddress, remote.getPort)
+      val radiusEndpoint = RadiusEndpoint(remote.getAddress.getHostAddress, remote.getPort)
       context.parent ! RadiusClientSocketResponse(data, radiusEndpoint, bindPort)
       
     case RadiusClientSocketRequest(bytes, destination) =>
-      log.debug(s"Sending radius request to $destination")
-      val request = bytes
-      udpEndPoint ! Udp.Send(request, new InetSocketAddress(destination.ipAddress, destination.port))
+      udpEndPoint ! Udp.Send(bytes, new InetSocketAddress(destination.ipAddress, destination.port))
   }
 }

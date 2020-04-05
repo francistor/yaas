@@ -25,14 +25,12 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
   
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(bindIPAddress, bindPort))
   
-  // TODO: Catch errors
-  
   def receive: Receive = {
     case Udp.Bound(localAddress: InetSocketAddress) =>
       log.info(s"Server socket bound to $localAddress")
       context.become(ready(sender))
-    case Udp.CommandFailed(command) =>
-      log.error("Could not bind to {}:{}", bindIPAddress, bindPort)
+    case Udp.CommandFailed(_) =>
+      log.error("Could not bind radius server to {}:{}", bindIPAddress, bindPort)
       System.exit(-1)
   }
   

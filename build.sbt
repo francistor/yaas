@@ -35,8 +35,8 @@ scriptClasspath += "../handlers"
 // --add-exports needed for Ignite compatibility with java 9
 javaOptions in Universal ++= Seq(
     "-J-server"
-	// "-J--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
-	// "-J--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+	  //"-J--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
+	  //"-J--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
 )
   
 

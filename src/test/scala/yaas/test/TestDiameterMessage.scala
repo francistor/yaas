@@ -152,10 +152,10 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
     diameterMessage << subsAVP
 
     // Retrieve full AVP
-    (diameterMessage >:> "Subscription-Id").get mustEqual subsAVP
+    (diameterMessage >-> "Subscription-Id").get mustEqual subsAVP
     
     // Retrieve value
-    ((diameterMessage >:> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
+    ((diameterMessage >-> "Subscription-Id").get >> "Subscription-Id-Data").get.toString mustEqual userIMSI
 
     // Retrieve value using dot notation
     (diameterMessage >>> "Subscription-Id.Subscription-Id-Data.Other") mustBe None
@@ -182,6 +182,8 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   }
   
   "DiameterMessage conversion to and from JSON" in {
+
+    implicit val jsonFormats: Formats = DefaultFormats
     
     val subscriptionId = "subscriptionId-0"
     

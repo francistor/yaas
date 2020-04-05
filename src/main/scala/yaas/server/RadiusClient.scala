@@ -1,54 +1,56 @@
 package yaas.server
 
-import scala.collection.mutable.Map
-import scala.concurrent.duration._
-
-import akka.actor.{ ActorSystem, Actor, ActorLogging, ActorRef, Props, PoisonPill, Cancellable }
-import akka.event.{ Logging, LoggingReceive }
-import yaas.config.RadiusServerConfig
-import yaas.server.RadiusActorMessages._
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
+import com.typesafe.config.{Config, ConfigFactory}
 import yaas.coding.RadiusPacket
-import yaas.util._
 import yaas.instrumentation.MetricsOps
-import com.typesafe.config.ConfigFactory
+import yaas.server.RadiusActorMessages._
+import yaas.util._
+
+import scala.collection.mutable
+import scala.collection.mutable.Map
+import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.duration._
 
 // This Actor handles the communication with upstream radius servers
 object RadiusClient {
-  def props(bindIPAddress: String, basePort: Int, numPorts: Int, metricsServer: ActorRef) = Props(new RadiusClient(bindIPAddress, basePort, numPorts, metricsServer))
+  def props(bindIPAddress: String, basePort: Int, numPorts: Int, metricsServer: ActorRef): Props = Props(new RadiusClient(bindIPAddress, basePort, numPorts, metricsServer))
  
   // Messages
+  // To be sent periodically to generate timeouts and delete the corresponding outstanding request entries
   case object Clean
 }
 
-case class RadiusPortId(port: Int, id: Int)
-case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, secret: String, requestCode: Int, requestTimestamp: Long)
-
 class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsServer: ActorRef) extends Actor with ActorLogging {
+
+  case class RadiusRequestRef(originActor: ActorRef, authenticator: Array[Byte], radiusId: Long, endPoint: RadiusEndpoint, secret: String, requestCode: Int, requestTimestamp: Long)
+  case class RadiusPortId(port: Int, id: Int)
   
   import RadiusClient._
   
-  val config = ConfigFactory.load().getConfig("aaa.radius")
+  private val config: Config = ConfigFactory.load().getConfig("aaa.radius")
+
+  // TODO: Each request should have its own timeout
+  private val cleanMapIntervalMillis = config.getInt("clientMapIntervalMillis")
+  private val clientMapTimeoutMillis = config.getInt("clientMapTimeoutMillis")
+  private var cleanTimer: Option[Cancellable] = None
   
-  val cleanMapIntervalMillis = config.getInt("clientMapIntervalMillis")
-  val clientMapTimeoutMillis = config.getInt("clientMapTimeoutMillis")
-  var cleanTimer: Option[Cancellable] = None
-  
-  implicit val executionContext = context.system.dispatcher
+  private implicit val executionContext: ExecutionContextExecutor = context.system.dispatcher
     
   // For each radius destination, the map of identifiers (port + id) to requests
-  val requestMap = Map[RadiusEndpoint, Map[RadiusPortId, RadiusRequestRef]]().withDefaultValue(Map())
+  private val requestMap = mutable.Map[RadiusEndpoint, mutable.Map[RadiusPortId, RadiusRequestRef]]().withDefaultValue(mutable.Map())
   
   // Stores the last identifier used for the key RadiusDestination
-  val lastRadiusPortIds = Map[RadiusEndpoint, RadiusPortId]().withDefaultValue(RadiusPortId(basePort, 0))
+  private val lastRadiusPortIds = mutable.Map[RadiusEndpoint, RadiusPortId]().withDefaultValue(RadiusPortId(basePort, 0))
   
   // For each radius destination, store the stats
-  var endpointSuccesses = Map[RadiusEndpoint, Int]().withDefaultValue(0)
-  var endpointErrors = Map[RadiusEndpoint, Int]().withDefaultValue(0)
+  private var endpointSuccesses = mutable.Map[RadiusEndpoint, Int]().withDefaultValue(0)
+  private var endpointErrors = mutable.Map[RadiusEndpoint, Int]().withDefaultValue(0)
   
   // Span actors. One for each socket
-  val socketActors = (for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i))
+  private val socketActors = for(i <- basePort to basePort + numPorts) yield context.actorOf(RadiusClientSocket.props(bindIPAddress, i), "RadiusClientSocket-"+ i)
   
-  def receive = {
+  def receive: Receive = {
     
     case RadiusClientRequest(requestPacket, endpoint, secret, originActor, radiusId) =>
       // Get port and id
@@ -107,26 +109,26 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
       // Gather the requests that that are older than the timeout, and remove them
       for {
         (endpoint, endpointRequestMap) <- requestMap
-        (portId, requestRef) <- endpointRequestMap
+        (radiusPortId, requestRef) <- endpointRequestMap
       } if(requestRef.requestTimestamp < thresholdTimestamp) {
         endpointErrors(endpoint) = endpointErrors(endpoint) + 1
-        requestMap(endpoint).remove(portId).foreach(reqRef => MetricsOps.pushRadiusClientTimeout(metricsServer, reqRef.endPoint, reqRef.requestCode))
+        requestMap(endpoint).remove(radiusPortId).foreach(reqRef => MetricsOps.pushRadiusClientTimeout(metricsServer, reqRef.endPoint, reqRef.requestCode))
       }
       
       // Build immutable map to send as message
-      val endpoints = endpointSuccesses.keys.toSet ++ endpointErrors.keys.toSet
-      val stats = for{
-        endpoint <- endpoints.toList
+      val stats = for {
+        endpoint <- (endpointSuccesses.keys.toSet ++ endpointErrors.keys.toSet).toList
       } yield (endpoint, (endpointSuccesses(endpoint), endpointErrors(endpoint)))
       
       // Report to the router the stats for the last interval
-      if(stats.size > 0 ) context.parent ! Router.RadiusClientStats(stats.toMap)
+      if(stats.nonEmpty) context.parent ! Router.RadiusClientStats(stats.toMap)
       
       // Clear
-      endpointSuccesses = Map().withDefaultValue(0)
-      endpointErrors = Map().withDefaultValue(0)
-      cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
-      
+      endpointSuccesses = mutable.Map().withDefaultValue(0)
+      endpointErrors = mutable.Map().withDefaultValue(0)
+      cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis.milliseconds, self, Clean))
+
+      // Send to the metrics servers a map of endpoint to size of the queue
       MetricsOps.updateRadiusClientRequestQueueGauges(
           metricsServer, 
           (for{(endpoint, reqMap) <- requestMap} yield (endpoint, reqMap.size)).toMap
@@ -135,20 +137,23 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
     case _ =>
   }
   
-  override def preStart = {
-    cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis milliseconds, self, Clean))
+  override def preStart: Unit = {
+    cleanTimer = Some(context.system.scheduler.scheduleOnce(cleanMapIntervalMillis.milliseconds, self, Clean))
   }
   
-  override def postStop = {
+  override def postStop: Unit = {
     cleanTimer.map(_.cancel)
   }
   
-  // Helper function
-  def pushToRequestMap(destination: RadiusEndpoint, radiusPortId: RadiusPortId, reqRef: RadiusRequestRef) = {
+  /*
+   * Add entry in request map
+   */
+  private def pushToRequestMap(destination: RadiusEndpoint, radiusPortId: RadiusPortId, reqRef: RadiusRequestRef): Unit = {
     requestMap.get(destination) match {
-      case Some(endpointRequestMap) => endpointRequestMap.put(radiusPortId, reqRef)
+      case Some(endpointRequestMap) =>
+        endpointRequestMap.put(radiusPortId, reqRef)
       case None =>
-        requestMap.put(destination, Map[RadiusPortId, RadiusRequestRef]((radiusPortId, reqRef)))
+        requestMap.put(destination, mutable.Map[RadiusPortId, RadiusRequestRef]((radiusPortId, reqRef)))
     }
   }
   
@@ -156,13 +161,13 @@ class RadiusClient(bindIPAddress: String, basePort: Int, numPorts: Int, metricsS
    * Gets the portId to use for the specified destination
    * Increments port first, in order to force using different origin ports and thus getting a usually better load balancing
    */
-  def nextRadiusPortId(destination: RadiusEndpoint) = {
+  private def nextRadiusPortId(destination: RadiusEndpoint): RadiusPortId = {
     // Get item (with default value)
     val radiusPortId = lastRadiusPortIds(destination)
     
     val _port = radiusPortId.port + 1
     val _id = if(_port == basePort + numPorts) radiusPortId.id + 1 else radiusPortId.id // Increment if port has carryover
-    val _radiusPortId = RadiusPortId(
+    val _radiusPortId = RadiusPortId (
         if(_port == basePort + numPorts) basePort else _port,
         if(_id == 256) 0 else _id
         )
