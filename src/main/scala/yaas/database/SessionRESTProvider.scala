@@ -265,31 +265,70 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
   		  }
   	  } ~ 
   	  delete {
-  		  pathPrefix("poolSelector") {
-  			  path(".+,.+".r) { spec => {
-  			      log.debug(s"delete poolSelector $spec")
-  			      val parts = spec.split(",")
-  			      if(iam.deletePoolSelector(parts(0).trim, parts(1).trim)) complete(202, "OK") else complete(404, "poolSelector not found")
-    			  }
-  			  }
-  		  } ~
-  		  pathPrefix("pool") {
-  			  path(Segment) { poolId => {
-    				  // Check that pool is not in use
-  			      log.debug(s"delete Pool $poolId")
-  			      if(iam.deletePool(poolId)) complete(202, "OK") else complete(409, "Pool not deleted. Not found or still in use")
-    			  }
-  			  }
-  		  } ~
-  		  pathPrefix("range") {
-  			  path(".+,.+".r) { spec => {
-  			      log.debug(s"delete range $spec")
-  			      val parts = spec.split(",")
-    				  if(iam.deleteRange(parts(0).trim, parts(1).trim.toLong, false)) complete(202, "OK") else complete(404, "range not found")
-    			  }
-  			  }
-  		  }
-  	  }
+				// poolSelector/<selectorId>,<poolId>
+				pathPrefix("poolSelector") {
+					path(".+,.+".r) { spec => {
+						log.debug(s"delete poolSelector $spec")
+						val parts = spec.split(",")
+						val retCode = iam.deletePoolSelector(parts(0).trim, parts(1).trim)
+						if (retCode == 0) complete(202, "OK") else complete(404, s"$retCode ${SessionDatabase.iamRetCodes(retCode)}")
+					}
+					}
+				} ~
+					// pool[?deleteRanges=true$withActiveLeases=true]
+					pathPrefix("pool") {
+						path(Segment) { poolId => {
+							// Check that pool is not in use
+							log.debug(s"delete Pool $poolId")
+							parameters("deleteRanges" ? false, "withActiveLeases" ? false) { (deleteRanges, withActiveLeases) => {
+								val retCode = iam.deletePool(poolId, deleteRanges, withActiveLeases)
+								if (retCode == 0) complete(202, "OK") else
+									if(retCode == SessionDatabase.DOES_NOT_EXIST) complete(404, s"$retCode ${SessionDatabase.iamRetCodes(retCode)}")
+									else complete(409, s"$retCode ${SessionDatabase.iamRetCodes(retCode)}")
+							}
+							}
+						}
+						}
+					} ~
+					pathPrefix("range") {
+						path(".+,.+".r) { spec => {
+							log.debug(s"delete range $spec")
+							parameters("withActiveLeases" ? false) { withActiveLeases => {
+								val parts = spec.split(",")
+								val retCode = iam.deleteRange(parts(0).trim, parts(1).trim.toLong, withActiveLeases)
+								if (retCode == 0) complete(202, "OK") else
+									if(retCode == SessionDatabase.DOES_NOT_EXIST) complete(404, s"$retCode ${SessionDatabase.iamRetCodes(retCode)}")
+									else complete(409, s"$retCode ${SessionDatabase.iamRetCodes(retCode)}")
+							}
+							}
+						}
+						}
+					}
+			} ~
+			patch {
+				// poolSelector/<selectorId>,<poolId>?priority=<value>
+				pathPrefix("poolSelector") {
+					path(".+,.+".r) { spec => {
+						parameters("priority".as[Int]) { priority =>
+							log.debug(s"patching poolSelector $spec to priority $priority")
+							val parts = spec.split(",")
+							if (iam.modifyPoolSelectorPriority(parts(0).trim, parts(1).trim, priority)) complete(202, "OK") else complete(404, "Not found")
+						}
+					}
+					}
+				} ~
+				// range/<poolId>,<startIPAddress>?status=<value>
+				pathPrefix("range") {
+					path(".+,.+".r) { spec => {
+						parameters("status".as[Int]) { status =>
+							log.debug(s"patching range $spec to status $status")
+							val parts = spec.split(",")
+							if(iam.modifyRangeStatus(parts(0).trim, parts(1).trim.toLong, status)) complete(202, "OK") else complete(404, "Not found")
+						}
+					}
+					}
+				}
+			}
   }
   
   // Custom directive for statistics and rejections

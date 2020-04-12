@@ -16,11 +16,11 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
   log.info("Instantiated NASREQHandler")
   
   val writer = new yaas.cdr.CDRFileWriter("cdr", "nasreq_%d{yyyyMMdd-HHmm}.txt")
-  // Framed-IPv6-Pool not sent. Used to check behaviur in case of missing attributes
+  // Framed-IPv6-Pool not sent. Used to check behaviour in case of missing attributes
   //val format = DiameterSerialFormat.newCSVFormat(List("Origin-Host", "Session-Id", "Tunneling.Tunnel-Type", "Tunneling.Tunnel-Client-Endpoint", "Framed-IPv6-Pool"))
   val format = DiameterSerialFormat.newJSONFormat()
   
-  override def handleDiameterMessage(ctx: DiameterRequestContext) = {
+  override def handleDiameterMessage(ctx: DiameterRequestContext): Unit = {
     
     ctx.diameterRequest.command match {
       case "AA" => handleAAR(ctx)
@@ -34,7 +34,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
    * 
    * In this case a new request is created for the upstream server (instead of the message being routed)
    */
-  def handleAAR(implicit ctx: DiameterRequestContext) = {
+  def handleAAR(implicit ctx: DiameterRequestContext): Unit = {
     
     val request = ctx.diameterRequest
     

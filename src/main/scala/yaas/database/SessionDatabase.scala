@@ -1,56 +1,67 @@
 package yaas.database
 
+import java.lang
+
 import com.typesafe.config._
-
-import scala.util.control.Breaks
-import scala.collection.JavaConversions._
-
-import yaas.coding.RadiusAVP
-import yaas.coding.DiameterAVP
-
-import org.apache.ignite.scalar.scalar
-import org.apache.ignite.scalar.scalar._
+import javax.cache.processor.{EntryProcessor, MutableEntry}
+import org.apache.ignite.{Ignite, IgniteCache, Ignition}
 import org.apache.ignite.cache.CacheMode._
 import org.apache.ignite.cache.query.SqlFieldsQuery
-import org.apache.ignite.logger.slf4j.Slf4jLogger
-import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder
-import org.apache.ignite.spi.discovery.tcp.ipfinder.kubernetes.TcpDiscoveryKubernetesIpFinder
+import org.apache.ignite.cache.query.annotations.QuerySqlField
+import org.apache.ignite.configuration.{DataRegionConfiguration, DataStorageConfiguration, IgniteConfiguration}
+import org.apache.ignite.lang.IgniteFuture
+import org.apache.ignite.scalar.scalar._
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi
-import org.apache.ignite.configuration.IgniteConfiguration
-import org.apache.ignite.configuration.DataStorageConfiguration
-import org.apache.ignite.configuration.DataRegionConfiguration
-import org.apache.ignite.configuration.CacheConfiguration
-import org.apache.ignite.cache.CacheMode._
-
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
-
-import org.json4s._
+import org.apache.ignite.spi.discovery.tcp.ipfinder.kubernetes.TcpDiscoveryKubernetesIpFinder
+import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder
 import org.json4s.JsonDSL._
+import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.slf4j.{Logger, LoggerFactory}
+
+import scala.annotation.meta.field
+import scala.collection.JavaConversions._
+import scala.util.control.Breaks
 
 /**
  * Represents a Radius/Diameter Session as stored in the in-memory sessions database.
- * jData is stringified JSON
+ * jData is stringified JSON to store additional abritrary non-searchable parameters
  * 
- * Handlers use a JSession object, which is internally converted to Session.
+ * Radius and Diameter Handlers use a JSession object, which is internally converted to Session.
  * 
  * For each session, a list of "groups" may be specified (order is important), for
  * counting purposes (e.g. number of sessions for a given service-name)
  */
 
 // TODO: Should use Options
-case class Session(
-    @ScalarCacheQuerySqlField(index = true) acctSessionId: String, 
-    @ScalarCacheQuerySqlField(index = true) ipAddress: String, 
-    @ScalarCacheQuerySqlField(index = true) clientId: String,
-    @ScalarCacheQuerySqlField(index = true) macAddress: String,
-    @ScalarCacheQuerySqlField(index = true) groups: String,
-    @ScalarCacheQuerySqlField startTimestampUTC: Long,
-    @ScalarCacheQuerySqlField lastUpdatedTimestampUTC: Long,
-    jData: String
-)
+class Session(
+    @(QuerySqlField @field)(index = true) val acctSessionId: String,
+    @(QuerySqlField @field)(index = true) val ipAddress: String,
+    @(QuerySqlField @field)(index = true) val clientId: String,
+    @(QuerySqlField @field)(index = true) val macAddress: String,
+    @(QuerySqlField @field)(index = true) val groups: String,
+    @(QuerySqlField @field) val startTimestampUTC: Long,
+    @(QuerySqlField @field) val lastUpdatedTimestampUTC: Long,
+    val jData: String
+) {
+  /**
+   * Creates a new Session instance with the updated jData and a lastUpdatedTimestamp with the current time
+   * @param updatedJData the new jData
+   * @return new JSession instance
+   */
+  def copyUpdated(updatedJData: JValue): Session = new Session(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(updatedJData))
+
+  /**
+   * Creates a new Session instance in which the jData field is merged wit and a lastUpdatedTimestamp with the current time
+   * @param toMergeJData the jData to be merged. The old fields remain the same and the new ones are replaced
+   * @return new JSession instance
+   */
+  def copyMerged(toMergeJData: JValue): Session = {
+    new Session(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(parse(jData).merge(toMergeJData)))
+  }
+
+}
 
 /**
  * Builder for JSession instances from Session instances.
@@ -81,14 +92,28 @@ class JSession(
     val lastUpdatedTimestampUTC: Long,
     val jData: JValue = JObject()
 ) {
-  
-  def toSession = {
-    Session(acctSessionId, ipAddress, clientId, macAddress, groups.mkString(","), startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
+
+  /**
+   * Conversion to Session class instance
+   * @return
+   */
+  def toSession: Session = {
+    new Session(acctSessionId, ipAddress, clientId, macAddress, groups.mkString(","), startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
   }
-  
-  def copyUpdated(updatedJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), updatedJData)
-  
-  def copyMerged(toMergeJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), jData.merge(toMergeJData))
+
+  /**
+   * Creates a new JSession instance with the updated jData and a lastUpdatedTimestamp with the current time
+   * @param updatedJData the new jData
+   * @return new JSession instance
+   */
+  def copyUpdated(updatedJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(updatedJData))
+
+  /**
+   * Creates a new JSession instance in which the jData field is merged wit and a lastUpdatedTimestamp with the current time
+   * @param toMergeJData the jData to be merged. The old fields remain the same and the new ones are replaced
+   * @return new JSession instance
+   */
+  def copyMerged(toMergeJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(jData.merge(toMergeJData)))
 }
 
 // Serializers for List of attributes. We sometimes want them not as JSON arrays, but as property sets
@@ -103,7 +128,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
           (jv \ "groups").extract[List[String]],
           (jv \ "startTimestampUTC").extract[Long],
           (jv \ "lastModifiedTimestampUTC").extract[Long],
-          (jv \ "data")
+          jv \ "data"
       )
   },
   {
@@ -147,7 +172,7 @@ CREATE TABLE Ranges (
 
 CREATE TABLE Leases (
   iPAddress INT,
-  endLeaseTimestamp TIMESTAMP,
+  endLeaseTime TIMESTAMP,
   version INT,
   assignedTo CHAR(128),
   PRIMARY KEY (iPAddress)
@@ -155,30 +180,63 @@ CREATE TABLE Leases (
 
 */
 
+/**
+ * A PoolSelector is a String that points to a set of Pools, each one having multiple IP Ranges. This class
+ * represents the association between a PoolSelector and a Pool. A Pool may be associated to multiple
+ * PoolSelectors
+ * @param selectorId name of the PoolSelector
+ * @param poolId name of the Pool
+ * @param priority if 0, do not use for subsequent assigments
+ */
 case class PoolSelector(
-    @ScalarCacheQuerySqlField(index = true) selectorId: String, 
-    @ScalarCacheQuerySqlField(index = true) poolId: String, 
-    @ScalarCacheQuerySqlField priority: Int  // 0: Do not use. 1 is the first priority.
+  @(QuerySqlField @field)(index = true) selectorId: String,
+  @(QuerySqlField @field)(index = true) poolId: String,
+  @(QuerySqlField @field) priority: Int  // 0: Do not use. 1 is the first priority.
 )
 
+/**
+ * Represents a Pool of IP Ranges.
+ * @param poolId the Pool name
+ */
 case class Pool(
-    @ScalarCacheQuerySqlField(index = true) poolId: String
+  @(QuerySqlField @field)(index = true) poolId: String
 )
 
+/**
+ * A Range is a set of contiguous IP Addresses, assigned to a Pool.
+ * IP Addresses are represented as integers.
+ * @param poolId the name of the Pool to which this Range is assigned (can only be one)
+ * @param startIPAddress the first IP Address of the Range. Inclusive.
+ * @param endIPAddress the last IP address of the Range. Inclusive.
+ * @param status if 0, the range is not available and must not be used for leases
+ */
 case class Range(
-    @ScalarCacheQuerySqlField(index = true) poolId: String, 
-    @ScalarCacheQuerySqlField startIPAddress: Long, 
-    @ScalarCacheQuerySqlField endIPAddress: Long, 
-    @ScalarCacheQuerySqlField status: Int        // 0: Not available, 1: Available
+    @(QuerySqlField @field)(index = true) poolId: String,
+    @(QuerySqlField @field) startIPAddress: Long,
+    @(QuerySqlField @field) endIPAddress: Long,
+    @(QuerySqlField @field) status: Int        // 0: Not available, 1: Available
 )
 
+/**
+ * A Lease represent the assignment status of an IP Address.
+ * @param ipAddress the IP Address to which this Lease refers
+ * @param endLeaseTime the end time of the lease. If smaller than now, the IP Address is free
+ * @param version opaque number used for optimistic locking
+ * @param assignedTo opaque String representing the entity owning this Lease, typically an Accounting-Session-Id
+ */
 case class Lease(
-    @ScalarCacheQuerySqlField(index = true) ipAddress: Long, 
-    @ScalarCacheQuerySqlField endLeaseTimestamp: java.util.Date, 
-    @ScalarCacheQuerySqlField version: Long,
-    @ScalarCacheQuerySqlField assignedTo: String
+    @(QuerySqlField @field)(index = true) ipAddress: Long,
+    @(QuerySqlField @field) endLeaseTime: java.util.Date,
+    @(QuerySqlField @field) version: Long,
+    @(QuerySqlField @field) assignedTo: String
 )
 
+/**
+ * Helper class
+ * @param startIPAddress the starting IP Address of the Range
+ * @param endIPAddress the ending IP Address of the Range
+ * @param status embedded Range status
+ */
 case class SimpleRange(startIPAddress: Long, endIPAddress: Long, status: Int) {
   // The Lease algorithm operates on small ranges. This method creates them
   def split(max: Int): List[SimpleRange] = {
@@ -189,55 +247,82 @@ case class SimpleRange(startIPAddress: Long, endIPAddress: Long, status: Int) {
     else List(this)
   }
   
-  def size = {
-    if(startIPAddress == endIPAddress) 1 else endIPAddress - startIPAddress + 1
+  def size: Long = {
+    if(startIPAddress == endIPAddress) 1L else endIPAddress - startIPAddress + 1
   }
 }
 
+/**
+ * Helper class
+ * @param selectorId a Selector pointing to this Range
+ * @param poolId the Pool to which this Range belongs
+ * @param priority Selector Priority for assignment
+ * @param range the embedded IP Address Range
+ */
 case class FullRange(selectorId: String, poolId: String, priority: Int, range: SimpleRange)
-    
 
 /**
  * This object starts an ignite instance in client or server mode depending on configuration (aaa.sessionsDatabase), and
- * provides helper functions to interact with the caches
+ * provides helper functions to interact with the caches.
+ *
+ * Configuration is retrieves from a <code>[instance]/ignite-yaasdb.xml</code> or <code>ignite-yaasdb.xml<code>
+ * as a resource, or from the application configuration file (aaa.sessionsDatabase section)
  */
 object SessionDatabase {
+
+  val SUCCESS = 0
+  val ASSIGNED_SELECTOR = 1
+  val ASSIGNED_RANGE = 2
+  val ACTIVE_RANGE = 3
+  val ACTIVE_LEASES = 4
+  val DOES_NOT_EXIST = 100
+
+  val iamRetCodes = Map(
+    SUCCESS -> "Success",
+    ASSIGNED_SELECTOR -> "Assigned Selector",
+    ASSIGNED_RANGE -> "Assigned Range",
+    ACTIVE_RANGE -> "Active Range",
+    ACTIVE_LEASES -> "Active Leases",
+    100 -> "Does not exist"
+  )
   
-  val log = LoggerFactory.getLogger(SessionDatabase.getClass)
+  private val log: Logger = LoggerFactory.getLogger(SessionDatabase.getClass)
   
-  val ti = System.getProperty("instance")
-  val instance = if(ti == null) "default" else ti
+  private val ti = System.getProperty("instance")
+  private val instance = if(ti == null) "default" else ti
   
   // Configure Ignite
-  val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
+  private val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
   
   // Set client mode if so configured
-  val role = config.getString("role")
+  private val role = config.getString("role")
   if(role.equalsIgnoreCase("client")){
     org.apache.ignite.Ignition.setClientMode(true)
     log.info("Node is a sessions database client")
-  } else log.info("Node is a sessions database server")
+  } else
+    log.info("Node is a sessions database server")
     
   // Try to find the ignite configuration file (ugly due to Scala 2.11)
-  val igniteFileWithInstance = getClass.getResource("/" + instance + "/ignite-yaasdb.xml")
-  val igniteFile = getClass.getResource("/ignite-yaasdb.xml")
+  // TODO: Fix this for Scala 2.13
+  private val igniteFileWithInstance = getClass.getResource("/" + instance + "/ignite-yaasdb.xml")
+  private val igniteFile = getClass.getResource("/ignite-yaasdb.xml")
   
   // Tries to find a configuration file for ignite first
   // Otherwise, takes config from global file
-  val ignite = {
+  val ignite: Ignite = {
     if(igniteFileWithInstance != null){
-      val msg = s"Ignite configuration from file ${instance}/ignite-yaasdb.xml"
+      val msg = s"Ignite configuration from file $instance/ignite-yaasdb.xml"
       log.info(msg)
       println(msg)
       // To get rid of percent encoding, use URLDecoder
-      scalar.start(java.net.URLDecoder.decode(igniteFileWithInstance.getFile(), "ISO-8859-1"))
+      Ignition.start(java.net.URLDecoder.decode(igniteFileWithInstance.getFile, "ISO-8859-1"))
       
     } else if(igniteFile != null){
       val msg = "Ignite configuration from file ignite-yaasdb.xml"
       log.info(msg)
       println(msg)
       // To get rid of percent encoding, use URLDecoder
-      scalar.start(java.net.URLDecoder.decode(igniteFile.getFile(), "ISO-8859-1"))
+      Ignition.start(java.net.URLDecoder.decode(igniteFile.getFile, "ISO-8859-1"))
       
     } else {
       val msg = "Ignite configuration from application.conf"
@@ -276,7 +361,7 @@ object SessionDatabase {
         discSpi.setLocalPort(localIgniteAddress(1).toInt)
       }
       
-      val commSpi = new TcpCommunicationSpi();
+      val commSpi = new TcpCommunicationSpi()
       
       val igniteConfiguration = new IgniteConfiguration
       igniteConfiguration.setCommunicationSpi(commSpi)
@@ -284,27 +369,27 @@ object SessionDatabase {
       igniteConfiguration.setGridLogger(new org.apache.ignite.logger.slf4j.Slf4jLogger)
       if(role == "server") igniteConfiguration.setDataStorageConfiguration(dsConfiguration)
 
-      scalar.start(igniteConfiguration)
+      Ignition.start(igniteConfiguration)
     }
   }
 
   // Done to force start if persistence enabled and do not want to activate the cluster manually
   if(config.getBoolean("forceActivateCluster")) ignite.cluster.active(true)
   
-  val sessionExpirationPolicy = new javax.cache.expiry.ModifiedExpiryPolicy(new javax.cache.expiry.Duration(java.util.concurrent.TimeUnit.HOURS, config.getInt("expiryTimeHours")))
+  private val sessionExpirationPolicy = new javax.cache.expiry.ModifiedExpiryPolicy(new javax.cache.expiry.Duration(java.util.concurrent.TimeUnit.HOURS, config.getInt("expiryTimeHours")))
 
-  val sessionsCache = ignite.getOrCreateCache[String, Session](new org.apache.ignite.configuration.CacheConfiguration[String, Session].setName("SESSIONS").setCacheMode(REPLICATED).setIndexedTypes(classOf[String], classOf[Session])).withExpiryPolicy(sessionExpirationPolicy)
-  val leasesCache = ignite.getOrCreateCache[Long, Lease](new org.apache.ignite.configuration.CacheConfiguration[Long, Lease].setName("LEASES").setCacheMode(REPLICATED).setIndexedTypes(classOf[Long], classOf[Lease])).withExpiryPolicy(sessionExpirationPolicy)
-  val poolSelectorsCache = ignite.getOrCreateCache[(String, String), PoolSelector](new org.apache.ignite.configuration.CacheConfiguration[(String, String), PoolSelector].setName("POOLSELECTORS").setCacheMode(REPLICATED).setIndexedTypes(classOf[(String, String)], classOf[PoolSelector]))
-  val poolsCache = ignite.getOrCreateCache[String, Pool](new org.apache.ignite.configuration.CacheConfiguration[String, Pool].setName("POOLS").setCacheMode(REPLICATED).setIndexedTypes(classOf[String], classOf[Pool]))
-  val rangesCache = ignite.getOrCreateCache[(String, Long), Range](new org.apache.ignite.configuration.CacheConfiguration[(String, Long), Range].setName("RANGES").setCacheMode(REPLICATED).setIndexedTypes(classOf[(String, Long)], classOf[Range]))
+  val sessionsCache: IgniteCache[String, Session] = ignite.getOrCreateCache[String, Session](new org.apache.ignite.configuration.CacheConfiguration[String, Session].setName("SESSIONS").setCacheMode(REPLICATED).setIndexedTypes(classOf[String], classOf[Session])).withExpiryPolicy(sessionExpirationPolicy)
+  val leasesCache: IgniteCache[Long, Lease] = ignite.getOrCreateCache[Long, Lease](new org.apache.ignite.configuration.CacheConfiguration[Long, Lease].setName("LEASES").setCacheMode(REPLICATED).setIndexedTypes(classOf[Long], classOf[Lease])).withExpiryPolicy(sessionExpirationPolicy)
+  val poolSelectorsCache: IgniteCache[(String, String), PoolSelector] = ignite.getOrCreateCache[(String, String), PoolSelector](new org.apache.ignite.configuration.CacheConfiguration[(String, String), PoolSelector].setName("POOLSELECTORS").setCacheMode(REPLICATED).setIndexedTypes(classOf[(String, String)], classOf[PoolSelector]))
+  val poolsCache: IgniteCache[String, Pool] = ignite.getOrCreateCache[String, Pool](new org.apache.ignite.configuration.CacheConfiguration[String, Pool].setName("POOLS").setCacheMode(REPLICATED).setIndexedTypes(classOf[String], classOf[Pool]))
+  val rangesCache: IgniteCache[(String, Long), Range] = ignite.getOrCreateCache[(String, Long), Range](new org.apache.ignite.configuration.CacheConfiguration[(String, Long), Range].setName("RANGES").setCacheMode(REPLICATED).setIndexedTypes(classOf[(String, Long)], classOf[Range]))
   
-  def init() = {
+  def init(): Unit = {
     // Instantiates this object
   }
   
-  def close() = {
-    ignite.close
+  def close(): Unit = {
+    ignite.close()
   }
   
   /******************************************************************
@@ -314,35 +399,37 @@ object SessionDatabase {
   /**
    * Inserts a new session or overwrites based on the AcctSessionId
    */
-  def putSession(jSession: JSession) = {
+  def putSession(jSession: JSession): Unit = {
     sessionsCache.put(jSession.acctSessionId, jSession.toSession)
   }
   
   /**
    * Inserts a new session or overwrites based on the AcctSessionId
    */
-  def putSessionAsync(jSession: JSession) = {
+  def putSessionAsync(jSession: JSession): IgniteFuture[Void] = {
     sessionsCache.putAsync(jSession.acctSessionId, jSession.toSession)
   }
   
   /**
    * Removes the session with the specified acctSessionId
    */
-  def removeSession(acctSessionId: String) = {
+  def removeSession(acctSessionId: String): Boolean = {
     sessionsCache.remove(acctSessionId)
   }
   
   /**
    * Removes the session with the specified acctSessionId
    */
-  def removeSessionAsync(acctSessionId: String) = {
+  def removeSessionAsync(acctSessionId: String): IgniteFuture[lang.Boolean] = {
     sessionsCache.removeAsync(acctSessionId)
   }
-  
+
   /**
-   * Updates the lastUpdatedTimestamp field and merges or updates the jData
+   * Updates the lastUpdatedTimestamp field and merges or updates the jData-
+   *
+   * To to the job, reads the cache entry and updates it from the client.
    */
-  def updateSession(acctSessionId: String, jDataOption: Option[JValue], merge: Boolean) = {
+  def updateSession(acctSessionId: String, jDataOption: Option[JValue], merge: Boolean): Boolean = {
     jDataOption match {
       case None => 
         val updateStmt = new SqlFieldsQuery("update \"SESSIONS\".Session set lastUpdatedTimestampUTC = ? where acctSessionId = ?")
@@ -363,85 +450,140 @@ object SessionDatabase {
         }
     }
   }
-  
-  def findSessionsByIPAddress(ipAddress: String) = {
-    sessionsCache.getAsync(ipAddress)
+
+  /**
+   * Updates the Session, setting the current timestamp as lastModified and merging if so specified the jData.
+   *
+   * The modification is done in the server using an EntryProcessor
+   * @param acctSessionId the acctSessionId to be updated
+   * @param jDataOption JSON data to update
+   * @param merge true if the JSON data is to be merged or false if it should be updated
+   * @return IgniteFuture
+   */
+  def updateSessionAsync(acctSessionId: String, jDataOption: Option[JValue], merge: Boolean): IgniteFuture[Object] = {
+    sessionsCache.invokeAsync(acctSessionId, new EntryProcessor[String, Session, Object]() {
+      // https://github.com/apache/ignite/blob/master/examples/src/main/scala/org/apache/ignite/scalar/examples/ScalarCacheEntryProcessorExample.scala
+      override def process(e: MutableEntry[String, Session], args: AnyRef*): Object = {
+        jDataOption match {
+          case Some(jData) =>
+            if(merge) e.setValue(e.getValue.copyMerged(jData)) else e.setValue(e.getValue.copyUpdated(jData))
+          case None =>
+            e.setValue(e.getValue.copyMerged(JObject()))
+        }
+        // Must return something
+        null
+      }
+    })
+  }
+
+  /**
+   * Retrieves all the sessions with the specified IP Address
+   * @param ipAddress the IP Address
+   * @return List of Sessions. Empty if no session found
+   */
+  def findSessionsByIPAddress(ipAddress: String): List[JSession] = {
     sessionsCache.sql("select * from \"SESSIONS\".Session where ipAddress = ?", ipAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
-  
-  def findSessionsByClientId(clientId: String) = {
+
+  /**
+   * Retrieves all the sessions with the specified clientId
+   * @param clientId the clientId to look for
+   * @return List of Sessions. Empty if no session found
+   */
+  def findSessionsByClientId(clientId: String): List[JSession] = {
     sessionsCache.sql("select * from \"SESSIONS\".Session where clientId = ?", clientId).getAll.map(entry => JSession(entry.getValue)).toList
   }
   
-  def findSessionsByMACAddress(macAddress: String) = {
+  def findSessionsByMACAddress(macAddress: String): List[JSession] = {
     sessionsCache.sql("select * from \"SESSIONS\".Session where MACAddress = ?", macAddress).getAll.map(entry => JSession(entry.getValue)).toList
   }
-  
-  def findSessionsByAcctSessionId(acctSessionId: String) = {
+
+  /**
+   * Retrieves all the sessions with the specified acctSessionId
+   * @param acctSessionId the acctSessionId to look for
+   * @return List of Sessions. Empty if no session found
+   */
+  def findSessionsByAcctSessionId(acctSessionId: String): List[JSession] = {
     sessionsCache.sql("select * from \"SESSIONS\".Session where acctSessionId = ?", acctSessionId).getAll.map(entry => JSession(entry.getValue)).toList
   }
-  
-  def getSessionGroups = {
+
+  /**
+   * Gets info about the number of session for each combination of group labels
+   * @return A List of groups (comma separated) and the session count for each one of them
+   */
+  def getSessionGroups: List[(String, Long)] = {
     sessionsCache.query(new SqlFieldsQuery("select groups, count(*) as count from \"SESSIONS\".Session group by groups")).getAll.map(item => (item.get(0).asInstanceOf[String], item.get(1).asInstanceOf[Long])).toList
   }
   
  /******************************************************************
  * IAM methods
  *****************************************************************/
+  /**
+   * Buckets of this size addressed are retrieved from server to client during the process of finding a free
+   * IP Address
+   */
+  private val addressBucketSize = config.getInt("iam.addressBucketSize")
     
-  val addressBucketSize = config.getInt("iam.addressBucketSize")
-    
-  // Map[Selector -> Map[Priority -> Iterable[startIPAddr, endIPAddr, status]]
+  // Map[Selector -> Map[Priority -> Iterable[startIPAddr, endIPAddr, status]]]
   // For each selector, map of priorities to list of Ranges
   // Refreshed periodically
   var lookupTable: Map[String, Map[Int, Iterable[SimpleRange]]] = buildLookupTable
   
   /**
-   * Builds the base info for looking up addresses. Refresed at fixed time intervals
-   * Map[Selector -> Map[Priority -> Iterable[startIPAddr, endIPAddr, status]]
+   * Builds the base info for looking up addresses. Refreshed at fixed time intervals.
+   *
+   * <code>Map[Selector -> Map[Priority -> Iterable[startIPAddr, endIPAddr, status]]]</code>
    */
-  def buildLookupTable = {
-    val t = (
-      for {
-        item <- poolsCache.query(new SqlFieldsQuery("select selectorId, ps.poolId, priority, startIPAddress, endIPAddress, status from \"RANGES\".Range r join \"POOLSELECTORS\".PoolSelector ps where r.poolId = ps.poolId"))
-      } yield 
-        FullRange(
-            item.get(0).asInstanceOf[String], // selectorId
-            item.get(1).asInstanceOf[String], // poolId
-            item.get(2).asInstanceOf[Int],    // priority
-            SimpleRange(item.get(3).asInstanceOf[Long], item.get(4).asInstanceOf[Long], item.get(5).asInstanceOf[Int])
-        )
-    ) 
+  def buildLookupTable: Map[String, Map[Int, Iterable[SimpleRange]]] = {
+    val t = for {
+      item <- poolsCache.query(new SqlFieldsQuery(
+        "select selectorId, ps.poolId, priority, startIPAddress, endIPAddress, status from \"RANGES\".Range r join \"POOLSELECTORS\".PoolSelector ps where r.poolId = ps.poolId"))
+    } yield
+      FullRange(
+          item.get(0).asInstanceOf[String], // selectorId
+          item.get(1).asInstanceOf[String], // poolId
+          item.get(2).asInstanceOf[Int],    // priority
+          SimpleRange(item.get(3).asInstanceOf[Long], item.get(4).asInstanceOf[Long], item.get(5).asInstanceOf[Int])
+      )
     log.info("Lookup table reloaded")
-    
+
+    // Group by selectorId and then by priority
     t.groupBy (_.selectorId).mapValues(rangeList => rangeList.groupBy(_.priority).mapValues(rl => rl.map(r => r.range)))
   }
   
   /**
    * Management
    */
-  
-  // Refreshes the lookup table
-  def rebuildLookup = {
+
+  /**
+   * Refreshes the lookup table.
+   */
+  def rebuildLookup(): Unit = {
     lookupTable = buildLookupTable
   }
-  
-  // Clears all tables. Used for testing
-  def resetToFactorySettings = {
-    poolSelectorsCache.clear
-    poolsCache.clear
-    rangesCache.clear
-    leasesCache.clear
+
+  /**
+   * Clears all tables.
+   *
+   * Used only for testing.
+   */
+  def resetToFactorySettings(): Unit = {
+    poolSelectorsCache.clear()
+    poolsCache.clear()
+    rangesCache.clear()
+    leasesCache.clear()
   }
   
-  /**
+  /*********************************************************************************************************************
    * Get methods
-   */
-  
+   ********************************************************************************************************************/
+
   /**
-   * Returns the list of PoolSelectors for the specified selectorId
+   * Returns the list of PoolSelectors (including the PoolId) for the specified selectorId
+   * @param selectorIdOption the selectorId
+   * @return
    */
-  def getPoolSelectors(selectorIdOption: Option[String]) = {
+  def getPoolSelectors(selectorIdOption: Option[String]): List[PoolSelector] = {
     selectorIdOption match {
       case Some(selectorId) =>
         poolSelectorsCache.sql("select * from \"POOLSELECTORS\".Poolselector where selectorId = ?", selectorId).getAll.map(c => c.getValue).toList
@@ -450,11 +592,13 @@ object SessionDatabase {
         poolSelectorsCache.sql("select * from \"POOLSELECTORS\".Poolselector").getAll.map(c => c.getValue).toList
     }
   }
-  
+
   /**
-   * Returns the list of pools with the specified name
+   * Returns the list of Pools with the specified name (which will be only one) or all the Pools
+   * @param poolIdOption the poolId
+   * @return
    */
-  def getPools(poolIdOption: Option[String]) = {
+  def getPools(poolIdOption: Option[String]): List[Pool] = {
     poolIdOption match {
       case Some(poolId) =>
         poolsCache.sql("select * from \"POOLS\".Pool where poolId = ?", poolId).getAll.map(c => c.getValue).toList
@@ -463,11 +607,13 @@ object SessionDatabase {
         poolsCache.sql("select * from \"POOLS\".Pool").getAll.map(c => c.getValue).toList
     }
   }
-  
+
   /**
-   * Returns the List of ranges that correspond to the specified poolId
+   * Returns the List of ranges that correspond to the specified poolId.
+   * @param poolIdOption the poolId
+   * @return
    */
-  def getRanges(poolIdOption: Option[String]) = {
+  def getRanges(poolIdOption: Option[String]): List[Range] = {
     poolIdOption match {
       case Some(poolId) =>
         rangesCache.sql("select * from \"RANGES\".Range where poolId = ?", poolId).getAll.map(c => c.getValue).toList
@@ -475,81 +621,102 @@ object SessionDatabase {
         rangesCache.sql("select * from \"RANGES\".Range").getAll.map(c => c.getValue).toList
     }
   }
-  
-  
-  def getLease(ipAddress: String) = {
+
+  /**
+   * Gets the Lease for a specified IP Address, encapsulated in a List, which will be empty if the Lease for that IP
+   * Address is not found.
+   *
+   * @param ipAddress the IP Address
+   * @return
+   */
+  def getLease(ipAddress: String): List[Lease] = {
     leasesCache.sql("select * from \"LEASES\".Lease where ipAddress = ?", ipAddress).getAll.map(c => c.getValue).toList
   }
-  
+
   /**
-   * Create methods
+   * Creates a new Pool, without assigned Ranges.
+   * Returns true if done. False if already exists.
+   *
+   * @param pool the Pool Object
+   * @return
    */
-  
-  /**
-   * Pushes a new Pool.
-   * Returns true if done. False if already existed.
-   */
-  def putPool(pool: Pool) = {
+  def putPool(pool: Pool): Boolean = {
     poolsCache.putIfAbsent(pool.poolId, pool)
   }
-  
+
   /**
-   * Pushes a new poolSelector object
-   * Returns true if done
+   * Pushes a new poolSelector object.
+   * @param poolSelector the PoolSelector Object
+   * @return
    */
-  def putPoolSelector(poolSelector: PoolSelector) = {
+  def putPoolSelector(poolSelector: PoolSelector): Boolean = {
     poolSelectorsCache.putIfAbsent((poolSelector.selectorId, poolSelector.poolId), poolSelector)
   }
-  
+
   /**
-   * Returns true if there is a Range which overlaps with the existing one
+   * Returns true if there is an existing Range which overlaps with the one passed as parameter.
+   * @param range the Range
+   * @return
    */
-  def checkRangeOverlap(range: Range) = {
+  def checkRangeOverlap(range: Range): Boolean = {
     rangesCache.sql("select * from \"RANGES\".range where startIPAddress <= ? and endIPAddress >= ?", 
     				        range.endIPAddress, range.startIPAddress).getAll.size > 0
   }
-  
+
   /**
-   * Pushes the new Range
+   * Creates the Range
+   * @param range the Range
+   * @return true if inserted
    */
-  def putRange(range: Range) = {
+  def putRange(range: Range): Boolean = {
     rangesCache.putIfAbsent((range.poolId, range.startIPAddress), range)
   }
-  
+
   /**
    * Checks that there is one SelectorId with the specified name
+   * @param selectorId the selectorId
+   * @return true if the selector exists
    */
-  def checkSelectorId(selectorId: String) = {
-    lookupTable.get(selectorId) != None
+  def checkSelectorId(selectorId: String): Boolean = {
+    lookupTable.contains(selectorId)
   }
   
   /**
-   * Checks that the specified poolId 
+   * Checks that the specified poolId exists
+   *
+   * @return true if the poolId exists
    */
-  def checkPoolId(poolId: String) = {
-    Option(poolsCache.get(poolId)) != None
+  def checkPoolId(poolId: String): Boolean = {
+    poolsCache.containsKey(poolId)
   }
-  
+
   /**
    * Gets an IP address
+   * @param selectorId the selector
+   * @param req the requester. Opaque parameter. Typically the acctSessionId. If not provided, a UUID is auto-generated
+   * @param leaseTimeMillis how long to keep the lease. After that time plus graceTimeMillis the IP address may be assigned again
+   * @param graceTimeMillis graceTime
+   * @return a Lease object or None if could not get an IP Address, either because they are all assigned, or because the Selector does not exist.
    */
-  def lease(selectorId: String, req: Option[String], leaseTimeMillis: Long, graceTimeMillis: Long) = {
-    val now = (new java.util.Date).getTime
+  def lease(selectorId: String, req: Option[String], leaseTimeMillis: Long, graceTimeMillis: Long): Option[Lease] = {
+    val now = System.currentTimeMillis()
     
     lookupTable.get(selectorId) match {
+      // A selectorRange is a map from priorities to list of SimpleRanges
       case Some(selectorRanges) =>
+
         var myLease: Option[Lease] = None
         val requester = req.getOrElse(java.util.UUID.randomUUID().toString)
         
         // Sort by priority
-        val pSelectorRanges = selectorRanges.toList.sortBy{case (k, v) => k}
+        val pSelectorRanges = selectorRanges.toList.sortBy{case (k, _) => k}
         
-        val mybreaks = new Breaks
-        import mybreaks.{break, breakable}
+        val myBreaks = new Breaks
+        import myBreaks.{break, breakable}
         
         breakable {
           
-	        // For each priority
+	        // For each priority, excluding no assignable Pools (priority == 0)
 	        for((priority, rangeList) <- pSelectorRanges if priority > 0){
 	          
 	          // Break into bucket addresses and filter ranges not available, then randomize order
@@ -559,17 +726,17 @@ object SessionDatabase {
 		              else sr.split(addressBucketSize)
 	            })
 	          
-	          // For each bucket address chunk, try to reserve one address  
+	          // For each bucket address chunk, try to reserve one address and break if success
 	          for(range <- chunkedRangeList){
 	            if(log.isDebugEnabled()) log.debug(s"Getting leases from ${range.startIPAddress} to ${range.endIPAddress}")
 	            val rangeLeases = leasesCache.sql("Select * from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ? order by ipAddress",
-	               range.startIPAddress, range.endIPAddress).getAll().map(entry => entry.getValue)
+                range.startIPAddress, range.endIPAddress).getAll.map(entry => entry.getValue)
 	            val rangeSize = range.size.toInt
 	            
-	            // Build a list of leases in which all the items are filled (inserting "None" where the Lease does not yet exist)
+	            // Build a list of Leases in which all the items are filled (inserting "None" where the Lease does not yet exist)
 	            var expectedIPAddr = range.startIPAddress
-	            // If rangeLeases.size is rangeSize, no need to fill, just change format
-	            val filledLeases = 
+	            val filledLeases =
+                // If rangeLeases.size is rangeSize, no need to fill, just change format
 	              if(rangeLeases.size == rangeSize) rangeLeases.map(lease => Some(lease)).toList
 	              else rangeLeases.flatMap(lease => {
 	              // Returns the current item prepended by a number of empty elements equal to the offset between the element ip address and the var expectedIPAddr
@@ -581,13 +748,13 @@ object SessionDatabase {
 	            // Find available lease, starting at a random position
 	            val baseOffset = scala.util.Random.nextInt(rangeSize)
 	            if(log.isDebugEnabled) log.debug(s"Looking up free IP address starting at $baseOffset out of $rangeSize)")
-	            for(i <- 0 to rangeSize - 1){
+	            for(i <- 0 until rangeSize){
 	              val idx = (i + baseOffset) % rangeSize
 	              filledLeases.get(idx) match {
 	             
 	                case None =>
 	                  // Address not yet in database. Push new one
-	                  val proposedLease = Lease(range.startIPAddress + idx, new java.util.Date(now + leaseTimeMillis), 0, requester)
+	                  val proposedLease = Lease(range.startIPAddress + idx, new java.util.Date(now + leaseTimeMillis), /* version */ 0, requester)
 	                  if(log.isDebugEnabled) log.debug(s"Try to put a new Lease for ${proposedLease.ipAddress}")
 	                  if(leasesCache.putIfAbsent(range.startIPAddress + idx, proposedLease)){
 	                    myLease = Some(proposedLease)
@@ -596,13 +763,13 @@ object SessionDatabase {
 	                  
 	                case Some(lease) =>
 	                    // Consider for leasing only addresses expired more than grace time ago
-		                  if(lease.endLeaseTimestamp.getTime + graceTimeMillis < now){
+		                  if(lease.endLeaseTime.getTime + graceTimeMillis < now){
 			                  // Try to update lease
 			                  val proposedLease = Lease(range.startIPAddress + idx, new java.util.Date(now + leaseTimeMillis), lease.version + 1, requester)
 			                  if(log.isDebugEnabled) log.debug(s"Try to put update lease for for ${proposedLease.ipAddress}")
-			                  val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTimestamp = ?, version = ?, assignedTo = ? where ipAddress = ? and version = ?")
+			                  val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTime = ?, version = ?, assignedTo = ? where ipAddress = ? and version = ?")
 			                    .setArgs(
-			                        proposedLease.endLeaseTimestamp: java.util.Date, 
+			                        proposedLease.endLeaseTime: java.util.Date,
 			                        proposedLease.version: java.lang.Long, 
 			                        requester: java.lang.String, 
 			                        proposedLease.ipAddress : java.lang.Long, 
@@ -634,26 +801,39 @@ object SessionDatabase {
         None
     }
   }
-  
+
   /**
    * Releases the specified IP Address
    * Returns true if the address was released.
+   *
+   * @param ipAddress the IP Address to free
+   * @return true if the IP Address was released, false otherwise
    */
-  def release(ipAddress: Long) = {
+  def release(ipAddress: Long): Boolean = {
     val nowDate = new java.util.Date
-    val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTimestamp = ? where ipAddress = ?")
+    val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTime = ? where ipAddress = ?")
         .setArgs(
             nowDate: java.util.Date, 
             ipAddress: java.lang.Long
          )
       val updated = leasesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long]
-      if(updated != 1) log.warn(s"Could not release $ipAddress")
-      updated == 1
+      if(updated != 1){
+        log.warn(s"Could not release $ipAddress")
+        false
+      } else true
   }
-  
-  def renew(ipAddress: Long, requester: String, leaseTimeMillis: Long) = {
-    val now = (new java.util.Date).getTime
-    val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTimestamp = ? where ipAddress = ? and endLeaseTimestamp > ? and assignedTo = ?")
+
+  /**
+   * Extend the Lease period.
+   *
+   * @param ipAddress the IP Address
+   * @param requester the requester. It must match.
+   * @param leaseTimeMillis the extension period
+   * @return true if the IP Address was renewed, false otherwise
+   */
+  def renew(ipAddress: Long, requester: String, leaseTimeMillis: Long): Boolean = {
+    val now = System.currentTimeMillis()
+    val updateStmt = new SqlFieldsQuery("update \"LEASES\".lease set endLeaseTime = ? where ipAddress = ? and endLeaseTime > ? and assignedTo = ?")
       .setArgs(
           new java.util.Date(now + leaseTimeMillis): java.util.Date, 
           ipAddress: java.lang.Long, 
@@ -662,85 +842,135 @@ object SessionDatabase {
        )
        
       val updated = leasesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long]
-      if(updated != 1) log.warn(s"Could not renew $ipAddress")
-      updated == 1
+      if(updated != 1){
+        log.warn(s"Could not renew $ipAddress")
+        false
+      } else true
   }
-  
-  // For testing only. Creates a set of old leases filling all the ranges in the specified pool
-  def fillPoolLeases(poolId: String) = {
-    val now = (new java.util.Date).getTime
-    val poolRanges = rangesCache.sql("Select * from \"RANGES\".range where poolId = ?", poolId).getAll
-    for(currentRange <- poolRanges){
-      val range = currentRange.getValue
-      if(range.status > 0) {
-        for(ipAddr <- range.startIPAddress to range.endIPAddress)
-          leasesCache.put(ipAddr, Lease(ipAddr, new java.util.Date(now - 86400000), 99, "fake-to-test"))
-      }
-    }
-  }
-  
+
   /**
-   * Delete objects
+   * For testing only. Creates a set of old leases filling all the ranges in the specified pool.
+   *
+   * @param poolId the PoolId to fill
    */
-  
-  def deletePoolSelector(selectorId: String, poolId: String) = {
-    poolSelectorsCache.remove((selectorId, poolId))
+  def fillPoolLeases(poolId: String): Unit = {
+    val now = System.currentTimeMillis()
+    for {
+      currentRange <- rangesCache.sql("Select * from \"RANGES\".range where poolId = ?", poolId).getAll
+      range = currentRange.getValue
+      ipAddress <- range.startIPAddress to range.endIPAddress if range.status > 0
+    } leasesCache.put(ipAddress, Lease(ipAddress, new java.util.Date(now - 86400000), /* version */ 99, "fake-to-test"))
+  }
+
+  /**
+   * Delete the PoolSelector
+   * @param selectorId the Selector to delete
+   * @param poolId the Pool to which it points to
+   * @return 0 if success
+   */
+  def deletePoolSelector(selectorId: String, poolId: String): Int = {
+    if(poolSelectorsCache.remove((selectorId, poolId))) 0 else DOES_NOT_EXIST
   }
   
 
-  /** 
-   *  Verifies that the pool is not associated to a Selector or a Range
-   */
-  def deletePool(poolId: String) = {
-    if(rangesCache.sql("select * from \"RANGES\".range where poolId = ?", poolId).getAll.size > 0 ||
-			 poolSelectorsCache.sql("select * from \"POOLSELECTORS\".poolSelector where poolId = ?", poolId).getAll.size > 0){
-				  false
-		} else {
-			  // Delete pool
-			  poolsCache.remove((poolId))
-	  }
-  }
-  
   /**
-   * Deletes the Range.
-   * 
-   * Does not check whether there is any Address in use 
+   * Deletes a pool, and all the enclosed Ranges if so specified.
+   *
+   * It may partially do the job, deleting some Ranges but not others which are in use.
+   *
+   * @param poolId the poolId
+   * @param deleteRanges if false, only will delete the Pool if there are no enclosed Ranges. Otherwise it will try
+   *                     to delete them.
+   * @param withActiveLeases this parameter is passed to deleteRange
+   * @return 0 if success
    */
-  def deleteRange(poolId: String, startIpAddress: Long, force: Boolean) = {
-    
-    val inUse = if(!force){
-      Option(rangesCache.get(poolId, startIpAddress)) match {
-        case Some(range) =>
-          
-        val query = new SqlFieldsQuery("select count(*) from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ? and endLeaseTimestamp > ?")
-        .setArgs(
-            range.startIPAddress: java.lang.Long,
-            range.endIPAddress: java.lang.Long,
-            System.currentTimeMillis(): java.lang.Long
-         )
-         
-      leasesCache.query(query).getAll.head.get(0).asInstanceOf[Long] > 1
-          
-        case None =>
-          false
+  def deletePool(poolId: String, deleteRanges: Boolean, withActiveLeases: Boolean): Int = {
+
+    if(poolSelectorsCache.sql("select * from \"POOLSELECTORS\".poolSelector where poolId = ?", poolId).getAll.size > 0){
+      log.warn(s"Tried to delete Pool $poolId, which has associated Selectors")
+      // Did not delete the pool because there is a Selector pointing to it
+      ASSIGNED_SELECTOR
+    } else {
+      if(!deleteRanges && rangesCache.sql("select * from \"RANGES\".range where poolId = ?", poolId).getAll.size > 0){
+          log.warn(s"Tried to delete Pool $poolId, which has associated Ranges")
+          // Did not delete the pool because there are enclosed Ranges
+          ASSIGNED_RANGE
+      } else {
+        // Delete Ranges
+        val deleteResult = (for {
+          rangeEntry <- rangesCache.sql("select * from \"RANGES\".range where poolId = ?", poolId).getAll
+          range = rangeEntry.getValue
+        } yield deleteRange(range.poolId, range.startIPAddress, withActiveLeases)).find(_ != 0).getOrElse(SUCCESS)
+        if(deleteResult != SUCCESS){
+          log.warn(s"At least one Range in $poolId could not be deleted")
+          deleteResult
+        }
+        else {
+          if(poolsCache.remove(poolId)) SUCCESS else DOES_NOT_EXIST
+        }
       }
-    } else false
-    
-    if(inUse) false else rangesCache.remove((poolId, startIpAddress))
+    }
+  }
+
+  /**
+   * Deletes the range and the corresponding leases. The status must be "disabled" (0) and there must not be
+   * active Leases, unless ("force") is true.
+   *
+   * @param poolId the poolId
+   * @param startIpAddress the start IP Address
+   * @param withActiveLeases whether to do the deletion even if there are active Leases
+   * @return code
+   */
+  def deleteRange(poolId: String, startIpAddress: Long, withActiveLeases: Boolean = false): Int = {
+
+    Option(rangesCache.get((poolId, startIpAddress))) match {
+      case None =>
+        log.warn(s"Tried to delete non existing Range: $poolId, $startIpAddress")
+        DOES_NOT_EXIST
+
+      case Some(range) if range.status != 0 =>
+        log.warn(s"Tried to delete Range with non 0 status: $poolId, $startIpAddress")
+        ACTIVE_RANGE
+
+      case Some(range) =>
+        if(!withActiveLeases) {
+          // Check that there are not active Leases
+          val query = new SqlFieldsQuery("select count(*) from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ? and endLeaseTime > ?")
+            .setArgs(
+              range.startIPAddress: java.lang.Long,
+              range.endIPAddress: java.lang.Long,
+              new java.util.Date(System.currentTimeMillis()): java.util.Date
+            )
+
+          if(leasesCache.query(query).getAll.head.get(0).asInstanceOf[Long] > 1){
+            log.warn("Trying to delete Range with active leases: $poolId, $startIPAddress")
+            return ACTIVE_LEASES
+          }
+        }
+
+        // Delete the Leases
+        val deleteStmt = new SqlFieldsQuery("delete from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ?")
+          .setArgs(
+            range.startIPAddress: java.lang.Long,
+            range.endIPAddress: java.lang.Long
+          )
+        leasesCache.query(deleteStmt)
+
+        // Delete the Range
+        if(rangesCache.remove((poolId, startIpAddress))) SUCCESS else DOES_NOT_EXIST
+    }
     
   }
-     
+
   /**
-   * Modifications
+   * Changes the status of a Range
+   * @param poolId the poolId
+   * @param startIpAddress the start IP Address
+   * @param status new status
+   * @return true if the modification took place, and false if nothing changed
    */
-  
-  /**
-   * Status is 0 if the range must not be used.
-   * 
-   * Returns true if the modification took place
-   */
-  def modifyRangeStatus(poolId: String, startIpAddress: Long, status: Int) = {
-    val updateStmt = new SqlFieldsQuery("update \"RANGES\".range set stauts = ? where poolId = ? and startIpAddress = ?")
+  def modifyRangeStatus(poolId: String, startIpAddress: Long, status: Int): Boolean = {
+    val updateStmt = new SqlFieldsQuery("update \"RANGES\".range set status = ? where poolId = ? and startIpAddress = ?")
       .setArgs(
           status: java.lang.Integer,
           poolId: java.lang.String,
@@ -749,13 +979,15 @@ object SessionDatabase {
         
     rangesCache.query(updateStmt).getAll.head.get(0).asInstanceOf[Long] == 1
   }
-  
+
   /**
-   * Priority is 0 if the PoolSelector is not used.
-   * 
-   * Returns true if the modification took place.
+   * Changes the priority of a Selector
+   * @param selectorId the selectorId
+   * @param poolId the PoolId
+   * @param priority the new priority
+   * @return true if the modification was performed, and false if nothing was changed
    */
-  def modifyPoolSelectorPriority(selectorId: String, poolId: String, priority: Int) = {
+  def modifyPoolSelectorPriority(selectorId: String, poolId: String, priority: Int): Boolean = {
     val updateStmt = new SqlFieldsQuery("update \"POOLSELECTORS\".PoolSelector set priority = ? where selectorId = ? and poolId = ?")
       .setArgs(
           priority: java.lang.Integer,

@@ -15,10 +15,9 @@ import yaas.coding.DiameterConversions._
 import yaas.coding.RadiusConversions._
 import yaas.coding.RadiusPacket._
 import yaas.coding._
-import yaas.config.ConfigManager
-import yaas.server.{MessageHandler, _}
+import yaas.config.{ConfigManager, _}
+import yaas.server.MessageHandler
 import yaas.util.OctetOps
-import yaas.config._
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -30,17 +29,77 @@ trait JsonSupport extends Json4sSupport {
   implicit val serialization: Serialization.type = org.json4s.jackson.Serialization
   implicit val json4sFormats: DefaultFormats.type = org.json4s.DefaultFormats
 }
-
+/* Library for creating tests scenarios.
+ * Derives from MessageHandler
+ * @param metricsServer. In order to run it, simply declare it as a hahdler in handlers.json
+ * <code>{"name": "Main1", "clazz": "yaas.handlers.test.TestClientMain", "config":"run.js"}</code>
+ *
+ * @param metricsServer
+ * @param configObject typically used to pass the name of a .js file with radius/diameter policies
+ */
 abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[String]) extends MessageHandler(metricsServer, configObject) with JsonSupport {
-  
-  log.info("Instantiated Radius/Diameter client application")
 
+  private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  private val http = Http(context.system)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // To be overridden in implementing classes
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  val tests : IndexedSeq[() => Unit]
+
+  /**
+   * Base URL
+   */
+  val clientMetricsURL : String
+  val serverMetricsURL : String
+  val superServerMetricsURL : String
+  val sessionsURL : String
+  val iamBaseURL : String
+  val iamSecondaryBaseURL : String
+
+  val includingNeRadiusGroup : String
+  val allServersRadiusGroup : String
+
+  /**
+   * Number of requests on each iteration
+   */
+  val nRequests: Int
+
+  /**
+   * Whether to run in a loop
+   */
+  val doLoop: Boolean
+
+  /**
+   * Do not stop if there was a timeout when executing performance testing
+   */
+  val continueOnPerfError: Boolean
+
+  /**
+   * Whether to exit the application after finishing the tests
+   */
+  val exitOnTermination: Boolean
+
+  /**
+   * Number of threads sending parallel requests
+   */
+  val nThreads: Int
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+   * Prints an OK message
+   * @param msg message to print
+   */
   private def ok(msg: String = ""): Unit = println(s"\t[OK] $msg")
+
+  /**
+   * Prints a failure message
+   * @param msg message to print
+   */
   private def fail(msg: String = ""): Unit = println(s"\t[FAIL] $msg")
-  private def checkMetric(jMetric: JValue, targetCounter: Int, key: Map[String, String], legend: String): Unit = {
-    val counter = getCounterForKey(jMetric, key)
-    if(targetCounter == counter) ok(legend + ": " + counter) else fail(legend + ": " + counter + " expected: " + targetCounter)
-  }
 
   /**
    * Helper to get property from java properties or environment variables
@@ -63,31 +122,32 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   }
 
   /**
-   * Number of requests on each iteration
+   *
+   * @param stats The json object received from the instrumentation server
+   * @param keyMap The full key whose value is to be retrieved, as a map of keys to values
+   * @return -1 in case of key not found
    */
-  val nRequests: Int = getIntFromEnv("YAAS_TEST_REQUESTS", 10000)
+  private def getCounterForKey(stats: JValue, keyMap: Map[String, String]) = {
+    val out = for {
+      JArray(statValues) <- stats
+      statValue <- statValues
+      JInt(counterValue) <- statValue \ "value" if (statValue \ "keyMap" diff keyMap) == Diff(JNothing, JNothing, JNothing)
+    } yield counterValue
+
+    if(out.isEmpty) -1 else out.head.toInt
+  }
 
   /**
-   * Whether to run in a loop
+   * Checks a JSON with metrics against a target
+   * @param jMetric the value to check
+   * @param targetValue the value of the metric that would be OK
+   * @param key a map of label names to values, specifying the key to check in jMetric
+   * @param legend to print in the output message
    */
-  val doLoop: Boolean = getBooleanFromEnv("YAAS_TEST_LOOP", defaultValue = false)
-
-  /**
-   * Do not stop if there was a timeout when executing performance testing
-   */
-  val continueOnPerfError: Boolean = getBooleanFromEnv("YAAS_CONTINUE_ON_PERF_ERROR", defaultValue = false)
-
-  /**
-   * Number of threads sending paralell requests
-   */
-  val nThreads: Int = getIntFromEnv("YAAS_TEST_THREADS", 10)
-
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
-  private val http = Http(context.system)
-  
-  //////////////////////////////////////////////////////////////////////////////
-  // Helper functions
-  //////////////////////////////////////////////////////////////////////////////
+  private def checkMetric(jMetric: JValue, targetValue: Long, key: Map[String, String], legend: String): Unit = {
+    val counter = getCounterForKey(jMetric, key)
+    if(targetValue == counter) ok(s"$legend : $counter") else fail(s"$legend : $counter expected $targetValue")
+  }
   
   private def waitJValue(r: Future[JValue]) = Await.result(r,  5.second)
   private def waitInt(r: Future[Int]) = Await.result(r, 5.second)
@@ -106,6 +166,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       r <- http.singleRequest(HttpRequest(uri = url))
       j <- Unmarshal(r.entity).to[JValue].recover{case _ => JNothing}
     } yield j
+    )
+  }
+
+  private def codeFromGet(url: String): Int = {
+    waitInt(for {
+      r <- http.singleRequest(HttpRequest(uri = url))
+    } yield r.status.intValue
     )
   }
   
@@ -135,47 +202,32 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       r <- http.singleRequest(HttpRequest(DELETE, uri = url))
     } yield r.status.intValue())   
   }
-  
+
+  private def codeAndMessageFromDelete(url: String) = {
+    val fut = for {
+      r <- http.singleRequest(HttpRequest(DELETE, uri = url))
+      msg <- Unmarshal(r.entity).to[String].recover{case _ => "ERROR"}
+    } yield (r.status.intValue(), msg)
+
+    Await.result(fut, 5.seconds)
+  }
+
   private def codeFromPatchJson(url: String, json: String) = {
     waitInt(for {
       r <- http.singleRequest(HttpRequest(PATCH, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
     } yield r.status.intValue())
   }
 
-  /**
-   *
-   * @param stats The json object received from the instrumentation server
-   * @param keyMap The full key whose value is to be retrieved, as a map of keys to values
-   * @return -1 in case of key not found
-   */
-  private def getCounterForKey(stats: JValue, keyMap: Map[String, String]) = {
-    val out = for {
-      JArray(statValues) <- stats
-      statValue <- statValues
-      JInt(counterValue) <- statValue \ "value" if((statValue \ "keyMap" diff keyMap) == Diff(JNothing, JNothing, JNothing))
-    } yield counterValue
-    
-    if(out.isEmpty) -1 else out.head.toInt
-  }
   
   //////////////////////////////////////////////////////////////////////////////
-  
-  val clientMetricsURL : String
-  val serverMetricsURL : String
-  val superServerMetricsURL : String
-  val sessionsURL : String
-  val iamBaseURL : String
-  val iamSecondaryBaseURL : String
-  
-  val includingNeRadiusGroup : String
-  val allServersRadiusGroup : String
+
   
   // Wait some time before starting the tests.
   // peerCheckTimeSeconds should be configured with about 10 seconds. Starting the tests after
   // 15 seconds will give some time to retry connections that will have initially failed due 
   // to all servers starting at almost the same time
   override def preStart: Unit = {
-    context.system.scheduler.scheduleOnce(3 seconds, self, "Start")
+    context.system.scheduler.scheduleOnce(3.seconds, self, "Start")
   }
   
   // To receive the start message
@@ -189,21 +241,20 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   }
   
   // _ is needed to promote the method (no arguments) to a function
-  val tests : IndexedSeq[() => Unit]
-  
   println("STARTING TESTS")
-  
   private var lastTestIdx = -1
+
+  /**
+   * Executes the current test item
+   */
   def nextTest(): Unit = {
     lastTestIdx = lastTestIdx + 1
     if(tests.length > lastTestIdx)
       try{
-      tests(lastTestIdx)() 
+        tests(lastTestIdx)()
       }
       catch{
-        case t: Throwable =>
-          println(s">> ERROR ${t.getMessage}")
-          nextTest
+        case t: Throwable => println(s">> ERROR ${t.getMessage}")
       }
     else {
       if(doLoop){
@@ -213,8 +264,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         tests(0)()
       } 
       else {
-        println("FINISHED")
-        //System.exit(0)
+        if(exitOnTermination) System.exit(0) else println("FINISHED")
       }
     }
   }
@@ -230,7 +280,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    */
   def sleep(millis: Int)(): Unit = {
     Thread.sleep(millis)
-    nextTest
+    nextTest()
   }
 
   /**
@@ -239,54 +289,23 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   def stop()(): Unit = {
     println("Tests stopped")
   }
-  
-  private def checkConnectedPeer(url: String, connectedPeer: String)(): Unit = {
-      println(s"[TEST] $url connected to $connectedPeer")
-      val peerStatus = jsonFromGet(s"${url}/diameter/peers")
-      if((peerStatus \ connectedPeer \ "status").extract[Int] == PeerStatus.STATUS_READY) ok(s"Connected to $connectedPeer") else fail(s"Not connected to $connectedPeer")
-      nextTest
-  }
-  
-  private def checkNotConnectedPeer(url: String, notConnectedPeer: String)(): Unit = {
-      println(s"[TEST] $url connected to notConnectedPeer")
-      val peerStatus = jsonFromGet(s"${url}/diameter/peers")
-      if((peerStatus \ notConnectedPeer \ "status").extract[Int] != PeerStatus.STATUS_READY) ok(s"$notConnectedPeer status is != 2") else fail(s"Connected to $notConnectedPeer") 
-      nextTest
+
+  private def checkPeerConnectionStatus(url: String, peer: String, shouldBeConnected: Boolean, testHint: String)(): Unit = {
+    println(s"[TEST] $testHint connection status with $peer")
+    val peerStatus = jsonFromGet(s"$url/diameter/peers")
+    val isReady = (peerStatus \ peer \ "status").extract[Int] == PeerStatus.STATUS_READY
+    val msg = if(isReady) "Connected" else "Not Connected"
+    if(shouldBeConnected == isReady) ok(msg) else fail(msg)
+    nextTest()
   }
 
-  def checkClientConnectedPeer(connectedPeer: String)(): Unit = checkConnectedPeer(s"$clientMetricsURL", connectedPeer)
-  def checkServerConnectedPeer(connectedPeer: String)(): Unit = checkConnectedPeer(s"$serverMetricsURL", connectedPeer)
-  def checkSuperServerConnectedPeer(connectedPeer: String)(): Unit = checkConnectedPeer(s"$superServerMetricsURL", connectedPeer)
-  def checkClientNotConnectedPeer(connectedPeer: String)(): Unit = checkNotConnectedPeer(s"$clientMetricsURL", connectedPeer)
-  def checkServerNotConnectedPeer(connectedPeer: String)(): Unit = checkNotConnectedPeer(s"$serverMetricsURL", connectedPeer)
-  def checkSuperServerNotConnectedPeer(connectedPeer: String)(): Unit = checkNotConnectedPeer(s"$superServerMetricsURL", connectedPeer)
-  
-  def clientPeerConnections(): Unit = {
-      // Test-Client is connected to server.yaasserver, and not connected to non-existing-server.yaasserver
-      println("[TEST] Client Peer connections")
-      val testClientPeers = jsonFromGet(s"${clientMetricsURL}/diameter/peers")
-      if((testClientPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
-      if((testClientPeers \ "non-existing-server.yaasserver" \ "status").extract[Int] != PeerStatus.STATUS_READY) ok("non-existing-server status is != 2") else fail("Connected to non-existing-server!") 
-      nextTest()
-  }
-  
-  def serverPeerConnections(): Unit = {
-      // Test-Server is connected to client.yaasclient and superserver.yaassuperserver
-      println("[TEST] Server Peer connections")
-      val testServerPeers = jsonFromGet(s"${serverMetricsURL}/diameter/peers")
-      if((testServerPeers \ "superserver.yaassuperserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to supersserver") else fail("Not connected to superserver") 
-      if((testServerPeers \ "client.yaasclient" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to client") else fail("Not connected to client")
-      nextTest()
-  }
-  
-  def superserverPeerConnections(): Unit = {
-      // Test-SuperServer is connected to server.yaasserver
-      println("[TEST] Superserver Peer connections")
-      val testSuperServerPeers = jsonFromGet(s"${superServerMetricsURL}/diameter/peers")
-      if((testSuperServerPeers \ "server.yaasserver" \ "status").extract[Int] == PeerStatus.STATUS_READY) ok("Connected to server") else fail("Not connected to server") 
-      nextTest()
-  }
-  
+  def checkClientConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(clientMetricsURL, peer, shouldBeConnected = true, "Client")
+  def checkClientNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(clientMetricsURL, peer, shouldBeConnected = false, "Client")
+  def checkServerConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(serverMetricsURL, peer, shouldBeConnected = true, "Server")
+  def checkServerNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(serverMetricsURL, peer, shouldBeConnected = false, "Server")
+  def checkSuperServerConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(superServerMetricsURL, peer, shouldBeConnected = true, "SuperServer")
+  def checkSuperServerNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(superServerMetricsURL, peer, shouldBeConnected = false, "SuperServer")
+
   /*
    * User-Name coding will determine the actions taken by the upstream servers
    *  login-name
@@ -296,9 +315,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    *  realm
    *    "database" to do lookup in database
    *    "file" to do lookup in file
+   *
+   *  Notice the <code>conf/test-server/handlerConf</code> configuration files, where the realm "database" does
+   *  check the password and the realm "file" does not.
    */
   
   /*
+   * The following set of methods are meant to be executed in order in the test class, since
+   * nes = non existing server
    * 1 Access-Request with Accept. Retried by the client (timeout from nes)
    * 1 Access-Request with Reject. Retried by the client (timeout from nes)
    * 1 Access-Request dropped. Retried by the client and the server (timeout from nes, timeout from server)
@@ -309,34 +333,38 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   /**
    *  Sends Access-Request to "yaas-server-ne-group", the first one of which does not respond, and expects to receive
-   * 	User-Password = password!_1
-   *  Class = legacy_1
-   *  
+   * 	User-Password = password!_0
+   *  Class = legacy_0
+   *
+   *  The users are provisioned in <code>InitClientDatabase</code> handler
    *  The implementing server looks-up in the database using nasport:nasipaddress
    */
   def testAccessRequestWithAccept(): Unit = {
     println("[TEST] Access Request --> With accept")
+    val userName = "user_0@database"
     val userPassword = "password!_0"
     val lcId = "legacy_0"
     val serviceName = "service_0"
+    val session_id = "radius-session-0"
+    val nasIPAddress = "1.1.1.1"
     
     val accessRequest = 
       RadiusPacket.request(ACCESS_REQUEST) << 
-      ("User-Name" -> "user_1@database") << 
+      ("User-Name" -> userName) <<
       ("User-Password" -> userPassword) << 
-      ("NAS-IP-Address" -> "1.1.1.1") <<
+      ("NAS-IP-Address" -> nasIPAddress) <<
       ("NAS-Port" -> 0) <<
-      ("Acct-Session-Id" -> "radius-session-0")
+      ("Acct-Session-Id" -> session_id)
       
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     // Server echoes password
     sendRadiusGroupRequest(includingNeRadiusGroup, accessRequest, 1000, 1).onComplete {
       case Success(response) =>
-        // Class
+        // Verify class attribute
         val classAttributes = (response >>+ "Class").map(avp => avp.stringValue)
         if(classAttributes.contains(s"C=$lcId")) ok(s"C=$lcId found") else fail(s"Class C=$lcId not found")
         if(classAttributes.contains(s"S=$serviceName")) ok(s"S=$serviceName found") else fail(s"Class S=$serviceName not found")
-        // Echoed password
+        // Verify Echoed password
         if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) 
           fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)
         else {
@@ -344,12 +372,17 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         }
 
         nextTest()
-      case Failure(ex) => 
+      case Failure(_) =>
         fail("Response not received")
         nextTest()
     }
   }
-  
+
+  /**
+   * Sends an AccessRequest to be rejected by superserver. The first try is directed to the non existing server.
+   *
+   * The Reply-Message is verified
+   */
   def testAccessRequestWithReject(): Unit = {
     println("[TEST] Access Request --> With reject")
     val accessRequest = 
@@ -359,26 +392,28 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       ("NAS-IP-Address" -> "1.1.1.1") <<
       ("NAS-Port" -> 0) <<
       ("Acct-Session-Id" -> "radius-session-reject")
-      
-      
+
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest(includingNeRadiusGroup, accessRequest, 1000, 1).onComplete {
       case Success(response) => 
         if(response.code == RadiusPacket.ACCESS_REJECT){
           ok("Reject received correctly")
         } else fail("Response is not a reject")
-        
+
         if((response >>* "Reply-Message") == "Proxy: Rejected by superserver!"){
           ok("Reply message is correct")
         } else fail("Response message is incorrect")
-        nextTest
+        nextTest()
         
-      case Failure(ex) => 
+      case Failure(_) =>
         fail("Response not received")
-        nextTest
+        nextTest()
     }
   }
-  
+
+  /**
+   * Generates an AccessRequest that will be dropped by superserver
+   */
   def testAccessRequestWithDrop(): Unit = {
     println("[TEST] Access Request --> With drop")
     val accessRequest= RadiusPacket.request(ACCESS_REQUEST) << 
@@ -392,14 +427,17 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     sendRadiusGroupRequest(includingNeRadiusGroup, accessRequest, 1500, 1).onComplete {
       case Success(response) => 
         fail("Received response")
-        nextTest
+        nextTest()
         
-      case Failure(ex) => 
+      case Failure(_) =>
         ok("Response not received")
-        nextTest
+        nextTest()
     }
   }
-  
+
+  /**
+   * Generates an accounting request using JSON coding
+   */
   def testAccountingRequest(): Unit = {
     
     // Accounting request
@@ -415,34 +453,38 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           "NAS-IP-Address": ["1.1.1.1"],
           "NAS-Port": [0],
           "User-Name": ["test@database"],
-          "Acct-Session-Id": ["${acctSessionId}"],
-          "Framed-IP-Address": ["${ipAddress}"],
+          "Acct-Session-Id": ["$acctSessionId"],
+          "Framed-IP-Address": ["$ipAddress"],
           "Acct-Status-Type": ["Start"]
         }
       }
       """
-      
+
+    // Convert JSON to RadiusPacket
     val accountingRequest: RadiusPacket = parse(sAccountingRequest)
 
     // Will generate an unsuccessful request to "non-existing-server" and a successful request to yaasserver
     sendRadiusGroupRequest(includingNeRadiusGroup, accountingRequest, 2000, 1).onComplete {
-      case Success(response) => 
+      case Success(_) =>
         ok("Received response")
         
         // Find session
-        val session = jsonFromGet(sessionsURL + "/sessions/find?ipAddress=" + ipAddress)
-        if(((session \ "acctSessionId")(0)).extract[String] == acctSessionId){
+        val session = jsonFromGet(sessionsURL + s"/sessions/find?ipAddress=$ipAddress")
+        if((session \ "acctSessionId")(0).extract[String] == acctSessionId){
           ok("Session found")
         }
         else fail("Session not found")
-        nextTest
+        nextTest()
 
-      case Failure(ex) => 
+      case Failure(_) =>
         fail("Response not received")
-        nextTest
+        nextTest()
     }
   }
-  
+
+  /**
+   * Use the same values for ipAddress and acctSessionId as in the previous packet
+   */
   def testAccountingInterim(): Unit = {
     
     // Accounting request
@@ -458,8 +500,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           "NAS-IP-Address": ["1.1.1.1"],
           "NAS-Port": [0],
           "User-Name": ["test@database"],
-          "Acct-Session-Id": ["${acctSessionId}"],
-          "Framed-IP-Address": ["${ipAddress}"],
+          "Acct-Session-Id": ["$acctSessionId"],
+          "Framed-IP-Address": ["$ipAddress"],
           "Acct-Status-Type": ["Interim-Update"]
         }
       }
@@ -467,28 +509,23 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           
     val accountingRequest: RadiusPacket = parse(sAccountingRequest)
 
-    // Will go directly to the server
+    // Will go directly to the server. Non existing server not used here
     sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 2000, 1).onComplete {
       case Success(response) => 
         ok("Received response")
         
-        // Find session
+        // Find session. Wait a little if the update is async
+        Thread.sleep(500)
         val session = jsonFromGet(sessionsURL + "/sessions/find?ipAddress=" + ipAddress)
-        if((session(0) \ "acctSessionId").extract[String] == acctSessionId){
-          ok("Session found")
-        }
-        else fail("Session not found")
+        if((session(0) \ "acctSessionId").extract[String] == acctSessionId) ok("Session found") else fail("Session not found")
 
-        if((session(0) \ "data" \ "interim").extract[Boolean] == true){
-          ok("Updated data found")
-        }
-        else fail("Updated data found")
-        
-        nextTest
+        if((session(0) \ "data" \ "interim").extract[Boolean]) ok("Updated data found")  else fail("Updated data not found")
+        if((session(0) \ "data" \ "b").extract[Int] == 2) ok("Old data found")  else fail("Old data not found")
+        nextTest()
 
       case Failure(ex) => 
         fail("Response not received")
-        nextTest
+        nextTest()
     }
   }
   
@@ -503,13 +540,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       ("Framed-IP-Address" -> "199.0.0.2") <<
       ("Acct-Status-Type" -> "Start")  
       
-    // Generate another one to be discarded by the superserver. The servers re-sends the request to superserver
-    sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 500, 0).onComplete {
-      case _ => nextTest
-    }
+    // Generate another request to be discarded by the superserver.
+    // The servers re-sends the request to superserver
+    sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 500, 0).onComplete(_ => nextTest())
   }
-  
-  // Diameter NASREQ application, AA request
+
+  /**
+   * Diameter NASREQ application, AA request
+   */
   def testAA(): Unit = {
     println("[TEST] AA Requests")
     
@@ -529,17 +567,20 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     sendDiameterRequest(request, 3000).onComplete{
       case Success(answer) =>
         // Check answer
-        val classAttrs = answer >>+ "Class" map {avp => OctetOps.fromHexToUTF8(avp.toString)}
-        if (classAttrs sameElements Seq(sentFramedInterfaceId, sentCHAPIdent)) ok("Received correct Class attributes") else fail(s"Incorrect Class Attributes: $classAttrs")
-        nextTest
+        val classAttrs = (answer >>+ "Class").map {avp => OctetOps.fromHexToUTF8(avp.toString)}
+        // TODO: The ordering could be different
+        if (classAttrs == Seq(sentFramedInterfaceId, sentCHAPIdent)) ok("Received correct Class attributes") else fail(s"Incorrect Class Attributes: $classAttrs")
+        nextTest()
         
       case Failure(e) =>
         fail(e.getMessage)
-        nextTest
+        nextTest()
     }
   }
-  
-  // Diameter NASREQ application, AC request
+
+  /**
+   * Diameter NASREQ application, AC request
+   */
   def testAC(): Unit = {
     println("[TEST] AC Requests")
     
@@ -553,8 +594,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       "Session-Id" -> acctSessionId << 
       "Framed-IP-Address" -> ipAddress <<
       "User-Name" -> userName <<
-      "Accounting-Record-Type" -> "START_RECORD"<<
-      ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
+      "Accounting-Record-Type" -> "START_RECORD" <<
+      ("Tunneling" -> Seq("Tunnel-Type" -> "L2TP", "Tunnel-Client-Endpoint" -> "my-tunnel-endpoint"))
     
     sendDiameterRequest(request, 3000).onComplete{
       case Success(answer) =>
@@ -562,23 +603,26 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         if(answer.L("Result-Code") == DiameterMessage.DIAMETER_SUCCESS) ok("Received Success Result-Code") else fail("Not received success code")
         
         // Find session
-        val session = jsonFromGet(sessionsURL + "/sessions/find?acctSessionId=" + acctSessionId)
-        if(((session \ "ipAddress")(0)).extract[String] == ipAddress){
+        val session = jsonFromGet(sessionsURL + s"/sessions/find?acctSessionId=$acctSessionId")
+        if((session \ "ipAddress")(0).extract[String] == ipAddress){
           ok("Session found")
         }
         else fail("Session not found")
-        nextTest
+        nextTest()
 
       case Failure(e) =>
         fail(e.getMessage)
-        nextTest
+        nextTest()
     }
   }
-  
-  // Diameter Gx application
-  // JSON generated
-  // Routed from server to superserver (not proxied)
-  // The super-server will reply with a Charging-Rule-Install -> Charging-Rule-Name containing the Subscription-Id-Data 
+
+  /**
+   * Diameter Gx application
+   * JSON generated
+   * Routed from server to superserver (not proxied)
+   * The super-server will reply with a Charging-Rule-Install -> Charging-Rule-Name containing the Subscription-Id-Data
+   */
+
   def testGxRouting(): Unit = {
     
     println("[TEST] Gx Routing")
@@ -607,12 +651,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         
         // Check answer in JSON format
         val gxResponse: JValue = answer
-        if(OctetOps.fromHexToUTF8((gxResponse \ "avps" \ "3GPP-Charging-Rule-Install" \ "3GPP-Charging-Rule-Name").extract[String]) == subscriptionId) ok("Received subscriptionId") else fail("Bad subscriptionId")
-        nextTest
+        val receivedSubscriptionId = OctetOps.fromHexToUTF8((gxResponse \ "avps" \ "3GPP-Charging-Rule-Install" \ "3GPP-Charging-Rule-Name").extract[String])
+        if(receivedSubscriptionId == subscriptionId) ok("Received subscriptionId") else fail(s"Bad subscriptionId $receivedSubscriptionId")
+        nextTest()
         
       case Failure(e) =>
         fail(e.getMessage)
-        nextTest
+        nextTest()
     }
   }
    
@@ -621,14 +666,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       println("[TEST] Superserver stats")
 
       // Requests received
-      val jServerRequests = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusServerRequest")
+      val jServerRequests = jsonFromGet(s"$superServerMetricsURL/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 2 drop
       checkMetric(jServerRequests, 4, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
       // 1 acct ok, 2 acct drop
       checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
-      val jServerResponses = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusServerResponse")
+      val jServerResponses = jsonFromGet(s"$superServerMetricsURL/radius/metrics/radiusServerResponse")
       // 1 access accept
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
@@ -637,24 +682,24 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
-      val jServerDrops = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusServerDropped")
+      val jServerDrops = jsonFromGet(s"$superServerMetricsURL/radius/metrics/radiusServerDropped")
       // No packets dropped. Stat not shown 
       checkMetric(jServerDrops, -1, Map(), "Packets dropped")
       
       // Packets answered by handler
-      val jHandlerResponses = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
+      val jHandlerResponses = jsonFromGet(s"$superServerMetricsURL/radius/metrics/radiusHandlerResponse?agg=rs")
       // 1 access accept
       checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
       checkMetric(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
 
       // Packets dropped by handler
-      val jHandlerDrops = jsonFromGet(s"${superServerMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
+      val jHandlerDrops = jsonFromGet(s"$superServerMetricsURL/radius/metrics/radiusHandlerDropped?agg=rq")
       // 2 packet dropped each, since the server will retry to superserver
       checkMetric(jHandlerDrops, 2, Map("rq" -> "1"), "Access-Request dropped")
       checkMetric(jHandlerDrops, 2, Map("rq" -> "4"), "Accounting-Request dropped")
       
-      nextTest
+      nextTest()
   }
   
   def checkServerRadiusStats(): Unit = {
@@ -662,14 +707,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       println("[TEST] Server stats")
       
       // Requests received
-      val jServerRequests = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusServerRequest")
+      val jServerRequests = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 1 drop
       checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
       // 1 acct ok, 1 acct drop
       checkMetric(jServerRequests, 2, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
-      val jServerResponses = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusServerResponse")
+      val jServerResponses = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusServerResponse")
       // 1 access accept
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
@@ -678,12 +723,12 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
-      val jServerDrops = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusServerDropped")
+      val jServerDrops = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusServerDropped")
       // No packets dropped. Stat not shown 
       checkMetric(jServerDrops, -1, Map(), "Packets dropped")
       
       // Packets answered by handler
-      val jHandlerResponses = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusHandlerResponse?agg=rs")
+      val jHandlerResponses = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusHandlerResponse?agg=rs")
       // 1 access accept
       checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
@@ -692,34 +737,34 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       checkMetric(jHandlerResponses, 1, Map("rs" -> "5"), "Accounting responses")
 
       // Packets dropped by handler
-      val jHandlerDrops = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusHandlerDropped?agg=rq")
+      val jHandlerDrops = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusHandlerDropped?agg=rq")
       // Server drops the packets for which it receives no response from non-existing-server
       checkMetric(jHandlerDrops, 1, Map("rq" -> "1"), "Access-Request dropped")
       checkMetric(jHandlerDrops, 1, Map("rq" -> "4"), "Accounting-Request dropped")
       
-      nextTest
+      nextTest()
   }
   
   def checkClientRadiusStats(): Unit = {
       println("[TEST] Client stats")
       
       // 3 requests to the non-existing-server
-      val jClientRequests1 = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh")
+      val jClientRequests1 = jsonFromGet(s"$clientMetricsURL/radius/metrics/radiusClientRequest?agg=rh")
       checkMetric(jClientRequests1, 3, Map("rh" -> "1.1.1.1:1812"), "Requests sent to non existing server")
       
       // 3 access requests, 2 accounting requests to server
-      val jClientRequests2 = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientRequest?agg=rh,rq")
+      val jClientRequests2 = jsonFromGet(s"$clientMetricsURL/radius/metrics/radiusClientRequest?agg=rh,rq")
       checkMetric(jClientRequests2, 3, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Requests sent to server")
       checkMetric(jClientRequests2, 2, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Acounting-Requests sent to server")
       
       // Responses received
-      val jResponsesReceived = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientResponse?agg=rs")
+      val jResponsesReceived = jsonFromGet(s"$clientMetricsURL/radius/metrics/radiusClientResponse?agg=rs")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "2"), "Access-Accept received from server")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "3"), "Access-Reject received from server")
-      checkMetric(jResponsesReceived, 1, Map("rs" -> "5"), "Accouning-Response received from server")
+      checkMetric(jResponsesReceived, 1, Map("rs" -> "5"), "Accounting-Response received from server")
       
       // Timeouts
-      val jTimeouts = jsonFromGet(s"${clientMetricsURL}/radius/metrics/radiusClientTimeout?agg=rh,rq")
+      val jTimeouts = jsonFromGet(s"$clientMetricsURL/radius/metrics/radiusClientTimeout?agg=rh,rq")
       // One per each to non-existing-server
       checkMetric(jTimeouts, 3, Map("rq" -> "1", "rh" -> "1.1.1.1:1812"), "Access-Request timeouts from non existing server")
       // The one explicitly dropped
@@ -729,128 +774,140 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       // The one explicitly dropped
       checkMetric(jTimeouts, 1, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Accounting-Request timeouts from server")
       
-      nextTest
+      nextTest()
   }
   
   def checkSuperserverDiameterStats(): Unit = {
       println("[TEST] Superserver stats")
       
       // Requests received
-      val jRequestsReceived = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap,cm")
+      val jRequestsReceived = jsonFromGet(s"$superServerMetricsURL/diameter/metrics/diameterRequestReceived?agg=peer,ap,cm")
       // 1 AA, 1AC, 1CCR
       checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265"), "NASREQ AAR received")
       checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271"), "NASREQ ACR received")
       checkMetric(jRequestsReceived, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272"), "Gx CCR received")
 
-      // Ansers sent
-      val jAnswerSent = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterAnswerSent?agg=peer,ap,cm,rc")
+      // Answers sent
+      val jAnswerSent = jsonFromGet(s"$superServerMetricsURL/diameter/metrics/diameterAnswerSent?agg=peer,ap,cm,rc")
       // 1 AA, 1AC
       checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "265", "rc" -> "2001"), "NASREQ AAA sent")
       checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "1", "cm" -> "271", "rc" -> "2001"), "NASREQ ACA sent")
       checkMetric(jAnswerSent, 1, Map("peer" -> "server.yaasserver", "ap" -> "16777238", "cm" -> "272", "rc" -> "2001"), "Gx CCA sent")
       
       // Handled requests
-      val jHandlerServer = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,dr,rc")
+      val jHandlerServer = jsonFromGet(s"$superServerMetricsURL/diameter/metrics/diameterHandlerServer?agg=oh,dr,rc")
       // 1 AA, 1AC
       checkMetric(jHandlerServer, 2, Map("oh" -> "server.yaasserver", "dr" -> "yaassuperserver", "rc" -> "2001"), "AA/C Handled")
       // 1 CCR
       checkMetric(jHandlerServer, 1, Map("oh" -> "client.yaasclient", "dr" -> "yaassuperserver", "rc" -> "2001"), "Gx CCR Handled")
       
-      val jHandlerClient = jsonFromGet(s"${superServerMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh")
+      val jHandlerClient = jsonFromGet(s"$superServerMetricsURL/diameter/metrics/diameterHandlerClient?agg=oh")
       // 1 AA, 1AC
       checkMetric(jHandlerClient, -1, Map("oh" -> "server.yaasserver"), "AA Handled")
       
-      nextTest
+      nextTest()
   }
   
   def checkServerDiameterStats(): Unit = {
       println("[TEST] Server stats")
       
-      val jRequestsReceived = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterRequestReceived?agg=peer,ap")
+      val jRequestsReceived = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterRequestReceived?agg=peer,ap")
       // 1 AA, 1AC
       checkMetric(jRequestsReceived, 2, Map("peer" -> "client.yaasclient", "ap" -> "1"), "NASREQ requests received")
       // 1 Gx CCR
       checkMetric(jRequestsReceived, 1, Map("peer" -> "client.yaasclient", "ap" -> "16777238"), "Gx requests received")
       
-      val jRequestsSent = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterRequestSent?agg=peer,ap")
+      val jRequestsSent = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterRequestSent?agg=peer,ap")
       // 1 AA, 1AC
       checkMetric(jRequestsSent, 2, Map("peer" -> "superserver.yaassuperserver", "ap" -> "1"), "NASREQ requests sent")
       // 1 Gx CCR
       checkMetric(jRequestsSent, 1, Map("peer" -> "superserver.yaassuperserver", "ap" -> "16777238"), "Gx requests sent")
       
-      val jAnswersReceived = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterAnswerReceived?agg=ap")
+      val jAnswersReceived = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterAnswerReceived?agg=ap")
       // 1 AA, 1AC
       checkMetric(jAnswersReceived, 2, Map("ap" -> "1"), "NASREQ answers received")
       // Gx CCA
       checkMetric(jAnswersReceived, 1, Map("ap" -> "16777238"), "Gx answers received")
 
-      val jAnswerSent = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterAnswerSent?agg=ap,rc")
+      val jAnswerSent = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterAnswerSent?agg=ap,rc")
       // 1 AA, 1AC
       checkMetric(jAnswerSent, 2, Map("ap" -> "1", "rc" -> "2001"), "NASREQ answers sent")
       // 1 CCR
       checkMetric(jAnswerSent, 1, Map("ap" -> "16777238", "rc" -> "2001"), "Gx answers sent")
       
-      val jHandlerServer = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterHandlerServer?agg=oh,ap")
+      val jHandlerServer = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterHandlerServer?agg=oh,ap")
       // 1 AA, 1AC
       checkMetric(jHandlerServer, 2, Map("oh" -> "client.yaasclient", "ap" -> "1"), "AA Handled")
       // 0 Gx
       checkMetric(jHandlerServer, -1, Map("oh" -> "client.yaasclient", "ap" -> "16777238"), "AA Handled")
       
-      val jHandlerClient = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterHandlerClient?agg=oh,ap,rc")
+      val jHandlerClient = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterHandlerClient?agg=oh,ap,rc")
       // 1 AA, 1AC
       checkMetric(jHandlerClient, 2, Map("oh" -> "server.yaasserver", "ap" -> "1", "rc" -> "2001"), "AA Handled")
       
-      nextTest
+      nextTest()
   }
   
   def checkHttpStats(method: String,  mustBe: Int)(): Unit = {
     println(s"[TEST] Http Stats")
     
-    val jHttpRequests = jsonFromGet(s"${superServerMetricsURL}/http/metrics/httpOperation?agg=method")
+    val jHttpRequests = jsonFromGet(s"$superServerMetricsURL/http/metrics/httpOperation?agg=method")
     checkMetric(jHttpRequests, mustBe, Map("method" -> method), s"$method")
     
-    nextTest
+    nextTest()
   }
   
   def checkQueueStats(): Unit = {
     println(s"[TEST] Queue Stats")
-    
-    val jRadiusQueueStats = jsonFromGet(s"${serverMetricsURL}/radius/metrics/radiusClientQueueSize")
+
+    // TODO: Check a value here
+
+    val jRadiusQueueStats = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusClientQueueSize")
     if(jRadiusQueueStats == JNothing) fail("Radius Queue Stats did not return a valid value") else ok("Radius Queue Stats -> " + compact(jRadiusQueueStats))
     
-    val jDiameterQueueStats = jsonFromGet(s"${serverMetricsURL}/diameter/metrics/diameterPeerQueueSize")
+    val jDiameterQueueStats = jsonFromGet(s"$serverMetricsURL/diameter/metrics/diameterPeerQueueSize")
     if(jDiameterQueueStats == JNothing) fail("Diameter Queue Stats did not return a valid value") else ok("Diameter Queue Stats -> " + compact(jDiameterQueueStats))
     
-    nextTest
+    nextTest()
   }
   
   def checkSessionStats(): Unit = {
     println(s"[TEST] Session Stats")
     
-    val jSessions = jsonFromGet(s"${superServerMetricsURL}/session/metrics/sessions")
+    val jSessions = jsonFromGet(s"$superServerMetricsURL/session/metrics/sessions")
     if(jSessions == JNothing) fail("sessions did not return a valid value") else ok("Session Stats  -> " + compact(jSessions))
     
-    nextTest
+    nextTest()
   }
-  
+
+  /**
+   * Sends multiple Radius requests in an async fashion, waits for the answers and prints the results
+   * @param serverGroup where to send the resquest
+   * @param requestType 1 or 4
+   * @param acctStatusType in case of requestType 4, "Start", "Stop" or "Interim-Update"
+   * @param domain realm in the username of the request
+   * @param nRequests total number of requests to be sent
+   * @param nThreads this is really the maximum number of in-flight requests
+   * @param testName to be printed in stdout
+   */
   def checkRadiusPerformance(serverGroup: String, requestType: Int, acctStatusType: String, domain: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
     println(s"[TEST] RADIUS Performance. $testName")
     
     val startTime = System.currentTimeMillis()
     
-    // Number of requests being performed
+    // Number of requests performed up to now
     var i = new java.util.concurrent.atomic.AtomicInteger(0)
     
-    // Each thread does this
+    // Each simulated thread does this
     def requestLoop: Future[Unit] = {
       
       val promise = Promise[Unit]()
       
-      def loop: Unit = {
+      def loop(): Unit = {
         val reqIndex = i.getAndIncrement
         val index = reqIndex % 1000
-        print(s"\r${reqIndex} ")
+        print(s"\r$reqIndex ")
         if(reqIndex < nRequests){
           // The server will echo the User-Password. We'll test this
           val password = s"password!_$index"
@@ -867,50 +924,61 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
             
           sendRadiusGroupRequest(serverGroup, radiusPacket, 3000, 1).onComplete {
             case Success(response) =>
-              if(response.code == ACCOUNTING_RESPONSE|| (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>* "User-Password") == password)) loop
+              if(response.code == ACCOUNTING_RESPONSE || (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>* "User-Password") == password)) loop()
               else promise.failure(new Exception("Bad Radius Response"))
               
             case Failure(e) =>
               if(continueOnPerfError){
                 print(s"\r         --> At least one timeout")
-                loop 
+                loop()
               }
               else promise.failure(e)
           }
         } else promise.success(Unit)
       }
       
-      loop
+      loop()
       promise.future
     }
     
     // Launch the threads
-    val requesters = List.fill(nThreads)(requestLoop)
-    Future.reduce(requesters)((a, b) => Unit).onComplete {
-      case Success(v) =>
+    val loops = List.fill(nThreads)(requestLoop)
+
+    // Combine the results
+    Future.reduce(loops)((_, _) => Unit).onComplete {
+      case Success(_) =>
         val total = i.get
         if(total < nRequests) fail(s"Not completed. Got $total requests") 
         else{
           // Print results
           print("\r")
           val totalTime = System.currentTimeMillis() - startTime
-          ok(s"$nRequests in ${totalTime} milliseconds, ${1000 * nRequests / totalTime} per second")
+          ok(s"$nRequests in $totalTime milliseconds, ${1000 * nRequests / totalTime} per second")
         }
-        nextTest
+        nextTest()
         
       case Failure(e) =>
         fail(e.getMessage)
-        nextTest
+        nextTest()
     }
   }
-  
+
+  /**
+   * Sends multiple NASREQ diameter requests and waits for the results
+   * @param requestType may be "AA" and "AC"
+   * @param domain the realm in the user name
+   * @param acctStatusType may be START_RECORD, STOP_RECORD or INTERIM_RECORD
+   * @param nRequests the total number of requests to be sent
+   * @param nThreads this is really the maximum number of in-flight requests
+   * @param testName to be printed in stdout
+   */
   def checkDiameterPerformance(requestType: String, domain: String, acctStatusType: String, nRequests: Int, nThreads: Int, testName: String)(): Unit = {
     
     println(s"[TEST] Diameter Performance. $testName")
     
     val startTime = System.currentTimeMillis()
     
-    // Number of requests being performed
+    // Number of requests performed up to now
     var i = new java.util.concurrent.atomic.AtomicInteger(0)
     
     // Each thread does this
@@ -918,7 +986,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       
       val promise = Promise[Unit]()
       
-      def loop: Unit = {
+      def loop(): Unit = {
         val reqIndex = i.getAndIncrement
         print("\r" +  reqIndex)
         if(reqIndex < nRequests){
@@ -941,20 +1009,18 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
               case Success(answer) =>
                 // Check answer
                 val classAttrs = answer >>+ "Class" map {avp => OctetOps.fromHexToUTF8(avp.toString)}
-                if (classAttrs sameElements Seq(sentFramedInterfaceId, sentCHAPIdent)) loop
+                if (classAttrs == Seq(sentFramedInterfaceId, sentCHAPIdent)) loop()
                 else promise.failure(new Exception("Bad answer"))
                 
               case Failure(e) =>
                 if(continueOnPerfError){
                   print(s"\r         --> At least one timeout")
-                  loop 
+                  loop()
                 }
                 else promise.failure(e)
             }
           } 
           else {
-            val userName = "user_" + (reqIndex % 10000) + domain
-            
             val request = DiameterMessage.request("NASREQ", "AC")
             request << 
               "Destination-Realm" -> "yaasserver" << 
@@ -962,12 +1028,12 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
               "Framed-IP-Address" -> intToIPAddress(5000000 + reqIndex) <<
               "User-Name" -> ("diameter_user_"+ i + "_" + domain) <<
               "Accounting-Record-Type" -> acctStatusType <<
-              ("Tunneling" -> Seq(("Tunnel-Type" -> "L2TP"), ("Tunnel-Client-Endpoint" -> "my-tunnel-endpoint")))
+              ("Tunneling" -> Seq("Tunnel-Type" -> "L2TP", "Tunnel-Client-Endpoint" -> "my-tunnel-endpoint"))
             
             sendDiameterRequest(request, 5000).onComplete{
               case Success(answer) =>
                 // Check answer
-                if(answer.L("Result-Code") == DiameterMessage.DIAMETER_SUCCESS) loop
+                if(answer.L("Result-Code") == DiameterMessage.DIAMETER_SUCCESS) loop()
                 else promise.failure(new Exception("Bad answer"))
         
               case Failure(e) =>
@@ -977,13 +1043,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         } else promise.success(Unit)
       }
       
-      loop
+      loop()
       promise.future
     }
     
     // Launch the threads
-    val requesters = List.fill(nThreads)(requestLoop)
-    Future.reduce(requesters)((a, b) => Unit).onComplete {
+    val loops = List.fill(nThreads)(requestLoop)
+    Future.reduce(loops)((_, _) => Unit).onComplete {
       case Success(v) =>
         val total = i.get
         if(total < nRequests) fail(s"Not completed. Got $total requests") 
@@ -991,13 +1057,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           // Print results
           print("\r")
           val totalTime = System.currentTimeMillis() - startTime
-          ok(s"$nRequests in ${totalTime} milliseconds, ${1000 * nRequests / totalTime} per second")
+          ok(s"$nRequests in $totalTime milliseconds, ${1000 * nRequests / totalTime} per second")
         }
-        nextTest
+        nextTest()
         
       case Failure(e) =>
         fail(e.getMessage)
-        nextTest
+        nextTest()
     }
   }
   
@@ -1005,35 +1071,35 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   ////////////////////////////////////////////////////////////////////////////////////
   // Helpers for IPAM
   ////////////////////////////////////////////////////////////////////////////////////
-  def createPool(poolId: String) = {
-    val jPool: JValue = ("poolId" -> poolId)
+  def createPool(poolId: String): Unit = {
+    val jPool: JValue = "poolId" -> poolId
     val retCode = codeFromPostJson(iamBaseURL + "/pool", compact(jPool))
     if(retCode == 201) ok(s"$poolId created") else fail(s"Error creating Pool. Got $retCode")
   }
   
-  def createPoolSelector(selectorId: String, poolId: String, priority: Int) = {
+  def createPoolSelector(selectorId: String, poolId: String, priority: Int): Unit = {
     val jPoolSelector: JValue = ("selectorId" -> selectorId) ~ ("poolId" -> poolId) ~ ("priority" -> priority) 
     val retCode = codeFromPostJson(iamBaseURL + "/poolSelector", compact(jPoolSelector))
     if(retCode == 201) ok(s"PoolSelector $selectorId,$poolId created") else fail(s"Error creating PoolSelector. Got $retCode")
   }
   
-  def createRange(poolId: String, startIPAddress: Int, endIPAddress: Int, status: Int) = {
+  def createRange(poolId: String, startIPAddress: Int, endIPAddress: Int, status: Int): Unit = {
     val jRange: JValue = ("poolId" -> poolId) ~ ("startIPAddress" -> startIPAddress) ~ ("endIPAddress" -> endIPAddress) ~ ("status" -> status) 
     val retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
     if(retCode == 201) ok(s"Range $poolId,$startIPAddress created") else fail(s"Error creating Range. Got $retCode")
   }
   
-  def deletePool(poolId: String) = {
+  def deletePool(poolId: String): Unit = {
     val retCode = codeFromDelete(iamBaseURL + "/pool/" + poolId)
     if(retCode == 202) ok(s"$poolId deleted") else fail(s"Error deleting Pool. Got $retCode")
   }
   
-  def deletePoolSelector(selectorId: String, poolId: String) = {
+  def deletePoolSelector(selectorId: String, poolId: String): Unit = {
     val retCode = codeFromDelete(iamBaseURL + "/poolSelector/" + selectorId + "," + poolId)
     if(retCode == 202) ok(s"$selectorId,$poolId deleted") else fail(s"Error deleting PoolSelector. Got $retCode")
   }
   
-  def deleteRange(poolId: String, startIPAddress: Int) = {
+  def deleteRange(poolId: String, startIPAddress: Int): Unit = {
     val retCode = codeFromDelete(iamBaseURL + "/range/" + poolId + "," + startIPAddress)
     if(retCode == 202) ok(s"$poolId,$startIPAddress deleted") else fail(s"Error deleting Range. Got $retCode")
   }
@@ -1042,19 +1108,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   
   def factorySettings () : Unit = {
     
-    var retCode: Int = 0
-    
     println("\n[RESET TO FACTORY SETTINGS]")
     
-    retCode = codeFromPostJson(iamBaseURL + "/factorySettings", "{}")
+    val retCode = codeFromPostJson(iamBaseURL + "/factorySettings", "{}")
     if(retCode == 201) ok("Reset to factory settings") else fail(s"Response code: $retCode")
     
-    nextTest
+    nextTest()
   }
-  
-  /**
-   * 
-   */
+
   def createPools(): Unit = {
     
     println("\n[CREATE POOLS]")
@@ -1065,12 +1126,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     createPool("pool-2-cuyo")
     createPool("small-pool")
     
-    nextTest
+    nextTest()
   }
-  
-  /**
-   * 
-   */
+
   def createPoolSelectors() : Unit = {
     
     println("\n[CREATE POOLSELECTORS]")
@@ -1081,13 +1139,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     createPoolSelector("Cuyo", "pool-2-cuyo", 2)
     createPoolSelector("Small", "small-pool", 1)
     
-    nextTest
+    nextTest()
   }
   
   def createRanges() : Unit = {
     
     println("\n[CREATE RANGES]")
-    
+
+    // Selector "Republica" has two pools, with two ranges of 1000 addesses each
     createRange("pool-1-republica", 10000, 10999, 1)
     createRange("pool-1-republica", 11000, 11999, 1)
     createRange("pool-2-republica", 12000, 12999, 1)
@@ -1098,7 +1157,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     createRange("pool-2-cuyo", 2300, 2399, 1)
     createRange("small-pool", 9000, 9002, 1)
     
-    nextTest
+    nextTest()
 
   }
   
@@ -1108,7 +1167,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     createRange("pool-2-cuyo", 8000, 8100, 1)
     deleteRange("pool-2-cuyo", 8000)
     
-    nextTest
+    nextTest()
   }
   
   def deletePoolSelectors(): Unit = {
@@ -1117,7 +1176,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     createPoolSelector("disposable", "pool-2-cuyo", 3)
     deletePoolSelector("disposable", "pool-2-cuyo")
     
-    nextTest
+    nextTest()
   }
   
   def deletePools(): Unit = {
@@ -1126,24 +1185,24 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     createPool("disposable")
     deletePool("disposable")
     
-    nextTest
+    nextTest()
   }
   
   def errorConditions(): Unit = {
     println("\n[FAILURE CONDITIONS]")
-    
+
     // Create range for undefined pools returns error 409
-    var jRange: JValue = ("poolId" -> "undefined-pool") ~ ("startIPAddress" -> 1) ~ ("endIPAddress" -> 2) ~ ("status" -> 1) 
+    var jRange: JValue = ("poolId" -> "undefined-pool") ~ ("startIPAddress" -> 1) ~ ("endIPAddress" -> 2) ~ ("status" -> 1)
     var retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
-    if(retCode == 409) ok(s"Range with undefined pool rejected") else fail(s"Range with undefined pool got $retCode")
+    if(codeFromPostJson(iamBaseURL + "/range", compact(jRange)) == 409) ok(s"Range with undefined pool rejected") else fail(s"Range with undefined pool got $retCode")
     
     // Create pool selector for undefined pool returns error 409
-    var jPoolSelector: JValue = ("selectorId" -> "myselector") ~ ("poolId" -> "undefined-pool") ~ ("priority" -> 1) 
+    var jPoolSelector: JValue = ("selectorId" -> "myselector") ~ ("poolId" -> "undefined-pool") ~ ("priority" -> 1)
     retCode = codeFromPostJson(iamBaseURL + "/poolSelector", compact(jPoolSelector))
     if(retCode == 409) ok(s"PoolSelector with undefined pool rejected") else fail(s"PoolSelector with undefined pool got $retCode")
     
     // Pool already existing returns error 409
-    var jPool: JValue = ("poolId" -> "pool-1-republica")
+    val jPool: JValue = "poolId" -> "pool-1-republica"
     retCode = codeFromPostJson(iamBaseURL + "/pool", compact(jPool))
     if(retCode == 409) ok(s"Duplicated pool rejected") else fail(s"Duplicated pool got $retCode")
     
@@ -1166,11 +1225,11 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     retCode = codeFromPostJson(iamBaseURL + "/range", compact(jRange))
     if(retCode == 409) ok(s"Overlapping Range rejected") else fail(s"Overlapping Range got $retCode")
     
-    // Delete unexisting range returns 404
+    // Delete un-existing range returns 404
     retCode = codeFromDelete(iamBaseURL + "/range/nonpool,1")
     if(retCode == 404) ok(s"Delete non existing range returns not-found") else fail(s"Delete non existing ranges returns $retCode")
     
-    nextTest
+    nextTest()
   }
   
   def fillPool(): Unit = {
@@ -1178,52 +1237,108 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     
     if(codeFromPostJson(iamBaseURL + "/fillPoolLeases/small-pool", "{}") == 200) ok(s"Pool filled") else fail(s"Error while filling pool") 
     
-    nextTest
+    nextTest()
   }
   
   def reloadLookup(): Unit = {
      jsonFromPostJson(iamBaseURL + "/reloadLookup", "{}")
      jsonFromPostJson(iamSecondaryBaseURL + "/reloadLookup", "{}")
      
-     nextTest
+     nextTest()
   }
   
   def testLeases(): Unit = {
     println("\n[LEASES]")
+
+    var retCode = 0
     
     // Getting addresses from createRange("small-pool", 9000, 9002, 1)
     
     // Ask for three IP addresses. Check that the results are 9000, 9001 and 9002
-    val addresses = for {
-      i <- 1 to 3
-      JInt(addr) = jsonFromPostJson(iamBaseURL + "/lease?selectorId=Small&requester=req1", "{}") \ "ipAddress"
-    } yield addr.toInt
-    
-    
-    if(addresses.sorted.sameElements(List(9000, 9001, 9002))) ok("Got addresses 9000, 9001 and 9002") else fail("Got bad addresses")
+    val addresses = (1 to 3).map(i => (jsonFromPostJson(iamBaseURL + s"/lease?selectorId=Small&requester=req$i", "{}") \ "ipAddress").extract[Int])
+    if(addresses.sorted == List(9000, 9001, 9002)) ok("Got addresses 9000, 9001 and 9002") else fail("Got bad addresses")
 
     // Next request has to return 420
-    var code = codeFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}")
-    if(code == 420) ok("No more IP addresses available") else fail(s"Got $code when leasing address from pool that should be full")
+    retCode = codeFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}")
+    if(retCode == 420) ok("No more IP addresses available") else fail(s"Got $retCode when leasing address from pool that should be full")
     
     // Free one of them
-    code = codeFromPostJson(iamBaseURL + "/release?ipAddress=9001", "{}")
-    if(code == 200) ok("Address released") else fail(s"Address not released. Got $code")
-    
+    retCode = codeFromPostJson(iamBaseURL + "/release?ipAddress=9001", "{}")
+    if(retCode == 200) ok("Address released") else fail(s"Address not released. Got $retCode")
+
     // Re-lease it again, after waiting ONE SECOND (grace time should be configured accordingly)
     Thread.sleep(1100)
     val JInt(newAddr) = jsonFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}") \ "ipAddress"
-    if(newAddr == 9001) ok("Address leased again") else fail(s"Address NOT leased again. Got $code")
+    if(newAddr == 9001) ok("Address leased again") else fail(s"Address NOT leased again")
     
     // Renew
-    code = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9000&requester=req1", "{}")
-    if(code == 200) ok("Address renewed") else fail(s"Address NOT renewed. Got $code")
+    retCode = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9000&requester=req1", "{}")
+    if(retCode == 200) ok("Address renewed") else fail(s"Address NOT renewed. Got $retCode")
     
     // Renew with failure
-    code = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9001&requester=fake", "{}")
-    if(code == 404) ok("Renewal disallowed") else fail(s"Renewal with failure got $code")
+    retCode = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9001&requester=fake", "{}")
+    if(retCode == 404) ok("Renewal disallowed") else fail(s"Renewal with failure got $retCode")
     
-    nextTest
+    nextTest()
+  }
+
+  def deletionsWithLeases(): Unit = {
+    println("\n[DELETIONS]")
+
+    var retCode = 0
+    var retValues = (0, "")
+
+    // Not deletion, but need to have it somewhere
+
+    // Change selector priority returns not found
+    retCode = codeFromPatchJson(iamBaseURL + "/poolSelector/Small,non-existing?priority=1", "{}")
+    if(retCode == 404) ok("PoolSelector not found") else fail(s"Found fake PoolSelector")
+
+    // Change selector priority
+    retCode = codeFromPatchJson(iamBaseURL + "/poolSelector/Small,small-pool?priority=5", "{}")
+    if(retCode == 202) ok("Changed PoolSelector priority") else fail(s"Trying to change Selector priority got $retCode")
+
+    // Check priority changed
+    if((jsonFromGet(iamBaseURL + "/poolSelectors?selectorId=Small")(0) \ "priority").extract[Int] == 5) ok("Selector priority changed") else fail("Priority not changed")
+
+    // Try to delete Pool with Selector and Ranges fails
+    retValues = codeAndMessageFromDelete(iamBaseURL + "/pool/small-pool")
+    if(retValues._1 == 409 && retValues._2.endsWith("Assigned Selector")) ok(s"Not deleted because assigned selector") else fail(s"Deletion of pool in use got ${retValues._1} ${retValues._2}")
+
+    // Now, start deleting
+
+    // Delete Pool selector
+    retValues = codeAndMessageFromDelete(iamBaseURL + "/poolSelector/Small,small-pool")
+    if(retValues._1 == 202) ok("Small PoolSelector deleted") else fail(s"Deletion of PoolSelector got ${retValues._1} ${retValues._2}")
+
+    // Try to delete Pool. Cannot be done because there are assigned ranges
+    retValues = codeAndMessageFromDelete(iamBaseURL + "/pool/small-pool")
+    if(retValues._1 == 409 && retValues._2.endsWith("Assigned Range")) ok(s"Not deleted because assigned range") else fail(s"Deletion of pool with assigned range got ${retValues._1} ${retValues._2}")
+
+    // Delete Range, but active status
+    retValues = codeAndMessageFromDelete(iamBaseURL + "/range/small-pool,9000")
+    if(retValues._1 == 409 && retValues._2.endsWith("Active Range")) ok("Range not delete due to Active status") else fail(s"Deletion of Range with Active status got ${retValues._1} ${retValues._2}")
+
+    // Update status
+    retCode = codeFromPatchJson(iamBaseURL + "/range/small-pool,9000?status=0", "{}")
+    if(retCode == 202) ok("Range status updated") else fail(s"Range status update got $retCode")
+
+    // Delete Pool with cascade
+    retValues = codeAndMessageFromDelete(iamBaseURL + "/pool/small-pool?deleteRanges=true")
+    if(retValues._1 == 409 && retValues._2.endsWith("Active Leases")) ok("Pool not delete due to Active Leases") else fail(s"Deletion of Range with Active leases got ${retValues._1} ${retValues._2}")
+
+    // Lease found
+    retCode = codeFromGet(iamBaseURL + "/leases?ipAddress=9000")
+    if(retCode == 200) ok("Lease for 9000 found") else fail(s"Lease for 9000 got $retCode")
+
+    // Delete Pool with cascade and withActiveLeases
+    retValues = codeAndMessageFromDelete(iamBaseURL + "/pool/small-pool?deleteRanges=true&withActiveLeases=true")
+    if(retValues._1 == 202) ok(s"Pool deleted") else fail(s"Deletion of Pool with cascade and activeLeases ${retValues._1} ${retValues._2}")
+
+    // Lease not found
+    retCode = codeFromGet(iamBaseURL + "/leases?ipAddress=9000")
+    if(retCode == 404) ok("Lease for 9000 not found") else fail(s"Lease for 9000 got $retCode")
+
   }
   
   def testBulkLease(): Unit = {
@@ -1235,46 +1350,48 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     
     val startTime = System.currentTimeMillis()
     
-    // Number of requests being performed
-    var i = new java.util.concurrent.atomic.AtomicInteger(0)
+    // Number of IP addresses got up tu now
+    val addressCounter = new java.util.concurrent.atomic.AtomicInteger(0)
     
     // To be executed by one thread
     def requestLoop() = {
-      var total = 0
-      var currIndex = 0
-      while({currIndex = i.getAndIncrement; if(currIndex < nAddresses) true else false})
+      var myAddresses = 0
+      while(addressCounter.get < nAddresses)
       {
-        print(s"\r${currIndex} ")
-        val base = if(currIndex % 2 == 0) iamBaseURL else iamSecondaryBaseURL
-        Try(jsonFromPostJsonWithErrorTrace(base + "/lease?selectorId=Republica", "{}") \ "ipAddress") match {
+        print(s"\r${addressCounter.get + 1} ")
+        val base = if(addressCounter.get % 2 == 0) iamBaseURL else iamSecondaryBaseURL
+        Try(jsonFromPostJson(base + "/lease?selectorId=Republica", "{}") \ "ipAddress") match {
           
-          case Success(JInt(ipAddr)) =>
-            total = total + 1
+          case Success(JInt(_)) =>
+            myAddresses = myAddresses + 1
+            addressCounter.incrementAndGet()
             
           case Success(_) =>
             // Try again
-            fail("Did not get an IP address. Try again")
+            print(s"\rDid not get an IP address. Try again")
             
           case Failure(e) =>
             // Try again
             fail(e.getMessage)
         }
       }
-      total
+      myAddresses
     }
     
     // Accumulate the results of each requestLoop
-    val requests = List.fill(nThreads)(Future {requestLoop})
-    Future.fold(requests)(0)((acc, res) => (acc + res)).onComplete {
-      case Success(total) => 
+    val requests = List.fill(nThreads)(Future {requestLoop()})
+    Future.fold(requests)(0)((acc, res) => acc + res).onComplete {
+      case Success(total) =>
+        print("                                       \r")
         val elapsedTime = System.currentTimeMillis() - startTime
         val rate = (nAddresses * 1000) / elapsedTime
-        if(total == nAddresses) ok(s"Got $total leases. Rate: ${rate} leases per second") else fail(s"Got $total instead of $nAddresses")
-        nextTest
+        if(total == nAddresses) ok(s"Got $total leases. Rate: $rate leases per second") else fail(s"Got $total instead of $nAddresses")
+        nextTest()
         
-      case Failure(e) => 
+      case Failure(e) =>
+        print("                                       \r")
         fail(e.getMessage)
-        nextTest
+        nextTest()
     }
   }
   
@@ -1285,7 +1402,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     val code = codeFromPostJson(iamBaseURL + "/lease?selectorId=Republica", "{}")
     if(code == 420) ok("Addreses for selector not available") else fail("Got an address from an exhausted pool")
         
-    nextTest
+    nextTest()
   }
   
   
@@ -1330,7 +1447,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
 
   def runJS(scriptName: String)(): Unit = {
     class Notifier {
-      def end = nextTest
+      def end(): Unit = nextTest()
     }
     
     import javax.script._
@@ -1351,6 +1468,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   	engine.put("Notifier", new Notifier)
   	
   	// Execute Javascript
-  	engine.eval(ConfigManager.getConfigObjectAsString(scriptName));
+  	// engine.eval(ConfigManager.getConfigObjectAsString(scriptName))
+    val bootstrapScript = s"load(baseURL + '$scriptName');"
+    engine.eval(bootstrapScript)
   }
 }

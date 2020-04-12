@@ -1439,7 +1439,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   }
 
   /**
-   * Simple string extractor
+   * Simple String extractor
    * @param key the attribute to extract in dot format
    */
   def S(key: String): String = {
@@ -1452,7 +1452,7 @@ class DiameterMessage(val applicationId: Long, val commandCode: Int, val hopByHo
   }
 
   /**
-   * Simple string extractor
+   * Simple Long extractor throwing exception if not found
    * @param key the attribute to extract in dot format
    */
   def L(key: String): Long = {

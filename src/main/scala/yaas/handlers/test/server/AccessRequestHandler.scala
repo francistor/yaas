@@ -175,7 +175,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
           
           val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status) = 
             // Client found
-            if(queryResult.length > 0){
+            if(queryResult.nonEmpty){
               queryResult(0) 
             }
             // Client not found
@@ -294,8 +294,7 @@ class AccessRequestHandler(statsServer: ActorRef, configObject: Option[String]) 
                     getRadiusAttrs(jServiceConfig, rejectServiceOption, "radiusAttrs") <<
                     ("Class" -> s"S=${rejectServiceOption.get}") <<
                     ("Class" -> s"R=1")
-                    
-                  
+
                 case None =>
                   val serviceAVPList = getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs")
                   if(log.isDebugEnabled){

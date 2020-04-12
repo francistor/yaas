@@ -1,11 +1,9 @@
 package yaas.handlers.test.superserver
 
-import akka.actor.{ActorSystem, Actor, ActorRef, Props}
-import yaas.server._
-import yaas.server.MessageHandler
+import akka.actor.ActorRef
 import org.apache.ignite.cache.query.SqlFieldsQuery
-import org.apache.ignite.scalar._
-import scalar._
+import org.apache.ignite.scalar.scalar._
+import yaas.server.MessageHandler
 
 /**
  * Write 1000 entries in the CLIENT database
@@ -14,8 +12,8 @@ import scalar._
  * nasipaddress: 1.1.1.1
  * nasport: <i>
  *
- * @param statsServer
- * @param configObject
+ * @param statsServer not used here
+ * @param configObject not used here
  */
 class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   

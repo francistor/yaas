@@ -110,7 +110,7 @@ class AccountingRequestHandler(statsServer: ActorRef, configObject: Option[Strin
       } else if((request >> "Acct-Status-Type").contentEquals("Interim-Update")){
       
         // Update Session
-        SessionDatabase.updateSession(request >> "Acct-Session-Id", Some(("interim" -> true)), true)
+        SessionDatabase.updateSessionAsync(request >> "Acct-Session-Id", Some(("interim" -> true)), true)
       }
     }
     
