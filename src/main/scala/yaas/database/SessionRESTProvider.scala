@@ -1,5 +1,6 @@
 package yaas.database
 
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.stream.ActorMaterializer
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.model._
@@ -7,81 +8,87 @@ import akka.http.scaladsl._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.RejectionHandler
 import akka.http.scaladsl.model.headers._
-
 import com.typesafe.config._
+
 import scala.concurrent.duration._
 import scala.util.Try
-import akka.actor.{ActorSystem, Actor, ActorLogging, ActorRef, Props}
-import scala.util.{Success, Failure}
-
+import scala.util.{Failure, Success}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
-
-import yaas.database._
+import org.json4s.Formats
+import org.json4s.jackson.Serialization
 import yaas.instrumentation.MetricsOps._
 
+import scala.concurrent.ExecutionContextExecutor
+
 object SessionRESTProvider {
-  def props(metricsServer: ActorRef) = Props(new SessionRESTProvider(metricsServer))
+  def props(metricsServer: ActorRef): Props = Props(new SessionRESTProvider(metricsServer))
 }
 
 trait JsonSupport extends Json4sSupport {
-  implicit val serialization = org.json4s.jackson.Serialization
-  implicit val json4sFormats = org.json4s.DefaultFormats + new JSessionSerializer
+  implicit val serialization: Serialization.type = org.json4s.jackson.Serialization
+  implicit val json4sFormats: Formats = org.json4s.DefaultFormats + new JSessionSerializer
 }
 
+/**
+ * Exposes a REST endpoint for IAM and Session queries
+ * @param metricsServer the metrics server Actor
+ */
 class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging with JsonSupport {
   
-  import SessionRESTProvider._
+  implicit val actorSystem: ActorSystem = context.system
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+  implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
   
-  implicit val actorSystem = context.system
-  implicit val materializer = ActorMaterializer()
-  implicit val executionContext = actorSystem.dispatcher
+  private val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
+  private val bindAddress= config.getString("bindAddress")
+  private val bindPort = config.getInt("bindPort")
+  private val refreshLookupTableSeconds = config.getInt("iam.refreshLookupTableSeconds")
+  private val leaseTimeMillis = config.getInt("iam.leaseTimeSeconds") * 1000
+  private val graceTimeMillis = config.getInt("iam.graceTimeSeconds") * 1000
+  implicit val askTimeout : akka.util.Timeout = 3000.millis
   
-  val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
-  val bindAddress= config.getString("bindAddress")
-  val bindPort = config.getInt("bindPort")
-  val refreshLookupTableSeconds = config.getInt("iam.refreshLookupTableSeconds")
-  val leaseTimeMillis = config.getInt("iam.leaseTimeSeconds") * 1000
-  val graceTimeMillis = config.getInt("iam.graceTimeSeconds") * 1000
-  implicit val askTimeout : akka.util.Timeout = 3000 millis
+  // Synonym for iam Manager object
+  private val iam = yaas.database.SessionDatabase
   
-  // Synonim for iam Manager object
-  val iam = yaas.database.SessionDatabase
-  
-  def receive = {
+  def receive: Receive = {
     case "RefreshLookupTable" =>
-      context.system.scheduler.scheduleOnce(refreshLookupTableSeconds seconds, self, "RefreshLookupTable")
-      iam.rebuildLookup
+      context.system.scheduler.scheduleOnce(refreshLookupTableSeconds.seconds, self, "RefreshLookupTable")
+      iam.rebuildLookup()
   }
   
   override def preStart = {
     // Do it for the first time, and schedule
-    iam.rebuildLookup
-    context.system.scheduler.scheduleOnce(refreshLookupTableSeconds seconds, self, "RefreshLookupTable")
+    iam.rebuildLookup()
+    context.system.scheduler.scheduleOnce(refreshLookupTableSeconds.seconds, self, "RefreshLookupTable")
   }
   
   // Cleanup
-  override def postStop = {
+  override def postStop: Unit = {
 
-  }   
+  }
   
-  val notFoundHandler = RejectionHandler.newBuilder.handle {
-    case _ => complete(400, "Unknown request could not be handled")
-  }. result
-  
-  val sessionsRoute = 
+  private val sessionsRoute =
     pathPrefix("sessions") {
       get {
-        pathPrefix("find") {
-          parameterMap { params => {
-              log.debug(s"find radius sessions for $params")
-              if(params.size == 0) complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
-              else params.keys.map(_ match {
-                case "acctSessionId" => complete(SessionDatabase.findSessionsByAcctSessionId(params("acctSessionId")))
-                case "ipAddress" => complete(SessionDatabase.findSessionsByIPAddress(params("ipAddress")))
-                case "MACAddress" => complete(SessionDatabase.findSessionsByMACAddress(params("macAddress")))
-                case "clientId" => complete(SessionDatabase.findSessionsByClientId(params("clientId")))
-                case _ => complete(StatusCodes.NotAcceptable, "Required ipAddress, MACAddress, clientId or acctSessionId parameter")
-              }).head
+        pathPrefix("find" | "session") {
+          parameterMap { params =>
+              log.debug(s"Find sessions for $params")
+              if(params.isEmpty) complete(StatusCodes.NotAcceptable, "Required one of ipAddress, MACAddress, clientId or acctSessionId parameter")
+              else {
+								val (k, v) = params.head
+								val sessionsOption = k match {
+									case "acctSessionId" => Some(SessionDatabase.findSessionsByAcctSessionId(v))
+									case "ipAddress" => Some(SessionDatabase.findSessionsByIPAddress(v))
+									case "MACAddress" => Some(SessionDatabase.findSessionsByMACAddress(v))
+									case "clientId" => Some(SessionDatabase.findSessionsByClientId(v))
+									case _ => None
+								}
+								extractMatchedPath { path =>
+									sessionsOption match {
+										case Some(sessions) => if (path.toString.endsWith("find")) complete(sessions) else complete(sessions.head)
+										case None => complete(StatusCodes.NotAcceptable, s"Attribute $k unknown")
+								}
+							}
             }
           }
         } 
@@ -330,8 +337,13 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
 				}
 			}
   }
+
+	private val notFoundHandler = RejectionHandler.newBuilder.handle {
+		case _ => complete(400, "Unknown request could not be handled")
+	}. result
   
   // Custom directive for statistics and rejections
+	// Pass Route by name
   def logAndRejectWrapper(innerRoutes: => Route): Route = { 
     ctx => 
     (
