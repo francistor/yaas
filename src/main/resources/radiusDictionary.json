@@ -54,7 +54,7 @@
                 	"Framed": 2,
                 	"Callback-Login": 3,
                 	"Callback-Framed": 4,
-                	"Outbound": 5,
+                	"Outbound-User": 5,
                 	"Administrative": 6,
                 	"NAS-Prompt": 7,
                 	"Authenticate-Only": 8,
@@ -245,6 +245,41 @@
 		"2011":
 		[
 			{
+				"code": 1,
+				"name": "Input-Committed-Burst-Size",
+				"type": "Integer"
+			},
+			{
+				"code": 2,
+				"name": "Input-Committed-Information-Rate",
+				"type": "Integer"
+			},
+			{
+				"code": 3,
+				"name": "Input-Peak-Information-Rate",
+				"type": "Integer"
+			},
+			{
+				"code": 4,
+				"name": "Output-Committed-Burst-Size",
+				"type": "Integer"
+			},
+			{
+				"code": 5,
+				"name": "Output-Committed-Information-Rate",
+				"type": "Integer"
+			},
+			{
+				"code": 6,
+				"name": "Output-Peak-Information-Rate",
+				"type": "Integer"
+			},
+			{
+				"code": 15,
+				"name": "Remanent-Volume",
+				"type": "Integer"
+			},
+			{
 				"code": 184,
 				"name": "Account-Info",
 				"type": "String"
@@ -252,6 +287,11 @@
 			{
 				"code": 185,
 				"name": "Service-Info",
+				"type": "String"
+			},
+			{
+				"code": 188,
+				"name": "AVPair",
 				"type": "String"
 			}
 		],

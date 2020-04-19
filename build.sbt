@@ -22,13 +22,13 @@ libraryDependencies ++=
     "org.apache.ignite" % "ignite-core" % "2.7.6",
     "org.apache.ignite" % "ignite-spring" % "2.7.6",
     "org.apache.ignite" % "ignite-indexing" % "2.7.6",
-    "org.apache.ignite" % "ignite-scalar" % "2.7.6",
     "org.apache.ignite" % "ignite-slf4j" % "2.7.6",
     "org.apache.ignite" % "ignite-kubernetes" % "2.7.6",
     "com.typesafe.slick" %% "slick" % "3.3.0",
-    "com.typesafe.slick" %% "slick-hikaricp" % "3.3.0"
+    "com.typesafe.slick" %% "slick-hikaricp" % "3.3.0",
+    "org.mongodb.scala" %% "mongo-scala-driver" % "4.0.2"
   )
-  
+
 scriptClasspath += "../conf"
 scriptClasspath += "../handlers"
   

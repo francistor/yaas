@@ -7,9 +7,13 @@ import org.json4s
 import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
+import org.slf4j.LoggerFactory
+import yaas.config.ConfigManager
 import yaas.util.UByteString
 import yaas.util.OctetOps
 import yaas.dictionary._
+
+import scala.util.{Failure, Success, Try}
 
 /**
  * Radius coding error.
@@ -309,9 +313,12 @@ class IntegerRadiusAVP(code: Int, vendorId: Int, value: Long) extends RadiusAVP[
     UByteString.putUnsigned32(new ByteStringBuilder, value).result
 	}
 
-	override def stringValue: String = {
-    value.toString
-	}
+  override def stringValue: String = {
+    RadiusDictionary.avpMapByCode.get((vendorId, code)).flatMap(_.enumNames).flatMap(_.get(value.toInt)) match {
+      case Some(strValue) => strValue
+      case _ => value.toString
+    }
+  }
 	
   override def longValue: Long = {
     value
@@ -902,8 +909,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    */
   def putOrReplaceAll(avpList: List[RadiusAVP[Any]]) : RadiusPacket = <:< (avpList: List[RadiusAVP[Any]])
 
-
-
   
   /**
    * Extracts the first AVP with the specified name from packet.
@@ -939,10 +944,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    * Extract all the AVPs with the specified name from packet.
    */
   def getAll(attributeName: String): List[RadiusAVP[Any]] = >>+ (attributeName: String)
-  
 
   /**
-   * Extracts all AVP with the specified name from packet and force conversion to string. If multivalue, returns comma separated list
+   * Extracts all AVP with the specified name from packet and force conversion to string. If multi-value, returns comma separated list
    */
   def >>* (attributeName: String): String = {
     RadiusDictionary.getAttrCodeFromName(attributeName) match {
@@ -1072,7 +1076,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         if( x.code != code || 
             x.identifier != identifier || 
             !x.authenticator.sameElements(authenticator) ||
-            !x.avps.sortWith(avpSorter).sameElements(avps.sortWith(avpSorter))) false else true
+            !(x.avps.sortWith(avpSorter) == avps.sortWith(avpSorter))) false else true
       case _ => 
         false
     }
@@ -1085,23 +1089,14 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
 object RadiusConversions {
   
   implicit var jsonFormats: Formats = DefaultFormats + new RadiusPacketSerializer
+
+  private val log = LoggerFactory.getLogger(RadiusConversions.getClass)
   
   /**
    * Radius AVP to String (value)
    */
   implicit def RadiusAVP2String(avp: Option[RadiusAVP[Any]]) : String = {
-    (for {
-      v <- avp if v.isInstanceOf[IntegerRadiusAVP]
-      avpMapByCode <- RadiusDictionary.avpMapByCode.get((v.vendorId, v.code))
-      mapByCode <- avpMapByCode.enumNames
-      str <- mapByCode.get(v.longValue.toInt)
-    } yield str) match {
-      case Some(k) =>
-        k
-      case None =>
-        // Return the value as a string
-        avp.map(_.stringValue).getOrElse("")
-    }
+    avp.map(_.stringValue).getOrElse("")
   }
   
   /**
@@ -1224,6 +1219,7 @@ object RadiusConversions {
       case avp: IPv6PrefixRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: InterfaceIdRadiusAVP => JField(avp.getName, JString(avp.toString))
       case avp: Integer64RadiusAVP => JField(avp.getName, JInt(avp.value))
+      case avp: UnknownRadiusAVP => JField(avp.getName, JString(avp.toString))
      }
   }
   
@@ -1249,12 +1245,21 @@ object RadiusConversions {
   {
     case jv: JValue =>
       
-      val avps = for {
+      val fields = for {
         JObject(javps) <- jv \ "avps"
         JField(k, varr) <- javps
         JArray(vList) <- varr
         v <- vList
-      } yield JField2RadiusAVP((k, v))
+      } yield (k, v)
+
+      val avps = fields.flatMap{case (k, v) =>
+        Try{JField2RadiusAVP((k, v))} match {
+          case Success(avp) => List(avp)
+          case Failure(e) =>
+            log.error(s"Could not code $k attribute with value $v")
+            List()
+        }
+      }
       
       new RadiusPacket(
          (jv \ "code").extract[Int],

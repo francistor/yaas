@@ -44,7 +44,7 @@
 		"proxyServerGroup": "yaas-superserver-group",
 		"overrideService": "acs",
 		"radiusAttrs":[
-			{"Service-Type": "Outbound"}
+			{"Service-Type": "Outbound-User"}
 		]
 	},
 	

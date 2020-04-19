@@ -13,6 +13,12 @@
 		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Abab00"}
+		],
+		"oobRadiusAttrs": [
+			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
+			{"Huawei-AVPair": "service:radius-server-group:psa"},
+			{"Huawei-Input-Committed-Information-Rate": "3000000"},
+			{"Huawei-Output-Committed-Information-Rate": "1000000"}
 		]
 	},
 	
@@ -20,6 +26,12 @@
 		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Abab01"}
+		],
+		"oobRadiusAttrs": [
+			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
+			{"Huawei-AVPair": "service:radius-server-group:psa"},
+			{"Huawei-Input-Committed-Information-Rate": "4000000"},
+			{"Huawei-Output-Committed-Information-Rate": "2000000"}
 		]
 	},
 	
@@ -27,6 +39,12 @@
 		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Abab02"}
+		],
+		"oobRadiusAttrs": [
+			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
+			{"Huawei-AVPair": "service:radius-server-group:psa"},
+			{"Huawei-Input-Committed-Information-Rate": "5000000"},
+			{"Huawei-Output-Committed-Information-Rate": "3000000"}
 		]
 	},
 	
@@ -34,6 +52,12 @@
 		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Abab03"}
+		],
+		"oobRadiusAttrs": [
+			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
+			{"Huawei-AVPair": "service:radius-server-group:psa"},
+			{"Huawei-Input-Committed-Information-Rate": "8000000"},
+			{"Huawei-Output-Committed-Information-Rate": "9000000"}
 		]
 	},
 	

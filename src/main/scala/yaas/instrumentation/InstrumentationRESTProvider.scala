@@ -58,7 +58,7 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
     ExceptionHandler {
       case e: InvalidLabelException => complete(400, e.msg)
       case e: InvalidMetricException => complete(400, e.msg)
-      case e: Throwable => complete(500, e.getMessage())
+      case e: Throwable => complete(500, e.getMessage)
     }
 
   private def genPrometheusString(stats: List[MetricsItem], metricName: String, helpString: String, isCounter: Boolean = true): String = {

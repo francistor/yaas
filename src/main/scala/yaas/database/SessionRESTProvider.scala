@@ -1,24 +1,21 @@
 package yaas.database
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
-import akka.stream.ActorMaterializer
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.model._
 import akka.http.scaladsl._
-import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.server.RejectionHandler
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{RejectionHandler, Route}
+import akka.stream.ActorMaterializer
 import com.typesafe.config._
-
-import scala.concurrent.duration._
-import scala.util.Try
-import scala.util.{Failure, Success}
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
 import yaas.instrumentation.MetricsOps._
 
 import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 object SessionRESTProvider {
   def props(metricsServer: ActorRef): Props = Props(new SessionRESTProvider(metricsServer))
@@ -56,7 +53,7 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
       iam.rebuildLookup()
   }
   
-  override def preStart = {
+  override def preStart: Unit = {
     // Do it for the first time, and schedule
     iam.rebuildLookup()
     context.system.scheduler.scheduleOnce(refreshLookupTableSeconds.seconds, self, "RefreshLookupTable")
@@ -70,6 +67,7 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
   private val sessionsRoute =
     pathPrefix("sessions") {
       get {
+				// "find" returns a list of sessions, "session" returns the first one
         pathPrefix("find" | "session") {
           parameterMap { params =>
               log.debug(s"Find sessions for $params")
@@ -94,21 +92,15 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
         } 
       }
     }
-  
-  val iamRoute = 
+
+  private val iamRoute =
     pathPrefix("iam") {
   	  get {
   		  (pathPrefix("poolSelectors") & pathEndOrSingleSlash) {
-  			  parameterMap { params =>
-  			    log.debug(s"get poolSelectors ? $params")
-    			  // Error if parameters other than selectorId
-  			    checkParams(params, List("selectorId"), List()) match {
-  			      case Some(err) =>
-  			        complete(400, err)
-  			        
-  			      case None =>
-  			        complete(iam.getPoolSelectors(params.get("selectorId")))
-  			    }
+					parameters("selectorId".?){ selectorIdOption => {
+							log.debug(s"get poolSelectors ? $selectorIdOption")
+							complete(iam.getPoolSelectors(selectorIdOption))
+						}
   			  }
   		  } ~  
   		  (pathPrefix("pools") & pathEndOrSingleSlash) {
@@ -116,41 +108,30 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
   		    complete(iam.getPools(None))
   		  } ~ 
   		  (pathPrefix("ranges") & pathEndOrSingleSlash) {
-  			  parameterMap { params =>
-  			    log.debug(s"get ranges ? params")
-  			    checkParams(params, List("poolId"), List()) match {
-  			      case Some(err) =>
-  			        complete(400, err)
-  			        
-  			      case None =>
-  			        complete(iam.getRanges(params.get("poolId")))
-  			    }
-  			  } 
+					parameters("poolId".?){ poolIdOption => {
+							log.debug(s"get ranges ? $poolIdOption")
+							complete(iam.getRanges(poolIdOption))
+						}
+					}
   		  } ~ 
   		  (pathPrefix("leases") & pathEndOrSingleSlash) {
-  			  parameterMap { params =>
-  			    log.debug(s"get leases ? params")
-  			    checkParams(params, List("ipAddress"), List("ipAddress")) match {
-  			      case Some(err) =>
-  			        complete(400, err)
-  			        
-  			      case None =>
-  			        val leases = iam.getLease(params.get("ipAddress").get)
-  			        if(leases.size == 0) complete(404, s"Lease not found") else complete(leases.head)
-  			    }
-  			  }
+					parameter("ipAddress"){ ipAddress =>{
+						val leases = iam.getLease(ipAddress)
+						if(leases.isEmpty) complete(404, s"Lease not found") else complete(leases.head)
+						}
+					}
   		  } 
   	  } ~ 
   	  post {
   		  (pathPrefix("factorySettings") & pathEndOrSingleSlash) {
   		    log.debug("post factorySettings")
   			  // Clear all caches
-  			  iam.resetToFactorySettings
+  			  iam.resetToFactorySettings()
   			  complete(201, "OK")
   		  } ~
   		  (pathPrefix("reloadLookup") & pathEndOrSingleSlash) {
   		    log.debug("post reload")
-  		    iam.rebuildLookup
+  		    iam.rebuildLookup()
   		    complete(201, "OK")
   		  } ~
   		  (pathPrefix("pool") & pathEndOrSingleSlash) {
@@ -185,81 +166,50 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
   			  }
   		  } ~
   		  (pathPrefix("lease") & pathEndOrSingleSlash) {
-  		    parameterMap { params =>
-  			    log.debug(s"post lease ? $params")
-  			    
-  			    checkParams(params, List("selectorId", "requester"), List("selectorId")) match {
-  			      case Some(err) =>
-  			        complete(400, err)
-  			        
-  			      case None =>
-  			        val selectorId = params("selectorId")
-  			        if(iam.checkSelectorId(selectorId)) {
-    			        iam.lease(selectorId, params.get("requester"), leaseTimeMillis, graceTimeMillis) match {
-    			          case Some(lease) =>
-    			            complete(lease)
-    			            
-    			          case None =>
-    			            complete(420, "No IP address available")
-    			        }
-  			        } 
-  			        else{
-  			          log.warning(s"Selector [$selectorId] not found")
-  			          complete(404, s"Selector [$selectorId] not found")
-  			        }
-  			    }
-  		    }
+					parameters("selectorId","requester".?){ (selectorId, requesterOption) => {
+							log.debug(s"lease $selectorId $requesterOption")
+							if(iam.checkSelectorId(selectorId)) {
+								iam.lease(selectorId, requesterOption, leaseTimeMillis, graceTimeMillis) match {
+									case Some(lease) =>
+										complete(lease)
+
+									case None =>
+										complete(420, "No IP address available")
+								}
+							}
+							else{
+								log.warning(s"Selector [$selectorId] not found")
+								complete(404, s"Selector [$selectorId] not found")
+							}
+						}
+					}
   		  } ~ 
   		  (pathPrefix("release") & pathEndOrSingleSlash) {
-  		    parameterMap { params =>
-  			    log.debug(s"post release ? $params")
-  			    
-  			    checkParams(params, List("ipAddress"), List("ipAddress")) match {
-  			      case Some(err) =>
-  			        complete(400, err)
-  			        
-  			      case None =>
-  			        Try(params("ipAddress").toLong) match {
-  			          case Success(ipAddress) =>
-  			            if(iam.release(ipAddress)){
-  			              complete(200, "OK")
-  			            }
-  			            else{
-  			              log.warning(s"IP address was not released: $ipAddress")
-          				    complete(404, "Not released")
-  			            }
-  			            
-  			          case Failure(e) =>
-  			            complete(400, "ipAddress not properly specified")
-  			        }
-  			    }
-  		    }
+					parameters("ipAddress".as[Int]){ ipAddress => {
+							log.debug(s"release $ipAddress")
+							if(iam.release(ipAddress)){
+								complete(200, "OK")
+							}
+							else{
+								log.warning(s"IP address was not released: $ipAddress")
+								complete(404, "Not released")
+							}
+						}
+
+					}
   		  } ~ 
   		  (pathPrefix("renew") & pathEndOrSingleSlash) {
-  		    parameterMap { params =>
-  			    log.debug(s"post renew ? $params")
-  			    
-  			    checkParams(params, List("ipAddress", "requester"), List("ipAddress", "requester")) match {
-  			      case Some(err) =>
-  			        complete(400, err)
-  			        
-              case None =>
-  			        Try(params("ipAddress").toLong) match {
-  			          case Success(ipAddress) =>
-  			            if(iam.renew(ipAddress, params("requester"), leaseTimeMillis)){
-  			              complete(200, "OK")
-  			            }
-  			            else{
-  			              log.warning(s"IP address was not renewed: $ipAddress. May be due to already expired or requester not matching")
-          				    complete(404, "Not renewed")
-  			            }
-  			            
-  			          case Failure(e) =>
-  			            complete(400, "ipAddress not properly specified")
-  			        }
-  			        
-  			    }
-  		    }
+					parameters("ipAddress".as[Int], "requester"){ (ipAddress, requester) => {
+							log.debug(s"renew  $ipAddress")
+							if(iam.renew(ipAddress, requester, leaseTimeMillis)){
+								complete(200, "OK")
+							}
+							else{
+								log.warning(s"IP address was not renewed: $ipAddress. May be due to already expired or requester not matching")
+								complete(404, "Not renewed")
+							}
+						}
+					}
   		  } ~ 
   		  pathPrefix("fillPoolLeases") {
   		    // For testing only. Creates a set of old leases filling all the ranges in the specified pool
@@ -297,6 +247,7 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
 						}
 						}
 					} ~
+				  // range[?withActiveLeases]
 					pathPrefix("range") {
 						path(".+,.+".r) { spec => {
 							log.debug(s"delete range $spec")
@@ -346,20 +297,18 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
 	// Pass Route by name
   def logAndRejectWrapper(innerRoutes: => Route): Route = { 
     ctx => 
-    (
-      mapResponse(rsp => {
-        pushHttpOperation(
-            metricsServer, 
-            ctx.request.header[`Remote-Address`].get.address.getAddress.get.getHostAddress, 
-            ctx.request.method.value,
-            ctx.request.uri.path.toString, 
-            rsp.status.intValue)
-        rsp
-      })(handleRejections(notFoundHandler)(innerRoutes))
-    )(ctx)
+    mapResponse(rsp => {
+			pushHttpOperation(
+					metricsServer,
+					ctx.request.header[`Remote-Address`].get.address.getAddress.get.getHostAddress,
+					ctx.request.method.value,
+					ctx.request.uri.path.toString,
+					rsp.status.intValue)
+			rsp
+		})(handleRejections(notFoundHandler)(innerRoutes))(ctx)
   }
   
-  val bindFuture = Http().bindAndHandle(logAndRejectWrapper(sessionsRoute ~ iamRoute), bindAddress, bindPort)
+  private val bindFuture = Http().bindAndHandle(logAndRejectWrapper(sessionsRoute ~ iamRoute), bindAddress, bindPort)
   
   bindFuture.onComplete {
     case Success(binding) =>
@@ -367,18 +316,5 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
     case Failure(e) =>
        log.error(e.getMessage)
   }
-  
- /**
- * To validate the queryString
- */
-  private def checkParams(receivedParams: Map[String, String], validParams: List[String], mandatoryParams: List[String]): Option[String] = {
-    // Check invalid
-    val invalidParams = receivedParams.keys.filter(!validParams.contains(_))
-    if(invalidParams.size > 0) Some(s"""Invalid parameters ${invalidParams.mkString(",")}""")
-    else {
-      // Check valid mandatory
-      val missingParams = mandatoryParams.filter(!receivedParams.contains(_))
-      if(missingParams.size > 0) Some(s"""Missing parameters ${missingParams.mkString(",")}""") else None
-    }
-  }
+
 }

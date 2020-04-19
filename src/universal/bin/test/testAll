@@ -9,6 +9,9 @@ BIN_DIR=..
 rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
 
+echo Preparing database
+mongo --quiet $_THIS_FILE_DIRNAME/fillMongoDB.js
+
 echo launching superserver...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver 2>&1
 sleep 5

@@ -1,0 +1,26 @@
+{
+	"servers" : 
+	[
+		{
+        "name": "server",
+        "IPAddress": "127.0.0.1",
+        "secret": "secret",
+        "ports": {
+          "auth": 1812,
+          "acct": 1813,
+          "coA": 3799,
+          "dm": 3799
+        },
+        "errorLimit": 30,
+        "quarantineTimeMillis": 60000
+      }
+    ],
+	"serverGroups" :
+	[
+      {
+        "name": "server-group",
+        "servers": ["server"],
+        "policy": "fixed"
+      }
+	]
+}

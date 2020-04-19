@@ -1,8 +1,8 @@
 package yaas.handlers.test.superserver
 
 import akka.actor.ActorRef
+import org.apache.ignite.Ignition
 import org.apache.ignite.cache.query.SqlFieldsQuery
-import org.apache.ignite.scalar.scalar._
 import yaas.server.MessageHandler
 
 /**
@@ -16,13 +16,13 @@ import yaas.server.MessageHandler
  * @param configObject not used here
  */
 class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
-  
-  if(cache$("CLIENTS").isEmpty){
+
+  if(!Ignition.ignite.cacheNames().contains("CLIENTS")){
     
     log.info("Creating Clients database")
     
     import org.apache.ignite.cache.CacheMode._
-    val clientCache = ignite$.getOrCreateCache[Nothing, Nothing](new org.apache.ignite.configuration.CacheConfiguration[Nothing, Nothing].setName("CLIENTS").setCacheMode(REPLICATED))
+    val clientCache = Ignition.ignite.getOrCreateCache[Nothing, Nothing](new org.apache.ignite.configuration.CacheConfiguration[Nothing, Nothing].setName("CLIENTS").setCacheMode(REPLICATED))
 
     clientCache.query(new SqlFieldsQuery("""
       CREATE TABLE "CLIENTS".Client (

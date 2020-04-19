@@ -32,7 +32,7 @@ trait JsonSupport extends Json4sSupport {
 /* Library for creating tests scenarios.
  * Derives from MessageHandler
  * @param metricsServer. In order to run it, simply declare it as a hahdler in handlers.json
- * <code>{"name": "Main1", "clazz": "yaas.handlers.test.TestClientMain", "config":"run.js"}</code>
+ * <code>{"name": "Main1", "clazz": "yaas.handlers.test.TestClientMain", "config":"deep.js"}</code>
  *
  * @param metricsServer
  * @param configObject typically used to pass the name of a .js file with radius/diameter policies
@@ -1165,6 +1165,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     println("\n[DELETE RANGES]")
     
     createRange("pool-2-cuyo", 8000, 8100, 1)
+
+    // Delete range not allowed
+    var retCode = codeFromDelete(iamBaseURL + "/range/pool-2-cuyo,8000")
+    if(retCode == 409) ok("Deletion of Range with status 1 not allowed") else fail(s"Deleted Range with status 1")
+
+    // Change range status
+    retCode = codeFromPatchJson(iamBaseURL + "/range/pool-2-cuyo,8000?status=0", "{}")
+    if(retCode == 202) ok("Range status modified") else fail(s"Error modifying Range status")
+
     deleteRange("pool-2-cuyo", 8000)
     
     nextTest()
@@ -1268,11 +1277,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
 
     // Re-lease it again, after waiting ONE SECOND (grace time should be configured accordingly)
     Thread.sleep(1100)
-    val JInt(newAddr) = jsonFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}") \ "ipAddress"
+    val jLease = jsonFromPostJson(iamBaseURL + "/lease?selectorId=Small", "{}")
+    val JInt(newAddr) = jLease \ "ipAddress"
     if(newAddr == 9001) ok("Address leased again") else fail(s"Address NOT leased again")
     
     // Renew
-    retCode = codeFromPostJson(iamBaseURL + "/renew?ipAddress=9000&requester=req1", "{}")
+    val requester = (jLease \ "assignedTo").extract[String]
+    retCode = codeFromPostJson(iamBaseURL + s"/renew?ipAddress=9001&requester=$requester", "{}")
     if(retCode == 200) ok("Address renewed") else fail(s"Address NOT renewed. Got $retCode")
     
     // Renew with failure
@@ -1468,8 +1479,6 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   	engine.put("Notifier", new Notifier)
   	
   	// Execute Javascript
-  	// engine.eval(ConfigManager.getConfigObjectAsString(scriptName))
-    val bootstrapScript = s"load(baseURL + '$scriptName');"
-    engine.eval(bootstrapScript)
+    engine.eval(s"load(baseURL + '$scriptName');")
   }
 }
