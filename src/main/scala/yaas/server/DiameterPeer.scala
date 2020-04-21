@@ -100,7 +100,6 @@ class DiameterPeer(val peerConfig: Option[DiameterPeerConfig], val metricsServer
   import context.dispatcher
 
   private implicit val actorSystem: ActorSystem = context.system
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
 
   // Will be reset to configured value in passive policy when connected to remote peer
   private var watchdogIntervalMillis = peerConfig.map(_.watchdogIntervalMillis).getOrElse(30000)

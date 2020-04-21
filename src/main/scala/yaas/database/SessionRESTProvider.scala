@@ -33,7 +33,6 @@ trait JsonSupport extends Json4sSupport {
 class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging with JsonSupport {
   
   implicit val actorSystem: ActorSystem = context.system
-  implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
   
   private val config = ConfigFactory.load().getConfig("aaa.sessionsDatabase")
@@ -96,7 +95,12 @@ class SessionRESTProvider(metricsServer: ActorRef) extends Actor with ActorLoggi
   private val iamRoute =
     pathPrefix("iam") {
   	  get {
-  		  (pathPrefix("poolSelectors") & pathEndOrSingleSlash) {
+				pathPrefix("poolStats"){
+					parameters("poolId", "enabledOnly"?true){ (poolId, enabledOnly) =>
+						complete(iam.getPoolStats(poolId, enabledOnly))
+					}
+				} ~
+					(pathPrefix("poolSelectors") & pathEndOrSingleSlash) {
 					parameters("selectorId".?){ selectorIdOption => {
 							log.debug(s"get poolSelectors ? $selectorIdOption")
 							complete(iam.getPoolSelectors(selectorIdOption))

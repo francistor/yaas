@@ -40,7 +40,6 @@ trait JsonSupport extends Json4sSupport {
 class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with ActorLogging {
   
   private implicit val actorSystem: ActorSystem = context.system
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
   private implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
   
   private val isDatabaseServer = ConfigFactory.load().getConfig("aaa.sessionsDatabase").getString("role") == "server"
@@ -141,7 +140,7 @@ class InstrumentationRESTProvider(metricsServer: ActorRef) extends Actor with Ac
         gatherMetricsFut(SessionMetrics, "sessions", "sessions", "The number of radius and diameter sessions")
       else futList
       
-      complete(Future.reduce(completeFutList)((a, b) => a + b))
+      complete(Future.reduceLeft(completeFutList)((a, b) => a + b))
     }
 
   class RestRouteProvider extends JsonSupport {

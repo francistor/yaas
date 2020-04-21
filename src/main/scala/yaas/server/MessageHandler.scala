@@ -1,6 +1,6 @@
 package yaas.server
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, actorRef2Scala}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Cancellable, actorRef2Scala}
 import akka.event.LoggingReceive
 import akka.stream.ActorMaterializer
 import yaas.coding.{DiameterMessage, RadiusPacket}
@@ -292,7 +292,8 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     import org.json4s.jackson.JsonMethods._
     import yaas.coding.DiameterConversions._
     import yaas.coding.RadiusConversions._
-    private implicit val materializer: ActorMaterializer = akka.stream.ActorMaterializer()
+    implicit val actorSystem: ActorSystem = context.system
+
     private val http = Http(context.system)
     
     /**

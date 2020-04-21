@@ -160,7 +160,6 @@ class Router() extends Actor with ActorLogging {
 	
   // Diameter Server socket
   private implicit val actorSytem: ActorSystem = context.system
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
   private implicit val executionContext: ExecutionContextExecutor = context.dispatcher
     
   if(DiameterConfigManager.isDiameterEnabled){

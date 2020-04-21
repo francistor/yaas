@@ -26,12 +26,12 @@
     	</encoder>
 	</appender>
 
-	<root level="ERROR">          
+	<root level="ERROR">
     	<appender-ref ref="console-appender" />
     	<appender-ref ref="file-appender" />
   	</root>
   	
-  	<logger name="yaas" level="INFO" additivity="false">
+  	<logger name="yaas" level="DEBUG" additivity="false">
     	<appender-ref ref="file-appender" />
   	</logger>
   	

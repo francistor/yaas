@@ -67,8 +67,9 @@ object ConfigManager {
 	private case class SearchRule(nameRegex: Regex, locationType: String, base: Option[String])
 
 	// Parse the search rules specified in the config file
-	import scala.collection.JavaConversions._
-	private val rules = config.getConfigList("aaa.configSearchRules").map(rule =>
+	//import scala.collection.JavaConversions._
+	import scala.collection.JavaConverters._
+	private val rules = config.getConfigList("aaa.configSearchRules").asScala.map(rule =>
 		if(rule.getString("locationType") == "resource")
 			SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"), None)
 		else SearchRule(rule.getString("nameRegex").r, rule.getString("locationType"),
@@ -370,7 +371,7 @@ object ConfigManager {
 	 */
 	private def replaceVars(input: String) = {
 		// Replacer is made of the environment and the system properties
-		val varMap = System.getenv.toMap ++ System.getProperties.toMap
+		val varMap = System.getenv.asScala.toMap ++ System.getProperties.asScala.toMap
 		val r1 = var1Regex.replaceSomeIn(input, m => {
 			val keyAndDefault = m.group(1).split(":").toList
 			// Try to use the value for the key or the defaultValue if not found

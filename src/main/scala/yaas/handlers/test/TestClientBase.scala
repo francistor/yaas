@@ -1,11 +1,11 @@
 package yaas.handlers.test
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, ActorSystem}
+import akka.dispatch.MessageDispatcher
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.stream.ActorMaterializer
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.JsonDSL._
 import org.json4s._
@@ -39,7 +39,7 @@ trait JsonSupport extends Json4sSupport {
  */
 abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[String]) extends MessageHandler(metricsServer, configObject) with JsonSupport {
 
-  private implicit val materializer: ActorMaterializer = ActorMaterializer()
+  implicit val actorSystem: ActorSystem = context.system
   private val http = Http(context.system)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -945,7 +945,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     val loops = List.fill(nThreads)(requestLoop)
 
     // Combine the results
-    Future.reduce(loops)((_, _) => Unit).onComplete {
+    Future.reduceLeft(loops)((_, _) => Unit).onComplete {
       case Success(_) =>
         val total = i.get
         if(total < nRequests) fail(s"Not completed. Got $total requests") 
@@ -1049,7 +1049,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     
     // Launch the threads
     val loops = List.fill(nThreads)(requestLoop)
-    Future.reduce(loops)((_, _) => Unit).onComplete {
+    Future.reduceLeft(loops)((_, _) => Unit).onComplete {
       case Success(v) =>
         val total = i.get
         if(total < nRequests) fail(s"Not completed. Got $total requests") 
@@ -1350,11 +1350,14 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     retCode = codeFromGet(iamBaseURL + "/leases?ipAddress=9000")
     if(retCode == 404) ok("Lease for 9000 not found") else fail(s"Lease for 9000 got $retCode")
 
+    nextTest()
   }
   
   def testBulkLease(): Unit = {
     
     println("\n[BULK LEASE]")
+
+    implicit val executionContext: MessageDispatcher = ActorSystem().dispatchers.lookup("yaas-client-test-dispatcher")
     
     val nAddresses = 4000
     val nThreads = 10
@@ -1370,7 +1373,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       while(addressCounter.get < nAddresses)
       {
         print(s"\r${addressCounter.get + 1} ")
-        val base = if(addressCounter.get % 2 == 0) iamBaseURL else iamSecondaryBaseURL
+        val base = if(addressCounter.get % 2 == 0) iamBaseURL else iamBaseURL //iamSecondaryBaseURL
         Try(jsonFromPostJson(base + "/lease?selectorId=Republica", "{}") \ "ipAddress") match {
           
           case Success(JInt(_)) =>
@@ -1391,16 +1394,16 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     
     // Accumulate the results of each requestLoop
     val requests = List.fill(nThreads)(Future {requestLoop()})
-    Future.fold(requests)(0)((acc, res) => acc + res).onComplete {
+    Future.foldLeft(requests)(0)((acc, res) => acc + res).onComplete {
       case Success(total) =>
-        print("                                       \r")
+        println("\r                                       ")
         val elapsedTime = System.currentTimeMillis() - startTime
         val rate = (nAddresses * 1000) / elapsedTime
         if(total == nAddresses) ok(s"Got $total leases. Rate: $rate leases per second") else fail(s"Got $total instead of $nAddresses")
         nextTest()
         
       case Failure(e) =>
-        print("                                       \r")
+        println("\r                                       ")
         fail(e.getMessage)
         nextTest()
     }
@@ -1412,7 +1415,13 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     // Must get 420 code
     val code = codeFromPostJson(iamBaseURL + "/lease?selectorId=Republica", "{}")
     if(code == 420) ok("Addreses for selector not available") else fail("Got an address from an exhausted pool")
-        
+
+    // Check poolStats
+    val poolStats = jsonFromGet(iamBaseURL + "/poolStats?poolId=pool-2-republica&enabledOnly=false")
+    val totalAddresses = (poolStats \ "totalAddresses").extract[Long]
+    val leasedAddresses = (poolStats \ "leasedAddresses").extract[Long]
+    if(totalAddresses == 2000 && leasedAddresses == 2000) ok("Got Pool stats") else fail("Got $totalAddresses totalAddresses and $leasedAddresses leasedAddresses")
+
     nextTest()
   }
   
