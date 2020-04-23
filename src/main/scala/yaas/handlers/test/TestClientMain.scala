@@ -117,4 +117,26 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       testBulkLease _,
       unavailableLease _
   )
+
+    val tests2: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
+
+
+        // IPAM testing
+        factorySettings _,
+        sleep(1000) ,
+        checkHttpStats("POST", 1),
+        createPools _,
+        createPoolSelectors _,
+        createRanges _,
+        deleteRanges _,
+        deletePoolSelectors _,
+        deletePools _,
+        errorConditions _,
+        fillPool _,
+        reloadLookup _,
+        testLeases _,
+        deletionsWithLeases _,
+        testBulkLease _,
+        unavailableLease _
+    )
 }

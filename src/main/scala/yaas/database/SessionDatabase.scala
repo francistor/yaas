@@ -6,7 +6,7 @@ import com.typesafe.config._
 import javax.cache.processor.{EntryProcessor, MutableEntry}
 import org.apache.ignite.cache.CacheMode._
 import org.apache.ignite.cache.query.annotations.QuerySqlField
-import org.apache.ignite.cache.query.{SqlFieldsQuery, SqlQuery}
+import org.apache.ignite.cache.query.SqlFieldsQuery
 import org.apache.ignite.configuration.{DataRegionConfiguration, DataStorageConfiguration, IgniteConfiguration}
 import org.apache.ignite.lang.IgniteFuture
 import org.apache.ignite.{Ignite, IgniteCache, Ignition}
@@ -490,7 +490,7 @@ object SessionDatabase {
    * @return List of Sessions. Empty if no session found
    */
   def findSessionsByIPAddress(ipAddress: String): List[JSession] = {
-    sessionsCache.query(new SqlQuery[String, Session](classOf[Session], "from \"SESSIONS\".Session where ipAddress = ?").setArgs(ipAddress: java.lang.String)).getAll.asScala.map(entry => JSession(entry.getValue)).toList
+    sessionsCache.query(new SqlFieldsQuery("Select _val from \"SESSIONS\".Session where ipAddress = ?").setArgs(ipAddress: java.lang.String)).getAll.asScala.map(item => JSession(item.get(0).asInstanceOf[Session])).toList
   }
 
   /**
@@ -499,11 +499,11 @@ object SessionDatabase {
    * @return List of Sessions. Empty if no session found
    */
   def findSessionsByClientId(clientId: String): List[JSession] = {
-    sessionsCache.query(new SqlQuery[String, Session](classOf[Session], "from \"SESSIONS\".Session where clientId = ?").setArgs(clientId: java.lang.String)).getAll.asScala.map(entry => JSession(entry.getValue)).toList
+    sessionsCache.query(new SqlFieldsQuery("Select _val from \"SESSIONS\".Session where clientId = ?").setArgs(clientId: java.lang.String)).getAll.asScala.map(item => JSession(item.get(0).asInstanceOf[Session])).toList
   }
-  
+
   def findSessionsByMACAddress(macAddress: String): List[JSession] = {
-    sessionsCache.query(new SqlQuery[String, Session](classOf[Session],"from \"SESSIONS\".Session where MACAddress = ?").setArgs(macAddress: java.lang.String)).getAll.asScala.map(entry => JSession(entry.getValue)).toList
+    sessionsCache.query(new SqlFieldsQuery("Select _val from \"SESSIONS\".Session where MACAddress = ?").setArgs(macAddress: java.lang.String)).getAll.asScala.map(item => JSession(item.get(0).asInstanceOf[Session])).toList
   }
 
   /**
@@ -512,7 +512,7 @@ object SessionDatabase {
    * @return List of Sessions. Empty if no session found
    */
   def findSessionsByAcctSessionId(acctSessionId: String): List[JSession] = {
-    sessionsCache.query(new SqlQuery[String, Session](classOf[Session],"from \"SESSIONS\".Session where acctSessionId = ?").setArgs(acctSessionId: java.lang.String)).getAll.asScala.map(entry => JSession(entry.getValue)).toList
+    sessionsCache.query(new SqlFieldsQuery("Select _val from \"SESSIONS\".Session where acctSessionId = ?").setArgs(acctSessionId: java.lang.String)).getAll.asScala.map(item => JSession(item.get(0).asInstanceOf[Session])).toList
   }
 
   /**
@@ -520,7 +520,7 @@ object SessionDatabase {
    * @return A List of groups (comma separated) and the session count for each one of them
    */
   def getSessionGroups: List[(String, Long)] = {
-    sessionsCache.query(new SqlFieldsQuery("select groups, count(*) as count from \"SESSIONS\".Session group by groups")).getAll.asScala.map(item => (item.get(0).asInstanceOf[String], item.get(1).asInstanceOf[Long])).toList
+    sessionsCache.query(new SqlFieldsQuery("Select groups, count(*) as count from \"SESSIONS\".Session group by groups")).getAll.asScala.map(item => (item.get(0).asInstanceOf[String], item.get(1).asInstanceOf[Long])).toList
   }
   
  /******************************************************************
@@ -587,10 +587,10 @@ object SessionDatabase {
    ********************************************************************************************************************/
 
   def getPoolStats(poolId: String, enabledOnly: Boolean): PoolStats = {
-    val basicQueryStr = "From \"RANGES\".Range where poolId = ?"
+    val basicQueryStr = "Select _val From \"RANGES\".Range where poolId = ?"
     val enabledQueryStr = basicQueryStr + " and status > 0"
 
-    val ranges = rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], if(enabledOnly) enabledQueryStr else basicQueryStr).setArgs(poolId: java.lang.String)).getAll.asScala.map(c => c.getValue).toList
+    val ranges = rangesCache.query(new SqlFieldsQuery(if(enabledOnly) enabledQueryStr else basicQueryStr).setArgs(poolId: java.lang.String)).getAll.asScala.map(c => c.get(0).asInstanceOf[Range]).toList
     val totalAddresses = ranges.map(item => item.endIPAddress - item.startIPAddress + 1).sum
 
     val addressesPerRange = for {
@@ -609,10 +609,10 @@ object SessionDatabase {
   def getPoolSelectors(selectorIdOption: Option[String]): List[PoolSelector] = {
     selectorIdOption match {
       case Some(selectorId) =>
-        poolSelectorsCache.query(new SqlQuery[(String, String), PoolSelector](classOf[PoolSelector], "from \"POOLSELECTORS\".Poolselector where selectorId = ?").setArgs(selectorId: java.lang.String)).getAll.asScala.map(c => c.getValue).toList
+        poolSelectorsCache.query(new SqlFieldsQuery("Select _val from \"POOLSELECTORS\".Poolselector where selectorId = ?").setArgs(selectorId: java.lang.String)).getAll.asScala.map(c => c.get(0).asInstanceOf[PoolSelector]).toList
 
       case None =>
-        poolSelectorsCache.query(new SqlQuery[(String, String), PoolSelector](classOf[PoolSelector], "from \"POOLSELECTORS\".Poolselector")).getAll.asScala.map(c => c.getValue).toList
+        poolSelectorsCache.query(new SqlFieldsQuery("Select _val from \"POOLSELECTORS\".Poolselector")).getAll.asScala.map(c => c.get(0).asInstanceOf[PoolSelector]).toList
     }
   }
 
@@ -624,10 +624,10 @@ object SessionDatabase {
   def getPools(poolIdOption: Option[String]): List[Pool] = {
     poolIdOption match {
       case Some(poolId) =>
-        poolsCache.query(new SqlQuery[String, Pool](classOf[Pool], "from \"POOLS\".Pool where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala.map(c => c.getValue).toList
+        poolsCache.query(new SqlFieldsQuery("Select _val from \"POOLS\".Pool where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala.map(c => c.get(0).asInstanceOf[Pool]).toList
         
       case None =>
-        poolsCache.query(new SqlQuery[String, Pool](classOf[Pool], "from \"POOLS\".Pool")).getAll.asScala.map(c => c.getValue).toList
+        poolsCache.query(new SqlFieldsQuery("Select _val from \"POOLS\".Pool")).getAll.asScala.map(c => c.get(0).asInstanceOf[Pool]).toList
     }
   }
 
@@ -639,9 +639,9 @@ object SessionDatabase {
   def getRanges(poolIdOption: Option[String]): List[Range] = {
     poolIdOption match {
       case Some(poolId) =>
-        rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], "from \"RANGES\".Range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala.map(c => c.getValue).toList
+        rangesCache.query(new SqlFieldsQuery("Select _val from \"RANGES\".Range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala.map(c => c.get(0).asInstanceOf[Range]).toList
       case None =>
-        rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], "from \"RANGES\".Range")).getAll.asScala.map(c => c.getValue).toList
+        rangesCache.query(new SqlFieldsQuery("Select _val from \"RANGES\".Range")).getAll.asScala.map(c => c.get(0).asInstanceOf[Range]).toList
     }
   }
 
@@ -653,7 +653,7 @@ object SessionDatabase {
    * @return
    */
   def getLease(ipAddress: String): List[Lease] = {
-    leasesCache.query(new SqlQuery[Long, Lease](classOf[Lease], "from \"LEASES\".Lease where ipAddress = ?").setArgs(ipAddress: java.lang.String)).getAll.asScala.map(c => c.getValue).toList
+    leasesCache.query(new SqlFieldsQuery("Select _val from \"LEASES\".Lease where ipAddress = ?").setArgs(ipAddress: java.lang.String)).getAll.asScala.map(c => c.get(0).asInstanceOf[Lease]).toList
   }
 
   /**
@@ -682,7 +682,7 @@ object SessionDatabase {
    * @return
    */
   def checkRangeOverlap(range: Range): Boolean = {
-    rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], "from \"RANGES\".range where startIPAddress <= ? and endIPAddress >= ?")
+    rangesCache.query(new SqlFieldsQuery("Select _val from \"RANGES\".range where startIPAddress <= ? and endIPAddress >= ?")
         .setArgs(range.endIPAddress: java.lang.Long, range.startIPAddress: java.lang.Long)).getAll.size > 0
   }
 
@@ -754,8 +754,8 @@ object SessionDatabase {
 	          // For each bucket address chunk, try to reserve one address and break if success
 	          for(range <- chunkedRangeList){
 	            if(log.isDebugEnabled()) log.debug(s"Trying in chunk ${range.startIPAddress} to ${range.endIPAddress}")
-	            val rangeLeases = leasesCache.query(new SqlQuery[Long, Lease](classOf[Lease], "from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ? order by ipAddress")
-                setArgs(range.startIPAddress: java.lang.Long, range.endIPAddress: java.lang.Long)).getAll.asScala.map(entry => entry.getValue)
+	            val rangeLeases = leasesCache.query(new SqlFieldsQuery("Select _val from \"LEASES\".lease where ipAddress >= ? and ipAddress <= ? order by ipAddress")
+                setArgs(range.startIPAddress: java.lang.Long, range.endIPAddress: java.lang.Long)).getAll.asScala.map(entry => entry.get(0).asInstanceOf[Lease])
 	            val rangeSize = range.size.toInt
 	            // Build a list of Leases in which all the items are filled (inserting "None" where the Lease does not yet exist)
 	            var expectedIPAddr = range.startIPAddress
@@ -887,8 +887,8 @@ object SessionDatabase {
   def fillPoolLeases(poolId: String): Unit = {
     val now = System.currentTimeMillis()
     for {
-      currentRange <- rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], "from \"RANGES\".range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala
-      range = currentRange.getValue
+      currentRange <- rangesCache.query(new SqlFieldsQuery("Select _val from \"RANGES\".range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala
+      range = currentRange.get(0).asInstanceOf[Range]
       ipAddress <- range.startIPAddress to range.endIPAddress if range.status > 0
     } leasesCache.put(ipAddress, Lease(ipAddress, new java.util.Date(now - 86400000), /* version */ 99, "fake-to-test"))
   }
@@ -917,20 +917,20 @@ object SessionDatabase {
    */
   def deletePool(poolId: String, deleteRanges: Boolean, withActiveLeases: Boolean): Int = {
 
-    if(poolSelectorsCache.query(new SqlQuery[(String, String), PoolSelector](classOf[PoolSelector], "from \"POOLSELECTORS\".poolSelector where poolId = ?").setArgs(poolId: java.lang.String)).getAll.size > 0){
+    if(poolSelectorsCache.query(new SqlFieldsQuery("Select _val from \"POOLSELECTORS\".poolSelector where poolId = ?").setArgs(poolId: java.lang.String)).getAll.size > 0){
       log.warn(s"Tried to delete Pool $poolId, which has associated Selectors")
       // Did not delete the pool because there is a Selector pointing to it
       ASSIGNED_SELECTOR
     } else {
-      if(!deleteRanges && rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], "from \"RANGES\".range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.size > 0){
+      if(!deleteRanges && rangesCache.query(new SqlFieldsQuery("Select _val from \"RANGES\".range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.size > 0){
           log.warn(s"Tried to delete Pool $poolId, which has associated Ranges")
           // Did not delete the pool because there are enclosed Ranges
           ASSIGNED_RANGE
       } else {
         // Delete Ranges
         val deleteResult = (for {
-          rangeEntry <- rangesCache.query(new SqlQuery[(String, Long), Range](classOf[Range], "from \"RANGES\".range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala
-          range = rangeEntry.getValue
+          rangeEntry <- rangesCache.query(new SqlFieldsQuery("Select _val from \"RANGES\".range where poolId = ?").setArgs(poolId: java.lang.String)).getAll.asScala
+          range = rangeEntry.get(0).asInstanceOf[Range]
         } yield deleteRange(range.poolId, range.startIPAddress, withActiveLeases)).find(_ != 0).getOrElse(SUCCESS)
         if(deleteResult != SUCCESS){
           log.warn(s"At least one Range in $poolId could not be deleted")
