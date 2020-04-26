@@ -12,14 +12,14 @@
 	"service_0":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Abab00"}
+			{"Unisphere-Service-Bundle": "Aservice_0"}
 		]
 	},
 	
 	"service_1":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Abab01"}
+			{"Unisphere-Service-Bundle": "Aservice_1"}
 		]
 	},
 	
@@ -39,13 +39,13 @@
 	
 	"permService":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Apermissive"}
+			{"Unisphere-Service-Bundle": "ApermService"}
 		]
 	},
 	
 	"rejectService":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Areject"}
+			{"Unisphere-Service-Bundle": "ArejectService"}
 		]
 	},
 	

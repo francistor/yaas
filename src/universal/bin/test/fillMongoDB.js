@@ -4,10 +4,10 @@ var nUsers = 1000;
 
 // Connect
 conn = new Mongo();
-db = conn.getDB("clientsDB");
+db = conn.getDB("CLIENTS");
 
 // Delete current data
-db.dropDatabase();
+db.clients.drop();
 
 // Populate
 var i;

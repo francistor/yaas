@@ -21,7 +21,7 @@ import scala.util.{Failure, Success}
  * Constructor and helpers for DiameterPeer.
  */
 object DiameterPeer {
-  def props(peerConfig: Option[DiameterPeerConfig], metricsServer: ActorRef): Props = Props(classOf[DiameterPeer], peerConfig, metricsServer)
+  def props(peerConfig: Option[DiameterPeerConfig], metricsServer: ActorRef): Props = Props(new DiameterPeer(peerConfig, metricsServer))
 
   /**
    * Delete old entries in the request map. To be sent periodically

@@ -44,7 +44,7 @@
 		"proxyServerGroup": "yaas-superserver-group",
 		"overrideService": "acs",
 		"radiusAttrs":[
-			{"Service-Type": "Outbound-User"}
+			{"Session-Timeout": 2400}
 		]
 	},
 	
@@ -53,7 +53,7 @@
 		"authLocal": "file",
 		"overrideService": "betatester",
 		"radiusAttrs":[
-			{"Session-Timeout": "1200"}
+			{"Session-Timeout": 1200}
 		]
 	}
 }

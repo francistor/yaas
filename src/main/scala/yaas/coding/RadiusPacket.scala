@@ -1091,6 +1091,24 @@ object RadiusConversions {
   implicit var jsonFormats: Formats = DefaultFormats + new RadiusPacketSerializer
 
   private val log = LoggerFactory.getLogger(RadiusConversions.getClass)
+
+  /**
+   * Implicit conversion to Option[String]
+   * @param avpOption the Radius attribute
+   * @return
+   */
+  implicit def RadiusAVP2StringOption(avpOption: Option[RadiusAVP[Any]]): Option[String] = {
+    avpOption.map(_.stringValue)
+  }
+
+  /**
+   * Implicit conversion
+   * @param avpOption the Radius attribute
+   * @return
+   */
+  implicit def RadiusAVP2LongOption(avpOption: Option[RadiusAVP[Any]]): Option[Long] = {
+      avpOption.map(_.longValue)
+  }
   
   /**
    * Radius AVP to String (value)

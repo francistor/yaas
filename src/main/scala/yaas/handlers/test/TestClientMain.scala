@@ -86,7 +86,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       // RADIUS Performance testing
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 20000, nThreads, "Radius Warmup"),
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", nRequests, nThreads, "Free Wheel"),
-      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@database", nRequests, nThreads, "Database Lookup"),
+      checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", nRequests, nThreads, "Database Lookup"),
       checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Start", "@none", nRequests, nThreads, "Session storage (Start)"),
       checkSessionStats _,
       checkRadiusPerformance(allServersRadiusGroup, ACCOUNTING_REQUEST, "Stop", "@none", nRequests, nThreads, "Session storage (Stop)"),
@@ -118,25 +118,4 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       unavailableLease _
   )
 
-    val tests2: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
-
-
-        // IPAM testing
-        factorySettings _,
-        sleep(1000) ,
-        checkHttpStats("POST", 1),
-        createPools _,
-        createPoolSelectors _,
-        createRanges _,
-        deleteRanges _,
-        deletePoolSelectors _,
-        deletePools _,
-        errorConditions _,
-        fillPool _,
-        reloadLookup _,
-        testLeases _,
-        deletionsWithLeases _,
-        testBulkLease _,
-        unavailableLease _
-    )
 }

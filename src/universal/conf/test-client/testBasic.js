@@ -7,11 +7,11 @@ var testItems = [
 		"request": {
 			"code": 1,
 			"avps": {
-			  "Acct-Session-Id": ["acctsessionid_1"],
+			  "Acct-Session-Id": ["acctsessionid_0"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [1],
-			  "User-Name": ["user_1@database"],
-			  "User-Password": ["password!_1"]
+			  "NAS-Port": [0],
+			  "User-Name": ["user_0@database"],
+			  "User-Password": ["password!_0"]
 			}
 		},
 		"radiusGroup": "yaas-server-group",
@@ -21,9 +21,9 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeValue", "Framed-Protocol", "PPP"],
-			["attributeValueContains", "Unisphere-Service-Bundle", "Abab01"],
-			["attributeValueContains", "Class", "C=legacy_1"],
-			["attributeValueContains", "Class", "S=service_1"]
+			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_0"],
+			["attributeValueContains", "Class", "C=legacy_0"],
+			["attributeValueContains", "Class", "S=service_0"]
 		]
 	},
 	{
@@ -32,11 +32,11 @@ var testItems = [
 		"request": {
 			"code": 4,
 			"avps": {
-			  "Acct-Session-Id": ["acctSessionId_1"],
+			  "Acct-Session-Id": ["acctSessionId_0"],
 			  "NAS-IP-Address": ["1.1.1.1"],
 			  "NAS-Port": [1],
-			  "User-Name": ["user_1@database"],
-			  "Framed-IP-Address": ["200.0.0.1"],
+			  "User-Name": ["user_0@database"],
+			  "Framed-IP-Address": ["200.0.0.0"],
 			  "Acct-Status-Type": ["Start"]
 			}
 		},
@@ -52,11 +52,11 @@ var testItems = [
 		"type": "httpGetRequest",
 		"request": {
 			"url": sessionsURL,
-			"queryString": "ipAddress=200.0.0.1",
+			"queryString": "ipAddress=200.0.0.0",
 		},
 		"validations":[
-			["jsonArray0PropertyValue", "ipAddress", "200.0.0.1"],
-			["jsonArray0PropertyValue", "acctSessionId", "acctSessionId_1"]
+			["jsonArray0PropertyValue", "ipAddress", "200.0.0.0"],
+			["jsonArray0PropertyValue", "acctSessionId", "acctSessionId_0"]
 		]
 	},
 	{
@@ -65,11 +65,11 @@ var testItems = [
 		"request": {
 			"code": 1,
 			"avps": {
-			  "Acct-Session-Id": ["acctSessionId_11"],
+			  "Acct-Session-Id": ["acctSessionId_1"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [11],
-			  "User-Name": ["user_11@database"],
-			  "User-Password": ["password!_11"]
+			  "NAS-Port": [1],
+			  "User-Name": ["user_1@database"],
+			  "User-Password": ["password!_1"]
 			}
 		},
 		"radiusGroup": "yaas-server-group",
@@ -78,9 +78,9 @@ var testItems = [
 		"validations":[
 			["code", 2],
 			["attributeValue", "Session-Timeout", 3600],
-			["attributeValueContains", "Unisphere-Service-Bundle", "Abab03"],
-			["attributeValueContains", "Class", "C=legacy_11"],
-			["attributeValueContains", "Class", "S=service_3"],
+			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_1"],
+			["attributeValueContains", "Class", "C=legacy_1"],
+			["attributeValueContains", "Class", "S=service_1"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Apcautiv"]
 		]
 	},
@@ -92,7 +92,7 @@ var testItems = [
 			"avps": {
 			  "Acct-Session-Id": ["acctSessionId_12"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [13],
+			  "NAS-Port": [12],
 			  "User-Name": ["acs@acs"],
 			  "User-Password": ["<factory-set-password>"]
 			}
@@ -102,14 +102,14 @@ var testItems = [
 		"retries": 1,
 		"validations":[
 			["code", 2],
-			["attributeValue", "Session-Timeout", 3600],
+			["attributeValue", "Session-Timeout", 2400],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aacs"],
-			["attributeValueContains", "Class", "C=legacy_13"],
+			["attributeValueContains", "Class", "C=legacy_12"],
 			["attributeValueContains", "Class", "S=acs"]
 		]
 	},
 	{
-	"description": "Access request for betateter (override session-timeout, auth file, no proxy)",
+	"description": "Access request for betatester (override session-timeout, auth file, no proxy)",
 		"type": "radiusRequest",
 		"request": {
 			"code": 1,
@@ -138,11 +138,11 @@ var testItems = [
 		"request": {
 			"code": 1,
 			"avps": {
-			  "Acct-Session-Id": ["acctsessionid_4"],
+			  "Acct-Session-Id": ["acctsessionid_3"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [4],
-			  "User-Name": ["user_4@database"],
-			  "User-Password": ["password!_4"]
+			  "NAS-Port": [3],
+			  "User-Name": ["user_3@database"],
+			  "User-Password": ["password!_3"]
 			}
 		},
 		"radiusGroup": "yaas-server-group",
@@ -152,10 +152,10 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 300],
 			["attributeValue", "Framed-Protocol", "PPP"],
-			["attributeValueContains", "Unisphere-Service-Bundle", "Abab00"],
+			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_3"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aaddon_1"],
-			["attributeValueContains", "Class", "C=legacy_4"],
-			["attributeValueContains", "Class", "S=service_0"]
+			["attributeValueContains", "Class", "C=legacy_3"],
+			["attributeValueContains", "Class", "S=service_3"]
 			
 		]
 	},
@@ -200,7 +200,7 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeNotPresent", "Framed-Protocol"],
-			["attributeValueContains", "Unisphere-Service-Bundle", "Areject"],
+			["attributeValueContains", "Unisphere-Service-Bundle", "ArejectService"],
 			["attributeValueContains", "Class", "C=legacy_5"],
 			["attributeValueContains", "Class", "R=1"]
 			

@@ -7,7 +7,7 @@
 		"2011": "Huawei",
 		"2352": "Redback",
 		"4874": "Unisphere",
-		"6527": "Alu",
+		"6527": "Alc",
 		"10415": "3GPP",
 		"21100": "PSA",
 		"90001": "YAAS"
@@ -280,6 +280,11 @@
 				"type": "Integer"
 			},
 			{
+				"code": 153,
+				"name": "User-MAC",
+				"type": "String"
+			},
+			{
 				"code": 184,
 				"name": "Account-Info",
 				"type": "String"
@@ -316,10 +321,25 @@
 				"code": 31,
 				"name": "Service-Bundle",
 				"type": "String"
+			},
+			{
+				"code": 34,
+				"name": "PPPoE-Description",
+				"type": "String"
+			},
+			{
+				"code": 56,
+				"name": "DHCP-MAC-Address",
+				"type": "String"
 			}
 		],
 		"6527":
 		[
+			{
+				"code": 27,
+				"name": "Client-Hardware-Addr",
+				"type": "String"
+			},
 			{
 				"code": 151,
 				"name": "Sub-Serv-Activate",

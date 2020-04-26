@@ -10,13 +10,14 @@ rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
 
 echo Preparing database
-mongo --quiet $_THIS_FILE_DIRNAME/fillMongoDB.js
+# mongo --quiet $_THIS_FILE_DIRNAME/fillMongoDB.js
 
 echo launching superserver...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver 2>&1
 sleep 5
+
 echo launching superserver mirror...
-nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver-mirror > log/nohup-superserver-iam-mirror 2>&1
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver-mirror > log/nohup-superserver-mirror 2>&1
 sleep 10
 
 echo launching server...

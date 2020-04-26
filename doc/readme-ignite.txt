@@ -19,6 +19,7 @@ control --baseline add <persistent-id>
 = Sqlline
 
 sqlline -u jdbc:ignite:thin://127.0.0.1/ or sqlline -u jdbc:ignite:thin://127.0.0.1:10800/ (ports ascending)
+> !set maxWidth 400
 > !tables
 > !exit
 

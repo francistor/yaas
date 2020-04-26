@@ -2,16 +2,17 @@ var sessionsURL = "http://localhost:19503/sessions/find";
 	
 var testItems = [
     {
-        "description": "Basic Access-Request of standard user in database. Line guiding",
+        "documentation": "Session-Timeout from global config, Service-Type from domain config, Framed-Protocol from Proxy"
+        "description": "Basic Access-Request of standard user in database",
         "type": "radiusRequest",
         "request": {
             "code": 1,
             "avps": {
-              "Acct-Session-Id": ["acctsessionid_1"],
+              "Acct-Session-Id": ["acctsessionid_0"],
               "NAS-IP-Address": ["1.1.1.1"],
-              "NAS-Port": [1],
-              "User-Name": ["user_1@database"],
-              "User-Password": ["password!_1"]
+              "NAS-Port": [0],
+              "User-Name": ["user_0@database"],
+              "User-Password": ["password!_0"]
             }
         },
         "radiusGroup": "server-group",
@@ -20,10 +21,11 @@ var testItems = [
         "validations":[
             ["code", 2],
             ["attributeValue", "Session-Timeout", 3600],
+            ["attributeValue", "Service-Type", "Framed"],
             ["attributeValue", "Framed-Protocol", "PPP"],
-            ["attributeValueContains", "Unisphere-Service-Bundle", "Abab01"],
-            ["attributeValueContains", "Class", "C=legacy_1"],
-            ["attributeValueContains", "Class", "S=service_1"]
+            ["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_0"],
+            ["attributeValueContains", "Class", "C=legacy_0"],
+            ["attributeValueContains", "Class", "S=service_0"]
         ]
     },
     {

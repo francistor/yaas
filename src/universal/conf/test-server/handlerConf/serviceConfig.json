@@ -12,7 +12,8 @@
 	"service_0":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Abab00"}
+			{"Unisphere-Service-Bundle": "Aservice_0"},
+			{"Huawei-Account-Info": "Aservice_0"}
 		],
 		"oobRadiusAttrs": [
 			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
@@ -25,7 +26,8 @@
 	"service_1":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Abab01"}
+			{"Unisphere-Service-Bundle": "Aservice_1"},
+			{"Huawei-Account-Info": "Aservice_1"}
 		],
 		"oobRadiusAttrs": [
 			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
@@ -38,7 +40,8 @@
 	"service_2":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Abab02"}
+			{"Unisphere-Service-Bundle": "Aservice_2"},
+			{"Huawei-Account-Info": "Aservice_2"}
 		],
 		"oobRadiusAttrs": [
 			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
@@ -51,7 +54,8 @@
 	"service_3":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Abab03"}
+			{"Unisphere-Service-Bundle": "Aservice_3"},
+			{"Huawei-Account-Info": "Aservice_3"}
 		],
 		"oobRadiusAttrs": [
 			{"Huawei-AVPair": "service:accounting-scheme:telefonica"},
@@ -63,13 +67,13 @@
 	
 	"permService":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Apermissive"}
+			{"Unisphere-Service-Bundle": "ApermService"}
 		]
 	},
 	
 	"rejectService":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Areject"}
+			{"Unisphere-Service-Bundle": "ArejectService"}
 		]
 	},
 	

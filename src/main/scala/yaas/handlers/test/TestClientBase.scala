@@ -925,7 +925,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           sendRadiusGroupRequest(serverGroup, radiusPacket, 3000, 1).onComplete {
             case Success(response) =>
               if(response.code == ACCOUNTING_RESPONSE || (response.code == RadiusPacket.ACCESS_ACCEPT && OctetOps.fromHexToUTF8(response >>* "User-Password") == password)) loop()
-              else promise.failure(new Exception("Bad Radius Response"))
+              else {
+                promise.failure(new Exception("Bad Radius Response"))
+              }
               
             case Failure(e) =>
               if(continueOnPerfError){
