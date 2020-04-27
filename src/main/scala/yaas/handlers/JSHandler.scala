@@ -34,6 +34,9 @@ class JSHandler(statsServer: ActorRef, configObject: Option[String]) extends Mes
   // JScript will invoke Notifier.end
   engine.put("Notifier", new Notifier)
 
+  // Publish command line
+  engine.put("commandLine", ConfigManager.popCommandLine.toList)
+
   // Execute Javascript
   engine.eval(s"load(baseURL + '$scriptName');")
 }

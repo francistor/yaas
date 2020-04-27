@@ -93,27 +93,35 @@ function validate(err, response, validationItem){
 }
 
 // Execute the tests specified in the "testItems" object
-var testIndex = 0;
+
+// testIndexes is a Scala List. Handle with care in Javascript. You are warned!
+// Build an array with the numbers of the tests to execute (testIndexes)
+var testIndexes = [];
+if(commandLine.length() > 0) testIndexes = commandLine.head().split(",");
+else for(i = 0; i < testItems.length; i++) testIndexes[i] = i + 1;
+
+// This index run from 0 to number of tests to be executed (size of testIndexes)
+var j = 0;
 executeNextTest();
 
 function executeNextTest(){
 
 	var callback = function(err, responseString){
-		testItems[testIndex]["validations"].forEach(function(validation, index){
+		testItems[testIndexes[j] - 1]["validations"].forEach(function(validation, index){
 			validate(err, responseString, validation);
 		});
-		testIndex = testIndex + 1;
+		j = j + 1;
 		executeNextTest();
 	}
 
 	// Check finalization
-	if(testIndex >= testItems.length){
+	if(j >= testIndexes.length){
 		print("");
 		Notifier.end();
 		return;
 	}
 
-	var testItem = testItems[testIndex];
+	var testItem = testItems[testIndexes[j] - 1];
 	print("[TEST] " +  testItem["description"]);
 
 	if(testItem["type"] == "radiusRequest"){

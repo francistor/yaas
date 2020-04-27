@@ -247,7 +247,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             var rejectReason: Option[String] = None
 
             val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status) =
-            // Client found
+              // Client found
               if(queryResult.nonEmpty){
                 queryResult(0)
               }

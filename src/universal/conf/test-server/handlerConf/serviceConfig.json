@@ -12,7 +12,9 @@
 	"service_0":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Aservice_0"},
+			{"Unisphere-Service-Bundle": "Aservice_0"}
+		],
+		"nonOverridableRadiusAttrs":[
 			{"Huawei-Account-Info": "Aservice_0"}
 		],
 		"oobRadiusAttrs": [
@@ -26,7 +28,9 @@
 	"service_1":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Aservice_1"},
+			{"Unisphere-Service-Bundle": "Aservice_1"}
+		],
+		"nonOverridableRadiusAttrs":[
 			{"Huawei-Account-Info": "Aservice_1"}
 		],
 		"oobRadiusAttrs": [
@@ -40,7 +44,9 @@
 	"service_2":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Aservice_2"},
+			{"Unisphere-Service-Bundle": "Aservice_2"}
+		],
+		"nonOverridableRadiusAttrs":[
 			{"Huawei-Account-Info": "Aservice_2"}
 		],
 		"oobRadiusAttrs": [
@@ -54,7 +60,9 @@
 	"service_3":{
 		"writeServiceCDR": true,
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "Aservice_3"},
+			{"Unisphere-Service-Bundle": "Aservice_3"}
+		],
+		"nonOverridableRadiusAttrs":[
 			{"Huawei-Account-Info": "Aservice_3"}
 		],
 		"oobRadiusAttrs": [
@@ -68,30 +76,45 @@
 	"permService":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "ApermService"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "ApermService"}
 		]
 	},
 	
 	"rejectService":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "ArejectService"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "ArejectService"}
 		]
 	},
 	
 	"pcautiv":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Apcautiv"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "Apcautiv"}
 		]
 	},
 	
 	"acs":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Aacs"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "Aacs"}
 		]
 	},
 	
 	"betatester":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Abetatester"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "Abetatester"}
 		]
 	}
 	

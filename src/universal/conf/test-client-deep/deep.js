@@ -2,7 +2,7 @@ var sessionsURL = "http://localhost:19503/sessions/find";
 	
 var testItems = [
     {
-        "documentation": "Session-Timeout from global config, Service-Type from domain config, Framed-Protocol from Proxy"
+        "documentation": "Session-Timeout from global config, Service-Type from domain config, Framed-Protocol from Proxy",
         "description": "Basic Access-Request of standard user in database",
         "type": "radiusRequest",
         "request": {

@@ -17,5 +17,5 @@ rm $_THIS_FILE_DIRNAME/cdr/*
 # sleep 3
 
 echo launching client...
-nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client-deep > log/nohup-client 2>&1
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client-deep $* > log/nohup-client 2>&1
 
