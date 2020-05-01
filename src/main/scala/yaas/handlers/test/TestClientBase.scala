@@ -400,7 +400,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           ok("Reject received correctly")
         } else fail("Response is not a reject")
 
-        if((response >>* "Reply-Message") == "Proxy: Rejected by superserver!"){
+        if((response >>* "Reply-Message").contains("Rejected by superserver!")){
           ok("Reply message is correct")
         } else fail("Response message is incorrect")
         nextTest()

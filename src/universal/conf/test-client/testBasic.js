@@ -1,3 +1,5 @@
+var TODO = "SendReject filter, Vala"
+
 var sessionsURL = "http://localhost:19503/sessions/find";
 	
 var testItems = [
@@ -60,7 +62,7 @@ var testItems = [
 		]
 	},
 	{
-		"description": "Access request for blocked user",
+		"description": "Access request for blocked user where pcautiv is addon",
 		"type": "radiusRequest",
 		"request": {
 			"code": 1,
@@ -79,9 +81,10 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_1"],
+			["attributeValueContains", "Huawei-Account-Info", "Aservice_1"],
 			["attributeValueContains", "Class", "C=legacy_1"],
 			["attributeValueContains", "Class", "S=service_1"],
-			["attributeValueContains", "Unisphere-Service-Bundle", "Apcautiv"]
+			["attributeValueContains", "Huawei-Account-Info", "ApcautivOnline"]
 		]
 	},
 	{
@@ -116,7 +119,7 @@ var testItems = [
 			"avps": {
 			  "Acct-Session-Id": ["acctSessionId_13"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [13],
+			  "NAS-Port": [0],
 			  "User-Name": ["betatester@betatester"],
 			  "User-Password": ["mypassword"]
 			}
@@ -128,7 +131,8 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 1200],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Abetatester"],
-			["attributeValueContains", "Class", "C=legacy_13"],
+			["attributeValueContains", "Huawei-Account-Info", "Abetatester"],
+			["attributeValueContains", "Class", "C=legacy_0"],
 			["attributeValueContains", "Class", "S=betatester"]
 		]
 	},
@@ -153,21 +157,21 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 300],
 			["attributeValue", "Framed-Protocol", "PPP"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_3"],
-			["attributeValueContains", "Unisphere-Service-Bundle", "Aaddon_1"],
+			["attributeValueContains", "Huawei-Account-Info", "Aaddon_1"],
 			["attributeValueContains", "Class", "C=legacy_3"],
 			["attributeValueContains", "Class", "S=service_3"]
 			
 		]
 	},
 	{
-		"description": "Rejected due to invalid password and domain with default sendReject=true",
+		"description": "Rejected due to invalid password and domain with default sendReject=yes",
 		"type": "radiusRequest",
 		"request": {
 			"code": 1,
 			"avps": {
 			  "Acct-Session-Id": ["acctsessionid_5"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [5],
+			  "NAS-Port": [0],
 			  "User-Name": ["user_5@database"],
 			  "User-Password": ["<bad-password>"]
 			}
@@ -181,15 +185,15 @@ var testItems = [
 		]
 	},
 	{
-		"description": "Rejected due to invalid password and domain with sendReject=false",
+		"description": "Rejected due to invalid password and domain with sendReject=no",
 		"type": "radiusRequest",
 		"request": {
 			"code": 1,
 			"avps": {
-			  "Acct-Session-Id": ["acctsessionid_5"],
+			  "Acct-Session-Id": ["acctsessionid_6"],
 			  "NAS-IP-Address": ["1.1.1.1"],
-			  "NAS-Port": [5],
-			  "User-Name": ["user_5@databasenr"],
+			  "NAS-Port": [0],
+			  "User-Name": ["user_0@databasenr"],
 			  "User-Password": ["<bad-password>"]
 			}
 		},
@@ -200,8 +204,8 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeNotPresent", "Framed-Protocol"],
-			["attributeValueContains", "Unisphere-Service-Bundle", "ArejectService"],
-			["attributeValueContains", "Class", "C=legacy_5"],
+			["attributeValueContains", "Unisphere-Service-Bundle", "Areject"],
+			["attributeValueContains", "Class", "C=legacy_0"],
 			["attributeValueContains", "Class", "R=1"]
 			
 		]

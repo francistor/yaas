@@ -99,10 +99,10 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
     val jConfig = jGlobalConfig.merge(jRealmConfig.forKey(realm, "DEFAULT")).
       merge(jRadiusClientConfig.forKey(nasIpAddress, "DEFAULT"))
 
-    if(false){
+    if(log.isDebugEnabled){
       log.debug("jGlobalConfig: {}\\n", pretty(jGlobalConfig))
-      log.debug("jRealmConfig: {}\\n", pretty(jRealmConfig))
-      log.debug("jRadiusClientConfig: {}\\n", pretty(jRadiusClientConfig))
+      log.debug("jRealmConfig: {} -> {}\\n", realm, pretty(jRealmConfig.forKey(realm, "DEFAULT")))
+      log.debug("jRadiusClientConfig: {} -> {}\\n", nasIpAddress, pretty(jRadiusClientConfig.forKey(nasIpAddress, "DEFAULT")))
       log.debug("jConfig: {}\\n", pretty(jConfig))
     }
 
@@ -191,15 +191,27 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         log.debug(s"Handling Standard Access-Request for $nasIpAddress : $nasPort")
 
         // Cook some configuration variables
-        val blockedServiceOption = (jConfig \ "blockedService").extract[Option[String]]
-        val permissiveServiceOption = (jConfig \ "permissiveService").extract[Option[String]]
-        val sendReject = (jConfig \ "sendReject").extract[Option[Boolean]].getOrElse(true)
-        val rejectServiceOption = if(!sendReject) (jConfig \ "rejectService").extract[Option[String]] else None
+        val blockingServiceNameOption = (jConfig \ "blockingServiceName").extract[Option[String]]
+        val blockingIsAddon = (jConfig \ "blockingIsAddon").extract[Option[Boolean]].getOrElse(false)
+        val permissiveServiceNameOption = (jConfig \ "permissiveServiceName").extract[Option[String]]
+        val sendReject = (jConfig \ "sendReject").extract[Option[String]].getOrElse("yes")
+        val rejectServiceNameOption = (jConfig \ "rejectServiceName").extract[Option[String]]
+        val rejectFilterOption = (jConfig \ "rejectFilter").extract[Option[String]]
+        val rejectIsAddon = (jConfig \ "rejectIsAddon").extract[Option[Boolean]].getOrElse(false)
         val acceptOnProxyError = (jConfig \ "acceptOnProxyError").extract[Option[Boolean]].getOrElse(false)
         val authLocalOption = (jConfig \ "authLocal").extract[Option[String]]
 
-        if(log.isDebugEnabled) log.debug("permissiveServiceOption: {}, sendReject: {}", permissiveServiceOption, sendReject)
-        if(log.isDebugEnabled) log.debug("rejectServiceOption: {}, acceptOnProxyError: {}, authLocalOption: {}", rejectServiceOption, acceptOnProxyError, authLocalOption)
+        if(log.isDebugEnabled){
+          log.debug("blockingServiceOption: {}", blockingServiceNameOption)
+          log.debug("blockingIsAddon: {}", blockingIsAddon)
+          log.debug("permissiveServiceNameOption: {}", permissiveServiceNameOption)
+          log.debug("sendReject: {}", sendReject)
+          log.debug("rejectServiceNameOption: {}", rejectServiceNameOption)
+          log.debug("rejectIsAddon: {}", rejectIsAddon)
+          log.debug("rejectFilterOption: {}", rejectFilterOption)
+          log.debug("acceptOnProxyError: {}", acceptOnProxyError)
+          log.debug("authLocalOption: {}", authLocalOption)
+        }
 
         // Lookup client
         val provisionType = jConfig.jStr("provisionType").getOrElse("database")
@@ -209,7 +221,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             // if UserName and password, they have to be verified
             // Stored procedure example: val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
             log.debug(s"Executing query with $nasIpAddress : $nasPort")
-            val clientQuery = sql"""select UserName, Password, SERVICE_NAME as ServiceName, OPC_CL_INFO_03 as AddonServiceName, LEGACY_CLIENT_ID as LegacyClientId, BLOCKING_STATE as Status from ServicePlan SP, Client CLI, UserLine UL where CLI.CLIENT_ID=UL.CLIENT_ID AND UL.NASIP_ADDRESS=$nasIpAddress and UL.NASPORT=$nasPort AND CLI.PLAN_NAME=SP.PLAN_NAME""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Int)]
+            val clientQuery = sql"""select UserName, Password, SERVICE_NAME as ServiceName, OPC_CL_INFO_09 as AddonServiceName, LEGACY_CLIENT_ID as LegacyClientId, BLOCKING_STATE as Status, OPC_CL_INFO_03 as overrideServiceName, OPC_CL_INFO_04 as overrideAddonServiceName from ServicePlan SP, Client CLI, UserLine UL where CLI.CLIENT_ID=UL.CLIENT_ID AND UL.NASIP_ADDRESS=$nasIpAddress and UL.NASPORT=$nasPort AND CLI.PLAN_NAME=SP.PLAN_NAME""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Int, Option[String], Option[String])]
             db.run(clientQuery)
 
           case "file" =>
@@ -223,12 +235,14 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   (subscriberEntry \ "serviceName").extract[Option[String]],
                   None,
                   (subscriberEntry \ "legacyClientId").extract[Option[String]],
-                  0
+                  0,
+                  (subscriberEntry \ "overrideServiceName").extract[Option[String]],
+                  (subscriberEntry \ "overrideAddonServiceName").extract[Option[String]],
                 ))
             )
 
           case "none" =>
-            Future.successful(Vector((None, None, None, None, None, 0)))
+            Future.successful(Vector((None, None, None, None, None, 0, None, None)))
 
           case _ =>
             Future.failed(new Exception("Invalid provision type $provisionType"))
@@ -246,7 +260,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
             var rejectReason: Option[String] = None
 
-            val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status) =
+            val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status, overrideServiceNameOption, overrideAddonServiceNameOption) =
               // Client found
               if(queryResult.nonEmpty){
                 queryResult(0)
@@ -255,16 +269,16 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
               else
               {
                 log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
-                if(permissiveServiceOption.isEmpty) rejectReason = Some("Client not provisioned")
+                if(permissiveServiceNameOption.isEmpty) rejectReason = Some("Client not provisioned")
                 // userName, password, serviceName, addonServiceName
-                (None, None, permissiveServiceOption, None, None, 0)
+                (None, None, permissiveServiceNameOption, None, None, 0, None, None)
               }
 
-            if(log.isDebugEnabled) log.debug(s"legacyClientId: ${legacyClientIdOption.getOrElse("")}, serviceName: ${serviceNameOption.getOrElse("")}, addonServiceName: ${addonServiceNameOption.getOrElse("")}")
+            if(log.isDebugEnabled) log.debug(s"legacyClientId: $legacyClientIdOption, serviceName: $serviceNameOption, addonServiceName: $addonServiceNameOption, overrideServiceName: $overrideServiceNameOption, overrideAddonServiceName: $overrideAddonServiceNameOption")
 
             // Verify password
             authLocalOption match {
-              case Some("database") =>
+              case Some("provision") =>
                 passwordOption match {
                   case Some(provisionedPassword) =>
                     if (! (request >>* "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
@@ -298,14 +312,28 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
               // Do not verify
             }
 
-            // Override service
-            val oServiceNameOption = jConfig \ "overrideService" match {
-              case JString(overrideServiceName) => Some(overrideServiceName)
-              case _ => serviceNameOption
+            /**
+             * Apply Overrides
+             */
+
+            val (oServiceNameOption, oAddonServiceNameOption) = {
+              jConfig \ "overrideServiceName" match {
+                  // First priority is override service in the domain, which does not allow an addon
+                case JString(overrideServiceName) => (Some(overrideServiceName), None)
+                case _ if(status == 2) =>
+                  // Second priority is blocked user, which may change the basic service or assign an addon
+                  if (blockingIsAddon) (serviceNameOption, blockingServiceNameOption)
+                  else (blockingServiceNameOption, None)
+                case _ =>
+                  // Finally, use the simple overrides or the original services
+                  (overrideServiceNameOption.orElse(serviceNameOption), overrideAddonServiceNameOption.orElse(addonServiceNameOption))
+              }
             }
 
-            // Proxy if requested for this realm
-            val proxyGroup = jConfig.jStr("proxyServerGroup")
+            /**
+             * Proxy
+             */
+            val proxyGroup = jConfig.jStr("proxyGroupName")
             val proxyAVPFuture = proxyGroup match {
 
               case _ if rejectReason.nonEmpty =>
@@ -313,6 +341,10 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                 Future(List[RadiusAVP[Any]]())
 
               case None =>
+                // No proxy required. Return empty list of attributes
+                Future(List[RadiusAVP[Any]]())
+
+              case Some("none") =>
                 // No proxy required. Return empty list of attributes
                 Future(List[RadiusAVP[Any]]())
 
@@ -356,57 +388,46 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
               case Success(proxyAVPList) =>
 
                 // Decide whether to reject
-                val response = rejectReason match {
-                  case Some(reason) if rejectServiceOption.isEmpty =>
-                    // Real reject, since there is no rejectService configured
-                    RadiusPacket.responseFailure(request) << ("Reply-Message", reason)
+                val (response, fServiceNameOption, fAddonServiceNameOption) = rejectReason match {
 
+                  // If sendReject==no or filter with matching Reply-Message, and rejectServiceName is defined, use rejectServiceName
+                  // Otherwise send reject
                   case Some(reason) =>
-                    // Use the rejectService
-                    RadiusPacket.response(request) <<
-                      getRadiusAttrs(jServiceConfig, rejectServiceOption, "radiusAttrs") <<
-                      ("Class" -> s"S=${rejectServiceOption.get}") <<
-                      ("Class" -> s"R=1")
+                    if (
+                      rejectServiceNameOption.isDefined &&
+                      (
+                      sendReject == "no" ||
+                        (
+                          sendReject == "filter" && rejectFilterOption.nonEmpty && proxyAVPList.exists(avp => avp.getName == "Reply-Message" &&
+                          avp.stringValue.contains(rejectFilterOption.get))
+                        )
+                      )
+                    )
+                      (
+                        RadiusPacket.response(request) << ("Class" -> s"R=1") << ("Reply-Message", reason),
+                        if (!rejectIsAddon) rejectServiceNameOption else oServiceNameOption,
+                        if (!rejectIsAddon) None else rejectServiceNameOption
+                      )
+
+                    else
+                      (RadiusPacket.responseFailure(request) << ("Reply-Message", reason), None, None)
 
                   case None =>
-                    val serviceAVPList = getRadiusAttrs(jServiceConfig, oServiceNameOption, "radiusAttrs")
-
-                    if(log.isDebugEnabled){
-                      log.debug("Adding proxy attributes: {}", proxyAVPList.map(_.pretty).mkString)
-                      log.debug("Adding service attributes: {}", serviceAVPList.map(_.pretty).mkString)
-                    }
-
-                    // Accept. Add proxied attributes and service attributes
-                    val radiusResponse = RadiusPacket.response(request) <<
-                      proxyAVPList <<
-                      serviceAVPList
-                    // Add serviceName
-                    oServiceNameOption.map(sn =>  radiusResponse <<("Class" -> s"S=$sn"))
-
-                    // Add addon service attributes. May be blocked, or else the configured one (e.g. advertising)
-                    if(status == 2){
-                      val blockedServiceAttributes = getRadiusAttrs(jServiceConfig, blockedServiceOption, "radiusAttrs")
-                      if(log.isDebugEnabled) log.debug("Adding blocked service attributes: {}", blockedServiceAttributes.map(_.pretty).mkString)
-                      radiusResponse << blockedServiceAttributes
-                    }
-                    else {
-                      addonServiceNameOption match {
-                        case Some(addOnServiceName) =>
-                          val addonServiceAttributes = getRadiusAttrs(jServiceConfig, addonServiceNameOption, "radiusAttrs")
-                          val noAddonServiceAttributes = getRadiusAttrs(jServiceConfig, addonServiceNameOption, "nonOverridableRadiusAttrs")
-                          if(log.isDebugEnabled) log.debug("Adding addon service attributes: {}", addonServiceAttributes.map(_.pretty).mkString)
-                          if(log.isDebugEnabled) log.debug("Adding non overridable addon service attributes: {}", noAddonServiceAttributes.map(_.pretty).mkString)
-
-                          radiusResponse <:< addonServiceAttributes << noAddonServiceAttributes
-                        case None =>
-                      }
-                    }
-
-                    radiusResponse
+                    (
+                      RadiusPacket.response(request),
+                      oServiceNameOption,
+                      oAddonServiceNameOption
+                    )
                 }
 
                 if(response.code == RadiusPacket.ACCESS_ACCEPT){
-                  // Add the rest of the attributes
+
+                  // Get basic service attributes
+                  val serviceAVPList = getRadiusAttrs(jServiceConfig, fServiceNameOption, "radiusAttrs")
+                  val noServiceAVPList = getRadiusAttrs(jServiceConfig, fServiceNameOption, "nonOverridableRadiusAttrs")
+
+                  val addonAVPList = if(fAddonServiceNameOption.isDefined) getRadiusAttrs(jServiceConfig, fAddonServiceNameOption, "radiusAttrs") else List()
+                  val noAddonAVPList = if(fAddonServiceNameOption.isDefined) getRadiusAttrs(jServiceConfig, fAddonServiceNameOption, "nonOverridableRadiusAttrs") else List()
 
                   // Get domain attributes
                   val realmAVPList = getRadiusAttrs(jRealmConfig, Some(realm), "radiusAttrs")
@@ -417,17 +438,30 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   val noGlobalAVPList = getRadiusAttrs(jGlobalConfig, None, "nonOverridableRadiusAttrs")
 
                   if(log.isDebugEnabled){
-                    log.debug("Adding realm attributes: {}", realmAVPList.map(_.pretty).mkString)
-                    log.debug("Adding non overridable realm attributes: {}", noRealmAVPList.map(_.pretty).mkString)
-                    log.debug("Adding global attributes: {}", globalAVPList.map(_.pretty).mkString)
+                    log.debug("Adding Proxied Attributes: {}", proxyAVPList.map(_.pretty).mkString)
+                    log.debug("Adding non overridable Addon attributes: {} -> {}", fAddonServiceNameOption, noAddonAVPList.map(_.pretty).mkString)
+                    log.debug("Adding non overridable Service attributes: {} -> {}", fServiceNameOption, noServiceAVPList.map(_.pretty).mkString)
+                    log.debug("Adding non overridable realm attributes: {} -> {}", realm, noRealmAVPList.map(_.pretty).mkString)
                     log.debug("Adding non overridable global attributes: {}", noGlobalAVPList.map(_.pretty).mkString)
+                    log.debug("Adding Addon attributes: {} -> {} ", fAddonServiceNameOption, addonAVPList.map(_.pretty).mkString)
+                    log.debug("Adding Service attributes: {} -> {} ", fServiceNameOption, serviceAVPList.map(_.pretty).mkString)
+                    log.debug("Adding realm attributes: {} -> {}", realm, realmAVPList.map(_.pretty).mkString)
+                    log.debug("Adding global attributes: {}", globalAVPList.map(_.pretty).mkString)
                   }
 
-                  // Insert into packet
-                  response <<? realmAVPList <<? globalAVPList << noRealmAVPList << noGlobalAVPList
-
-                  // Add another class attribute
-                  legacyClientIdOption.map(lcid => response << ("Class" -> s"C=$lcid"))
+                  // Compose the response packet
+                  response <<
+                    proxyAVPList <<
+                    noAddonAVPList <<
+                    noServiceAVPList <<
+                    noRealmAVPList <<
+                    noGlobalAVPList <<?
+                    addonAVPList <<?
+                    serviceAVPList <<?
+                    realmAVPList <<?
+                    globalAVPList <<
+                    ("Class" -> s"S=${fServiceNameOption.getOrElse("none")}") <<
+                    ("Class" -> s"C=${legacyClientIdOption.getOrElse("not-found")}")
                 }
 
                 sendRadiusResponse(response)
@@ -496,8 +530,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         }
       }
 
-      val proxyGroup = jConfig.jStr("proxyServerGroup")
-      val proxyAVPFuture: Unit = proxyGroup match {
+        jConfig.jStr("proxyGroupName") match {
         case None =>
           // No proxy
           sendRadiusResponse(request.response())
@@ -512,7 +545,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
           val proxyTimeoutMillis = jGlobalConfig.jInt("proxyTimeoutMillis").getOrElse(3000)
           val proxyRetries = jGlobalConfig.jInt("proxyRetries").getOrElse(1)
 
-          sendRadiusGroupRequest(proxyGroup, request.proxyRequest, proxyTimeoutMillis, proxyRetries).onComplete{
+          sendRadiusGroupRequest(proxyGroup, request.proxyRequest, proxyTimeoutMillis, proxyRetries).onComplete {
             case Success(response) =>
               sendRadiusResponse(request.response())
 

@@ -5,7 +5,7 @@
 			{"Session-Timeout": "300"}
 		],
 		"nonOverridableRadiusAttrs":[
-			{"Unisphere-Service-Bundle": "Aaddon_1"}
+			{"Huawei-Account-Info": "Aaddon_1"}
 		]
 	},
 	
@@ -73,7 +73,7 @@
 		]
 	},
 	
-	"permService":{
+	"permissive":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "ApermService"}
 		],
@@ -82,12 +82,12 @@
 		]
 	},
 	
-	"rejectService":{
+	"reject":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "ArejectService"}
+			{"Unisphere-Service-Bundle": "Areject"}
 		],
 		"nonOverridableRadiusAttrs":[
-			{"Huawei-Account-Info": "ArejectService"}
+			{"Huawei-Account-Info": "Areject"}
 		]
 	},
 	
@@ -97,6 +97,12 @@
 		],
 		"nonOverridableRadiusAttrs":[
 			{"Huawei-Account-Info": "Apcautiv"}
+		]
+	},
+
+	"pcautivOnline":{
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "ApcautivOnline"}
 		]
 	},
 	

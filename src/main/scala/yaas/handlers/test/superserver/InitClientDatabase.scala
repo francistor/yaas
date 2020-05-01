@@ -182,13 +182,13 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
     // Every 4 clients
     //  0 is normal
     //  1 is blocked
-    //  2 is fixed IP
-    //  3 has addon
+    //  2 is fixed IP and vala
+    //  3 has standard addon
     for(i <- 0 to 1000){
       val clientQuery = new SqlFieldsQuery("""
         INSERT INTO Client
-        (CLIENT_ID, LEGACY_CLIENT_ID, PHONE, BLOCKING_STATE, PLAN_NAME, CREATED_DATE_UTC, OPC_CL_INFO_03) values
-        (?, ?, ?, ?, ?, ?, ?)
+        (CLIENT_ID, LEGACY_CLIENT_ID, PHONE, BLOCKING_STATE, PLAN_NAME, CREATED_DATE_UTC, OPC_CL_INFO_09, OPC_CL_INFO_03, OPC_CL_INFO_04) values
+        (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """).setArgs(
         i: java.lang.Integer,
         s"legacy_$i": java.lang.String,
@@ -196,7 +196,10 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
         (if((i % 4) == 1) 2 else 0): java.lang.Integer,
         "plan_" + (i % 4): java.lang.String,
         new java.util.Date(): java.util.Date,
-        if(i % 4 == 3) "addon_1" else null
+        if(i % 4 == 3) "addon_1" else null,
+        if(i % 4 == 2) "vala" else null,
+        if(i % 4 == 2) "addon_vala" else null
+
       )
       clientCache.query(clientQuery)
 
@@ -212,8 +215,8 @@ class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) ex
         s"user_$i@clientdb.accept": java.lang.String,
         s"password!_$i": java.lang.String,
         1: java.lang.Integer,
-        if(i == 3) "100.100.100.100" else null: java.lang.String,
-        if(i == 3) "bebe:cafe::0/64" else null: java.lang.String
+        if(i == 2) "100.100.100.100" else null: java.lang.String,
+        if(i == 2) "bebe:cafe::0/64" else null: java.lang.String
       )
       clientCache.query(userLineQuery)
     }

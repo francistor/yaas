@@ -37,15 +37,15 @@
 		]
 	},
 	
-	"permService":{
+	"permissive":{
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "ApermService"}
 		]
 	},
 	
-	"rejectService":{
+	"reject":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "ArejectService"}
+			{"Unisphere-Service-Bundle": "Areject"}
 		]
 	},
 	

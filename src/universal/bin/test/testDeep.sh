@@ -9,12 +9,12 @@ rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
 
 # echo launching superserver...
-# nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver 2>&1
-# sleep 3
+nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver 2>&1
+sleep 3
 
 # echo launching server...
-# nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server > log/nohup-server 2>&1
-# sleep 3
+#nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server > log/nohup-server 2>&1
+#sleep 3
 
 echo launching client...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client-deep $* > log/nohup-client 2>&1

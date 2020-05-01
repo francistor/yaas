@@ -1,15 +1,12 @@
 {
 	"none":{
 		"provisionType": "none",
-		"authLocal": "none",
-		"proxyServerGroup": "yaas-superserver-group"
+		"authLocal": "none"
 	},
-	
+
 	"database":{
-		"provisionType": "database",
-		"authLocal": "database",
-		"proxyServerGroup": "yaas-superserver-group",
-		"writeSessionCDR": true,
+		"blockingIsAddon": true,
+		"blockingServiceName": "pcautivOnline",
 		"radiusAttrs":[
 			{"Service-Type": "Framed"}
 		],
@@ -19,11 +16,7 @@
 	},
 	
 	"databasenr":{
-		"sendReject": false,
-		"provisionType": "database",
-		"authLocal": "database",
-		"proxyServerGroup": "yaas-superserver-group",
-		"writeSessionCDR": true,
+		"sendReject": "no",
 		"radiusAttrs":[
 			{"Service-Type": "Framed"}
 		],
@@ -34,15 +27,13 @@
 	
 	"file":{
 		"provisionType": "file",
-		"authLocal": "none",
-		"proxyServerGroup": "yaas-superserver-group"
+		"authLocal": "none"
 	},
 	
 	"acs":{
 		"provisionType": "database",
 		"authLocal": "none",
-		"proxyServerGroup": "yaas-superserver-group",
-		"overrideService": "acs",
+		"overrideServiceName": "acs",
 		"radiusAttrs":[
 			{"Session-Timeout": 2400}
 		]
@@ -51,9 +42,19 @@
 	"betatester":{
 		"provisionType": "database",
 		"authLocal": "file",
-		"overrideService": "betatester",
+		"overrideServiceName": "betatester",
 		"radiusAttrs":[
 			{"Session-Timeout": 1200}
+		]
+	},
+
+	"database.provision.p0.r0.bb":{
+		"__documentation": "",
+		"radiusAttrs":[
+			{"Service-Type": "Framed"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Cisco-AVPair": "hello=world"}
 		]
 	}
 }

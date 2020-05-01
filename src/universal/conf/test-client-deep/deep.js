@@ -11,12 +11,12 @@ var testItems = [
               "Acct-Session-Id": ["acctsessionid_0"],
               "NAS-IP-Address": ["1.1.1.1"],
               "NAS-Port": [0],
-              "User-Name": ["user_0@database"],
+              "User-Name": ["user_0@database.provision.p0.r0.bb"],
               "User-Password": ["password!_0"]
             }
         },
         "radiusGroup": "server-group",
-        "timeout": 2000,
+        "timeout": 3000,
         "retries": 0,
         "validations":[
             ["code", 2],
@@ -41,7 +41,7 @@ var testItems = [
             }
         },
         "radiusGroup": "server-group",
-        "timeout": 2000,
+        "timeout": 3000,
         "retries": 0,
         "validations":[
             ["code", 2],
@@ -59,13 +59,13 @@ var testItems = [
          "avps": {
            "Acct-Session-Id": ["acctsessionid_1"],
            "NAS-IP-Address": ["1.1.1.1"],
-           "NAS-Port": [1],
-           "User-Name": ["user_1@database"],
+           "NAS-Port": [0],
+           "User-Name": ["user_1@database.provision.p0.r0.bb"],
            "Huawei-Service-Info": ["Nservice_1"]
          }
      },
      "radiusGroup": "server-group",
-     "timeout": 2000,
+     "timeout": 3000,
      "retries": 0,
      "validations":[
          ["code", 2],

@@ -1,15 +1,18 @@
 {
 	"cdrDir": "/var/yaas/cdr",
+	"writeSessionCDR": true,
 	"provisionType": "database",
-	"permissiveService": "permService",
-	"rejectService": "rejectService",
-	"blockedService": "pcautiv",
-	"sendReject": true,
+	"authLocal": "provision",
+	"rejectServiceName": "reject",
+	"blockingServiceName": "pcautiv",
+	"sendReject": "yes",
+	"rejectFilter": "portal",
 	"proxyTimeoutMillis": 500,
 	"proxyRetries": 1,
 	"acceptOnProxyError": false,
 	"radiusAttrs":[
 		{"Session-Timeout": 3600}
 	],
-	"nonOverridableRadiusAttrs": []
+	"nonOverridableRadiusAttrs": [],
+	"proxyGroupName": "yaas-superserver-group"
 }

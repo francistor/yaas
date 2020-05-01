@@ -4,8 +4,8 @@
 	{"name": "NASReqHandler", "clazz": "yaas.handlers.test.superserver.NASReqHandler"},
 	
 	// Radius
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.test.superserver.AccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.test.superserver.AccountingRequestHandler"},
+	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.test.superserver.RadiusHandler"},
+	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.test.superserver.RadiusHandler"},
 	
 	// Testing
 	{"name": "ClientDatabaseInittHandler", "clazz": "yaas.handlers.test.superserver.InitClientDatabase"}
