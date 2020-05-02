@@ -61,7 +61,7 @@ The global configuation is such that
 
 ### Domains for testing
 
-Naming convention is <provision type>.<auth type>.<permissive behaviour>.<reject behaviour>.<blocking behaviour>
+Naming convention is <provision type>.<auth type>.<permissive behaviour>.<reject behaviour>.<blocking behaviour>[.<proxy>]
 
 provision type
 * "database"
@@ -89,6 +89,11 @@ reject behaviour
 blocking behaviour
 * bb. blocking service assigned as basic
 * ba. blocking service assigned as addon
+
+proxy
+* If nothing, proxy is performed
+* If "noproxy", no radiusGroup is configured
+* If "reject", the request is rejected by the upstream server
 
 
 

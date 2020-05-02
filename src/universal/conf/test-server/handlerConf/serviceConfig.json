@@ -1,6 +1,5 @@
 {
 	"addon_1":{
-		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Session-Timeout": "300"}
 		],
@@ -8,9 +7,26 @@
 			{"Huawei-Account-Info": "Aaddon_1"}
 		]
 	},
+
+	"vala":{
+		"radiusAttrs":[
+			{"Unisphere-Service-Bundle": "Avala"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "Avala"}
+		]
+	},
+
+	"addon_vala":{
+		"radiusAttrs":[
+			{"Session-Timeout": "900"}
+		],
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "Aaddon_vala"}
+		]
+	},
 	
 	"service_0":{
-		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Aservice_0"}
 		],
@@ -26,7 +42,6 @@
 	},
 	
 	"service_1":{
-		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Aservice_1"}
 		],
@@ -42,7 +57,6 @@
 	},
 	
 	"service_2":{
-		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Aservice_2"}
 		],
@@ -58,7 +72,6 @@
 	},
 	
 	"service_3":{
-		"writeServiceCDR": true,
 		"radiusAttrs":[
 			{"Unisphere-Service-Bundle": "Aservice_3"}
 		],
@@ -75,10 +88,11 @@
 	
 	"permissive":{
 		"radiusAttrs":[
-			{"Unisphere-Service-Bundle": "ApermService"}
+			{"Unisphere-Service-Bundle": "Apermissive"},
+			{"Session-Timeout": 2400}
 		],
 		"nonOverridableRadiusAttrs":[
-			{"Huawei-Account-Info": "ApermService"}
+			{"Huawei-Account-Info": "Apermissive"}
 		]
 	},
 	
@@ -88,6 +102,12 @@
 		],
 		"nonOverridableRadiusAttrs":[
 			{"Huawei-Account-Info": "Areject"}
+		]
+	},
+
+	"rejectOnline":{
+		"nonOverridableRadiusAttrs":[
+			{"Huawei-Account-Info": "ArejectOnline"}
 		]
 	},
 	

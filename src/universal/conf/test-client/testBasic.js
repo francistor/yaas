@@ -24,8 +24,8 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeValue", "Framed-Protocol", "PPP"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_0"],
-			["attributeValueContains", "Class", "C=legacy_0"],
-			["attributeValueContains", "Class", "S=service_0"]
+			["attributeValueContains", "Class", "C:legacy_0"],
+			["attributeValueContains", "Class", "S:service_0"]
 		]
 	},
 	{
@@ -82,8 +82,8 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_1"],
 			["attributeValueContains", "Huawei-Account-Info", "Aservice_1"],
-			["attributeValueContains", "Class", "C=legacy_1"],
-			["attributeValueContains", "Class", "S=service_1"],
+			["attributeValueContains", "Class", "C:legacy_1"],
+			["attributeValueContains", "Class", "S:service_1"],
 			["attributeValueContains", "Huawei-Account-Info", "ApcautivOnline"]
 		]
 	},
@@ -107,8 +107,8 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 2400],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aacs"],
-			["attributeValueContains", "Class", "C=legacy_12"],
-			["attributeValueContains", "Class", "S=acs"]
+			["attributeValueContains", "Class", "C:legacy_12"],
+			["attributeValueContains", "Class", "S:acs"]
 		]
 	},
 	{
@@ -132,8 +132,8 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 1200],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Abetatester"],
 			["attributeValueContains", "Huawei-Account-Info", "Abetatester"],
-			["attributeValueContains", "Class", "C=legacy_0"],
-			["attributeValueContains", "Class", "S=betatester"]
+			["attributeValueContains", "Class", "C:legacy_0"],
+			["attributeValueContains", "Class", "S:betatester"]
 		]
 	},
 	{
@@ -158,8 +158,8 @@ var testItems = [
 			["attributeValue", "Framed-Protocol", "PPP"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_3"],
 			["attributeValueContains", "Huawei-Account-Info", "Aaddon_1"],
-			["attributeValueContains", "Class", "C=legacy_3"],
-			["attributeValueContains", "Class", "S=service_3"]
+			["attributeValueContains", "Class", "C:legacy_3"],
+			["attributeValueContains", "Class", "S:service_3"]
 			
 		]
 	},
@@ -205,8 +205,8 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeNotPresent", "Framed-Protocol"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Areject"],
-			["attributeValueContains", "Class", "C=legacy_0"],
-			["attributeValueContains", "Class", "R=1"]
+			["attributeValueContains", "Class", "C:legacy_0"],
+			["attributeValueContains", "Class", "R:1"]
 			
 		]
 	}
@@ -235,7 +235,7 @@ function jsonHasPropertyValue(json, propName, propValue){
 }
 
 /**
- * 
+ *
  * @param err the error object as returned by the Yaas.<request>
  * @param radiusResponse the response converted to JSON
  * @param validationItem the item to test, as one of the "validations" of a testItem
@@ -262,7 +262,7 @@ function validate(err, response, validationItem){
 			jsonHasPropertyValue(jResponse["avps"], _attrName, _attrValue);
 		}
 	}
-	// attributeValue
+	// attributeValueNotPresent
 	else if(validationItem[0] == "attributeNotPresent"){
 		if(err) fail(err.message);
 		else{
@@ -279,8 +279,8 @@ function validate(err, response, validationItem){
 			var _attrName = validationItem[1];
 			var _attrValue = validationItem[2];
 			if(!jResponse["avps"][_attrName]) fail(_attrName + " not present");
-			else if(jResponse["avps"][_attrName].indexOf(_attrValue) == -1) fail(_attrName + " has no " + _attrValue);
-			else ok(_attrValue + " found in " + _attrName);
+			else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) fail(_attrName + " does not contain << " + _attrValue + ">>");
+			else ok("<<" + _attrValue + ">> found in " + _attrName);
 		}
 	}
 	// jsonPropertyValue
@@ -307,36 +307,40 @@ function validate(err, response, validationItem){
 }
 
 // Execute the tests specified in the "testItems" object
-var testIndex = 0;
+
+// testIndexes is a Scala List. Handle with care in Javascript. You are warned!
+// Build an array with the numbers of the tests to execute (testIndexes)
+var testIndexes = [];
+if(commandLine.length() > 0) testIndexes = commandLine.head().split(",");
+else for(i = 0; i < testItems.length; i++) testIndexes[i] = i + 1;
+
+// This index run from 0 to number of tests to be executed (size of testIndexes)
+var j = 0;
 executeNextTest();
 
 function executeNextTest(){
-	
+
 	var callback = function(err, responseString){
-		testItems[testIndex]["validations"].forEach(function(validation, index){
+		testItems[testIndexes[j] - 1]["validations"].forEach(function(validation, index){
 			validate(err, responseString, validation);
 		});
-		testIndex = testIndex + 1;
+		j = j + 1;
 		executeNextTest();
 	}
-	
+
 	// Check finalization
-	if(testIndex >= testItems.length){
+	if(j >= testIndexes.length){
 		print("");
 		Notifier.end();
 		return;
 	}
 
-	var testItem = testItems[testIndex];
-	print("");
-	print(testItem["description"]);
-	
+	var testItem = testItems[testIndexes[j] - 1];
+	print("[TEST] " +  testItem["description"]);
+
 	if(testItem["type"] == "radiusRequest"){
 		Yaas.radiusRequest(testItem.radiusGroup, JSON.stringify(testItem.request), testItem.timeout, testItem.retries, callback);
 	} else if(testItem["type"] == "httpGetRequest"){
 		Yaas.httpRequest(testItem.request.url + "?" + testItem.request.queryString, "GET", "{}", callback);
-	}	
+	}
 }
-
-
-

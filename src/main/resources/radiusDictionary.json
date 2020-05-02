@@ -232,6 +232,11 @@
 				"code": 97,
 				"name": "Framed-IPv6-Prefix",
 				"type": "IPv6Prefix"
+			},
+			{
+				"code": 123,
+				"name": "Delegated-IPv6-Prefix",
+				"type": "IPv6Prefix"
 			}
 		],
 		"9":

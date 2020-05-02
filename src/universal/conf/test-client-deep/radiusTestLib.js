@@ -48,7 +48,7 @@ function validate(err, response, validationItem){
 			jsonHasPropertyValue(jResponse["avps"], _attrName, _attrValue);
 		}
 	}
-	// attributeValue
+	// attributeValueNotPresent
 	else if(validationItem[0] == "attributeNotPresent"){
 		if(err) fail(err.message);
 		else{
@@ -65,10 +65,21 @@ function validate(err, response, validationItem){
 			var _attrName = validationItem[1];
 			var _attrValue = validationItem[2];
 			if(!jResponse["avps"][_attrName]) fail(_attrName + " not present");
-			else if(jResponse["avps"][_attrName].indexOf(_attrValue) == -1) fail(_attrName + " has no " + _attrValue);
-			else ok(_attrValue + " found in " + _attrName);
+			else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) fail(_attrName + " does not contain << " + _attrValue + ">>");
+			else ok("<<" + _attrValue + ">> found in " + _attrName);
 		}
 	}
+    else if(validationItem[0] == "attributeValueDoesNotContain"){
+        if(err) fail(err.message);
+        else {
+            var jResponse = JSON.parse(response);
+            var _attrName = validationItem[1];
+            var _attrValue = validationItem[2];
+            if(!jResponse["avps"][_attrName]) fail(_attrName + " not present");
+            else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) ok("<<" + _attrValue + ">> not found in " + _attrName);
+            else fail(_attrName + " contains <<" + _attrValue + ">>");
+        }
+    }
 	// jsonPropertyValue
 	else if(validationItem[0] == "jsonPropertyValue"){
 		if(err) fail(err.message);
@@ -122,7 +133,7 @@ function executeNextTest(){
 	}
 
 	var testItem = testItems[testIndexes[j] - 1];
-	print("[TEST] " +  testItem["description"]);
+	print("[TEST " + testIndexes[j] + "] " +  testItem["description"]);
 
 	if(testItem["type"] == "radiusRequest"){
 		Yaas.radiusRequest(testItem.radiusGroup, JSON.stringify(testItem.request), testItem.timeout, testItem.retries, callback);

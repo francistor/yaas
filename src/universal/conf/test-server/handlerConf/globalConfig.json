@@ -1,11 +1,12 @@
 {
 	"cdrDir": "/var/yaas/cdr",
 	"writeSessionCDR": true,
+	"writeServiceCDR": true,
 	"provisionType": "database",
 	"authLocal": "provision",
+	"sendReject": "yes",
 	"rejectServiceName": "reject",
 	"blockingServiceName": "pcautiv",
-	"sendReject": "yes",
 	"rejectFilter": "portal",
 	"proxyTimeoutMillis": 500,
 	"proxyRetries": 1,

@@ -362,8 +362,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       case Success(response) =>
         // Verify class attribute
         val classAttributes = (response >>+ "Class").map(avp => avp.stringValue)
-        if(classAttributes.contains(s"C=$lcId")) ok(s"C=$lcId found") else fail(s"Class C=$lcId not found")
-        if(classAttributes.contains(s"S=$serviceName")) ok(s"S=$serviceName found") else fail(s"Class S=$serviceName not found")
+        if(classAttributes.contains(s"C:$lcId")) ok(s"C:$lcId found") else fail(s"Class C:$lcId not found")
+        if(classAttributes.contains(s"S:$serviceName")) ok(s"S:$serviceName found") else fail(s"Class S:$serviceName not found")
         // Verify Echoed password
         if(OctetOps.fromHexToUTF8(response >> "User-Password") != userPassword) 
           fail("Password attribute is " + OctetOps.fromHexToUTF8(response >> "User-Password") + "!= " + userPassword)

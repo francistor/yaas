@@ -134,8 +134,8 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
           "Acct-Session-Id": ["acctSessionId-1"],
           "Framed-IP-Address": ["1.1.1.1"],
           "Acct-Status-Type": ["Start"],
-          "Class": ["C=1"],
-          "Class": ["S=bab01"]
+          "Class": ["C:1"],
+          "Class": ["S:bab01"]
         }
       }
       """

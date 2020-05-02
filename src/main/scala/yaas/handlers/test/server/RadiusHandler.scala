@@ -25,7 +25,15 @@ import slick.jdbc.SQLiteProfile.api._
 class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
 
   private val pwNasPortIdRegex = "^([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+):(([0-9]+)-)?([0-9]+)$".r
-  
+
+  /**
+   * Sanity check before starting
+   */
+  getConfigObjectAsJson("handlerConf/realmConfig.json")
+  getConfigObjectAsJson("handlerConf/serviceConfig.json")
+  getConfigObjectAsJson("handlerConf/radiusClientConfig.json")
+  getConfigObjectAsJson("handlerConf/specialUserConfig.json")
+
   log.info("Instantiated RadiusRequestHandler")
   
   // Get the database configuration
@@ -221,7 +229,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             // if UserName and password, they have to be verified
             // Stored procedure example: val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
             log.debug(s"Executing query with $nasIpAddress : $nasPort")
-            val clientQuery = sql"""select UserName, Password, SERVICE_NAME as ServiceName, OPC_CL_INFO_09 as AddonServiceName, LEGACY_CLIENT_ID as LegacyClientId, BLOCKING_STATE as Status, OPC_CL_INFO_03 as overrideServiceName, OPC_CL_INFO_04 as overrideAddonServiceName from ServicePlan SP, Client CLI, UserLine UL where CLI.CLIENT_ID=UL.CLIENT_ID AND UL.NASIP_ADDRESS=$nasIpAddress and UL.NASPORT=$nasPort AND CLI.PLAN_NAME=SP.PLAN_NAME""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Int, Option[String], Option[String])]
+            val clientQuery = sql"""select UserName, Password, SERVICE_NAME as ServiceName, OPC_CL_INFO_09 as AddonServiceName, LEGACY_CLIENT_ID as LegacyClientId, BLOCKING_STATE as Status, OPC_CL_INFO_03 as overrideServiceName, OPC_CL_INFO_04 as overrideAddonServiceName, ip_address, ipv6_delegated_prefix, usability from ServicePlan SP, Client CLI, UserLine UL where CLI.CLIENT_ID=UL.CLIENT_ID AND UL.NASIP_ADDRESS=$nasIpAddress and UL.NASPORT=$nasPort AND CLI.PLAN_NAME=SP.PLAN_NAME""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Int, Option[String], Option[String], Option[String], Option[String])]
             db.run(clientQuery)
 
           case "file" =>
@@ -232,17 +240,19 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                 Vector((
                   Some(userName),
                   (subscriberEntry \ "password").extract[Option[String]],
-                  (subscriberEntry \ "serviceName").extract[Option[String]],
-                  None,
+                  (subscriberEntry \ "basicServiceName").extract[Option[String]],
+                  (subscriberEntry \ "addonServiceName").extract[Option[String]],
                   (subscriberEntry \ "legacyClientId").extract[Option[String]],
-                  0,
+                  (subscriberEntry \ "status").extract[Option[Integer]].getOrElse(0),
                   (subscriberEntry \ "overrideServiceName").extract[Option[String]],
                   (subscriberEntry \ "overrideAddonServiceName").extract[Option[String]],
+                  (subscriberEntry \ "ipAddress").extract[Option[String]],
+                  (subscriberEntry \ "delegatedIpv6Prefix").extract[Option[String]],
                 ))
             )
 
           case "none" =>
-            Future.successful(Vector((None, None, None, None, None, 0, None, None)))
+            Future.successful(Vector((None, None, None, None, None, 0, None, None, None, None)))
 
           case _ =>
             Future.failed(new Exception("Invalid provision type $provisionType"))
@@ -260,7 +270,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
             var rejectReason: Option[String] = None
 
-            val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status, overrideServiceNameOption, overrideAddonServiceNameOption) =
+            val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status, overrideServiceNameOption, overrideAddonServiceNameOption, ipAddressOption, delegatedIpv6PrefixOption) =
               // Client found
               if(queryResult.nonEmpty){
                 queryResult(0)
@@ -271,7 +281,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                 log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
                 if(permissiveServiceNameOption.isEmpty) rejectReason = Some("Client not provisioned")
                 // userName, password, serviceName, addonServiceName
-                (None, None, permissiveServiceNameOption, None, None, 0, None, None)
+                (None, None, permissiveServiceNameOption, None, None, 0, None, None, None, None)
               }
 
             if(log.isDebugEnabled) log.debug(s"legacyClientId: $legacyClientIdOption, serviceName: $serviceNameOption, addonServiceName: $addonServiceNameOption, overrideServiceName: $overrideServiceNameOption, overrideAddonServiceName: $overrideAddonServiceNameOption")
@@ -283,7 +293,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   case Some(provisionedPassword) =>
                     if (! (request >>* "User-Password").equals(OctetOps.fromUTF8ToHex(provisionedPassword))){
                       log.debug("Incorrect password")
-                      rejectReason = Some("Incorrect User-Name or User-Password")
+                      rejectReason = Some(s"Authorization rejected for $userName")
                     }
 
                   case None =>
@@ -300,7 +310,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                     case JString(password) =>
                       if (! (request >>* "User-Password").equals(OctetOps.fromUTF8ToHex(password))){
                         log.debug("Incorrect password")
-                        rejectReason = Some(s"Incorrect Password for $userName")
+                        rejectReason = Some(s"Authorization rejected for $userName")
                       }
 
                     case _ =>
@@ -404,7 +414,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                       )
                     )
                       (
-                        RadiusPacket.response(request) << ("Class" -> s"R=1") << ("Reply-Message", reason),
+                        RadiusPacket.response(request) << ("Class" -> s"R:1") << ("Reply-Message", reason),
                         if (!rejectIsAddon) rejectServiceNameOption else oServiceNameOption,
                         if (!rejectIsAddon) None else rejectServiceNameOption
                       )
@@ -460,8 +470,12 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                     serviceAVPList <<?
                     realmAVPList <<?
                     globalAVPList <<
-                    ("Class" -> s"S=${fServiceNameOption.getOrElse("none")}") <<
-                    ("Class" -> s"C=${legacyClientIdOption.getOrElse("not-found")}")
+                    ("Class" -> s"S:${fServiceNameOption.getOrElse("none")}") <<
+                    ("Class" -> s"C:${legacyClientIdOption.getOrElse("not-found")}")
+
+                  if(fAddonServiceNameOption.isDefined) response << ("Class" -> s"A:${fAddonServiceNameOption.getOrElse("none")}")
+                  if(ipAddressOption.isDefined) response <:< ("Framed-IP-Address" -> ipAddressOption.get)                           // With Override
+                  if(delegatedIpv6PrefixOption.isDefined) response <:< ("Delegated-IPv6-Prefix" -> delegatedIpv6PrefixOption.get)   // With Override
                 }
 
                 sendRadiusResponse(response)
