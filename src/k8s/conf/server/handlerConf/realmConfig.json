@@ -2,7 +2,6 @@
 	"database":{
 		"provisionType": "database",
 		"authLocal": "database",
-		"proxyGroupName": "yaas-superserver-group",
 		"writeSessionCDR": true,
 		"radiusAttrs":[
 			{"Service-Type": "Framed"}
@@ -16,7 +15,6 @@
 		"sendReject": "no",
 		"provisionType": "database",
 		"authLocal": "database",
-		"proxyGroupName": "yaas-superserver-group",
 		"writeSessionCDR": true,
 		"radiusAttrs":[
 			{"Service-Type": "Framed"}
@@ -28,20 +26,17 @@
 	
 	"file":{
 		"provisionType": "file",
-		"authLocal": "none",
-		"proxyGroupName": "yaas-superserver-group"
+		"authLocal": "none"
 	},
 	
 	"none":{
 		"provisionType": "none",
-		"authLocal": "none",
-		"proxyGroupName": "yaas-superserver-group"
+		"authLocal": "none"
 	},
 	
 	"acs":{
 		"provisionType": "database",
 		"authLocal": "none",
-		"proxyGroupName": "yaas-superserver-group",
 		"overrideService": "acs",
 		"radiusAttrs":[
 			{"Service-Type": "Outbound-User"}

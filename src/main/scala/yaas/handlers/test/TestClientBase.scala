@@ -1426,70 +1426,16 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
 
     nextTest()
   }
-  
-  
-  ////////////////////////////////////////////////////////////////////////////////////
-  // JScript testing
-  ////////////////////////////////////////////////////////////////////////////////////
-  /*
-  // JS usage example
 
-	// the baseURL object will contain the location of the base script 
-  load(baseURL + "/tests.js");
-  
-  var acctSessionId = "acct-session-id-1";
-  var ipAddress = "199.0.0.1";
-  var request = {
-  	"code": 4,
-  	"avps": {
-  	  "NAS-IP-Address": "1.1.1.1",
-  	  "NAS-Port": 1,
-  	  "User-Name": "test@database",
-  	  "Acct-Session-Id": acctSessionId,
-  	  "Framed-IP-Address": ipAddress,
-  	  "Acct-Status-Type": "Start"
-  	}
-  }
-  
-  Yaas.radiusRequest(allServersRadiusGroup, JSON.stringify(request), 2000, 1, function(err, response){
-  	if(err){
-  		print("There was an error.\n" + err.message);
-  	}
-  	else {
-  		print("Response received.\n");
-  		print(response);
-  	}
-  	
-  	Notifier.end();
-  });
-  
-  // Print something, but the test will not be finished until Notifier.end() is called
-  print("Radius request sent\n");
-*/
+  /**
+   * Execute specified Javascript.
+   */
 
-  def runJS(scriptName: String)(): Unit = {
-    class Notifier {
-      def end(): Unit = nextTest()
+  def js(scriptName: String)(): Unit = {
+
+    runJS(scriptName).onComplete {
+      case Success(_) => nextTest()
+      case Failure(_) => print(s"Error executing $scriptName")
     }
-    
-    import javax.script._
-    
-    // Instantiate
-    val engine = new ScriptEngineManager().getEngineByName("nashorn")
-    
-    // Put objects in scope
-    // Radius/Diameter/HTTP helper
-  	engine.put("Yaas", YaasJS)
-  	
-  	// Base location of the script
-  	val scriptURL = ConfigManager.getConfigObjectURL(scriptName).getPath
-  	engine.put("baseURL", scriptURL.substring(0, scriptURL.indexOf(scriptName)))
-  	
-  	// To signal finalization
-  	// JScript will invoke Notifier.end
-  	engine.put("Notifier", new Notifier)
-  	
-  	// Execute Javascript
-    engine.eval(s"load(baseURL + '$scriptName');")
   }
 }

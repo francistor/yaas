@@ -15,5 +15,5 @@
 		{"Session-Timeout": 3600}
 	],
 	"nonOverridableRadiusAttrs": [],
-	"proxyGroupName": "yaas-superserver-group"
+	"inlineProxyGroupName": "yaas-superserver-group"
 }

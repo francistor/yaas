@@ -9,7 +9,7 @@ import yaas.database.{JSession, SessionDatabase}
 import yaas.handlers.RadiusAttrParser.{getFromCiscoAVPair, getFromClass}
 import yaas.server.{MessageHandler, _}
 import yaas.util.OctetOps
-import yaas.util.JSONConfig.getRadiusAttrs
+import yaas.handlers.RadiusAttrParser._
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -343,7 +343,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             /**
              * Proxy
              */
-            val proxyGroup = jConfig.jStr("proxyGroupName")
+            val proxyGroup = jConfig.jStr("inlineProxyGroupName")
             val proxyAVPFuture = proxyGroup match {
 
               case _ if rejectReason.nonEmpty =>
@@ -496,30 +496,28 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
       val request = ctx.requestPacket
 
-      // Check whether it is session or serviceCDR, and in that case, get serviceName
-      val serviceName =
-        if((jConfig \ "isSRC").extract[Option[Boolean]].getOrElse(false)){
-          // Radius clients is an SRC
+      // Check whether it is session or service, and in that case, get serviceName
+      val serviceNameOption =
+        if(radiusClientType == "SRC"){
           Some(request >>* "Class")
         } else {
-          val redbackServiceName = (request >> "Service-Name").map(_.stringValue)
-          val hwServiceInfo = (request >> "Service-Info").map(_.stringValue)
-          val alcServiceActivate = (request >> "Sub-Serv-Activate").map(_.stringValue.split(":")(0))
-          val ciscoServiceName = {
-            getFromCiscoAVPair(request, "echo-string-1").orElse(getFromCiscoAVPair(request, "service-name"))
-          }
-          List(redbackServiceName, hwServiceInfo, alcServiceActivate, ciscoServiceName).find(_.isDefined).flatten
+          (request >> "Redback-Service-Name")
+            .orElse(request >> "Huawei-Service-Info")
+            .orElse(request >> "Alu-Sub-Serv-Activate")
+            .map(_.stringValue)
+            .orElse(getFromCiscoAVPair(request, "echo-string-1"))
+            .orElse(getFromCiscoAVPair(request, "service-name"))
         }
 
       // Write CDR to file
       val writeSessionCDR = (jConfig \ "writeSessionCDR").extract[Option[Boolean]].getOrElse(false)
       val writeServiceCDR = (jConfig \ "writeServiceCDR").extract[Option[Boolean]].getOrElse(false)
-      if(serviceName.isDefined && writeServiceCDR)
+      if(serviceNameOption.isDefined && writeServiceCDR)
         serviceCDRWriter.writeCDR(ctx.requestPacket.getCDR(format))
       else if(writeSessionCDR) sessionCDRWriter.writeCDR(ctx.requestPacket.getCDR(format))
 
       // Store in session database
-      if(!userName.contains("nosession") && serviceName.isEmpty){
+      if(!userName.contains("nosession") && serviceNameOption.isEmpty){
         if((request >> "Acct-Status-Type").contentEquals("Start")){
 
           // Store in sessionDatabase
@@ -544,7 +542,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         }
       }
 
-        jConfig.jStr("proxyGroupName") match {
+        jConfig.jStr("inlineProxyGroupName") match {
         case None =>
           // No proxy
           sendRadiusResponse(request.response())

@@ -1,4 +1,6 @@
 var sessionsURL = "http://localhost:19503/sessions/find";
+
+var TODO: "No proxy if group is <<none>>"
 	
 var testItems = [
     {

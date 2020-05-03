@@ -2,12 +2,14 @@
 
 Config variables may be set globally, per realm or per radius clients, each one overriding the previous one.
 
-## Provision Type
+## Authentication
 
-Defined in config variable "provisionType", with values
-* "database". User is looked for in database, using NAS-Port and NAS-IP-Address
-* "file". User is looked for in file, using User-Name
-* "none". Do not look for the user. Mainly for testing
+### Provision Type
+
+Defined in config variable `provisionType`, with values
+* `database`. User is looked for in database, using NAS-Port and NAS-IP-Address
+* `file`. User is looked for in file, using User-Name
+* `none`. Do not look for the user. Mainly for testing
 
 The look up returns
 * legacyClientId
@@ -20,38 +22,70 @@ The look up returns
 * IPAddress
 * DelegatedIPv6Prefix
 
-## Permissive behaviour
+### Permissive behaviour
 
-If there is a "permissiveServiceName" variable with value different from "none", when the client is not found either in database
-or in file, it is assigned as the basicServiceName. There is an special permissiveServiceName with value "empty", which does not
-set any attributes and thus the global plus realm attributes are used (T. Chile xDom services).
+If there is a `permissiveServiceName` variable with value different from `none`, when the client is not found either in database
+or in file, it is assigned as the basicServiceName. There may be a special `permissiveServiceName` with value `empty`, which does not
+set any attributes and thus the global plus realm radius attributes are used (T. Chile xDom services).
 
-## Reject behaviour
+### Client rejections
 
-The "sendReject" variable is "yes" by default, forcing the sending of an Access-Reject in case of proxy Reject, client not found
-without permissive service, bad password or usability restrictions not met.
+The `sendReject` variable is `yes` by default, forcing the sending of an Access-Reject in case of proxy Reject, client not found
+without permissive service, bad password, or usability restrictions not met.
 
-If "sendReject" is "no", the "rejectServiceName" is assigned either as basic service or as addon service, depending on the value
-of the variable "rejectIsAddon" (true or false, default false).
+If `sendReject` is `no`, the `rejectServiceName` is assigned either as basic service or as addon service, depending on the value
+of the variable `rejectIsAddon` (true or false, default false).
 
-If "sendReject" is "filter", the behaviour depend on whether a configured string is found inside the Reply-Message attribute
+If `sendReject` is `filter`, the behaviour depends on whether a configured string is found inside the `Reply-Message` attribute.
+This string is set in the `rejectFilter`
 
-## Blocking behaviour
+### Blocked users
 
-The "blockingService" is assigned to clients with status 2, as an addonService if "blockingIsAddon" is true and as basic service
+The `blockingServiceName` is assigned to clients with status 2, as an addonService if `blockingIsAddon` is true and as basic service
 if that variable is false.
 
-## Authorization behaviour
+### Authorization (password validation) 
 
-If "authLocal" is "provision", the password is validated locally, using the password in the database or file, as specified as
-provision behaviour. If the password is empty, the user is authorized. If the value is "file", an additional
+If `authLocal` is `provision`, the password is validated locally, using the password in the database or file, as specified as
+provision behaviour. If the password is empty, the user is authorized. If the value is `file`, an additional
 search for the password is performed in the specialUser file using the User-Name as key, and the password is
-checked. If any other value, the validationis done by the remote server, and thus not validated if proxy is not performed.
+checked. If any other value, the validation is done by the remote server, and thus not validated if proxy is not performed.
 
-## Proxy behaviour
+### Authorization Proxy
 
-Proxy is sent to the servers in the "proxyGroupName" variable. The types of packets to send are also specified there. If empty
+Proxy is sent to the servers in the  variable. The types of packets to send are also specified there. If empty
 or "none", no proxy is performed.
+
+Filters applied are as specified in `inlineProxyAuthTransformer[In|Out]` [TODO]
+
+
+## Accounting
+
+Configuration is initially done as in authentication, but may be overridden per service.
+
+### Filters and Transformers
+
+`Filters` and `Transformers` are used for CDRWriting and proxy. Filters specify a map that must return true for the corresponding
+processing to be executed. Transformers map the Radius attributes. Both are implemented as external Javascript functions
+receiving a list of Radius Attributes. Filters return true or false. Transformers return another list of Radius attributes.
+
+
+### CDR Writing
+The variables enforcing the writing are `writeSessionCDR` and `writeServiceCDR`, which are boolean. The formats specified
+in `sessionCDRTransformer` and `serviceCDRTransformer`.
+
+The CDR are written in the directories specified in `sessionCDRDirectory` and `serviceCDRDirectory`, which are
+arrays. A copy is written on each array member.
+
+### Accounting Proxy
+
+Proxy is performed to the `inlineProxyGroupName`, when the `proxySessionAccounting` or `proxySerivceAccounting`, as 
+appropriate, is `true`. Notice that normally `proxySessionAccounting` is true and `proxyServiceAccounting` is false.
+
+An unbounded number of copies may be sent to other proxyGroups, as specified in the `proxyCopy` section in the global
+configuration. It contains a set of entries composed of a proxyGroupName, a Filter and a Transformer. Copies are sent
+asynchronously, after the reply has been sent to the BNG.
+
 
 ### Global configuration for testing
 The global configuation is such that

@@ -47,7 +47,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   
   // _ is needed to promote the method (no arguments) to a function
   
-  val tests2: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
+  val tests: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
       // Diameter Peer connections
       checkClientConnectedPeer("server.yaasserver"),
       checkClientNotConnectedPeer("non-existing-server.yaasserver"),
@@ -81,8 +81,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       checkHttpStats("GET", 3),
 
       // Javascript engine testing
-      runJS(configObject.get),
-      stop(),
+      js(configObject.get),
 
       // RADIUS Performance testing
       checkRadiusPerformance(allServersRadiusGroup, ACCESS_REQUEST, "<VOID>", "@none", 20000, nThreads, "Radius Warmup"),
@@ -119,9 +118,10 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       unavailableLease _
   )
 
-    val tests: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
-
-
+    val tests2: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
+        // RADIUS testing
+        // The following tests must be executed as-is, since the following check* methods rely on those packets
+        // being sent to succeed
         testAccessRequestWithAccept _,
         testAccessRequestWithReject _,
         testAccessRequestWithDrop _,
@@ -133,7 +133,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
         checkClientRadiusStats _,
         testAccountingInterim _,
 
-        runJS(configObject.get)
+        js(configObject.get)
 
     )
 

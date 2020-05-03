@@ -10,9 +10,9 @@ import akka.actor.ActorContext
  */
 class CDRFileWriter(path: String, fileNamePattern: String)(implicit ac: ActorContext) {
   
-  val writerActor = ac.actorOf(CDRFileWriterActor.props(path, fileNamePattern))
+  private val writerActor = ac.actorOf(CDRFileWriterActor.props(path, fileNamePattern))
  
-  def writeCDR(cdrText: String) = {
+  def writeCDR(cdrText: String): Unit = {
     writerActor ! CDRFileWriterActor.cdr(cdrText)
   }
 }

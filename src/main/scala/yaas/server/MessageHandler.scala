@@ -3,7 +3,9 @@ package yaas.server
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Cancellable, actorRef2Scala}
 import akka.event.LoggingReceive
 import akka.stream.ActorMaterializer
+import javax.script.ScriptEngineManager
 import yaas.coding.{DiameterMessage, RadiusPacket}
+import yaas.config.ConfigManager
 import yaas.instrumentation.MetricsOps
 import yaas.server.RadiusActorMessages._
 import yaas.server.Router._
@@ -283,6 +285,47 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
   ////////////////////////////////
   // Javascript integration
   ////////////////////////////////
+
+  /**
+   * Invokes the javascript whose location is passed as parameter, and may refer to a URL.
+   *
+   * @param scriptResource the name of the javascript resource to run
+   */
+  def runJS(scriptResource: String): Future[String] = {
+
+    val promise = Promise[String]()
+
+    // Need to pass a class to Javascript
+    class Notifier {
+      def success(message: String): Unit = promise.success(message)
+      def failure(message: String): Unit = promise.failure(new Exception(message))
+    }
+
+    // Instantiate
+    val engine = new ScriptEngineManager().getEngineByName("nashorn")
+
+    // Put objects in scope
+    // Radius/Diameter/HTTP helper
+    engine.put("Yaas", YaasJS)
+
+    // Base location of the script
+    val scriptURL = ConfigManager.getConfigObjectURL(scriptResource).getPath
+    engine.put("baseURL", scriptURL.substring(0, scriptURL.indexOf(scriptResource)))
+
+    // To signal finalization
+    // JScript will invoke Notifier.end
+    engine.put("Notifier", new Notifier())
+
+    // Publish command line
+    engine.put("commandLine", ConfigManager.popCommandLine.toList)
+
+    // Execute Javascript
+    engine.eval(s"load(baseURL + '$scriptResource');")
+
+    // Return the promise
+    promise.future
+  }
+
   object YaasJS {
     
     import akka.http.scaladsl.Http
@@ -292,18 +335,11 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     import org.json4s.jackson.JsonMethods._
     import yaas.coding.DiameterConversions._
     import yaas.coding.RadiusConversions._
+
     implicit val actorSystem: ActorSystem = context.system
 
     private val http = Http(context.system)
-    
-    /**
-     * This function has to be exposed to the Javascript engine
-     * val engine = new ScriptEngineManager().getEngineByName("nashorn");
-     * val y = YaasJS
-  	 * engine.put("YaasJS", y)
-  	 * 
-  	 * callback has the form "function(err, response)"
-     */
+
     def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
         
       val responseFuture = sendRadiusGroupRequest(serverGroupName, parse(requestPacket), timeoutMillis, retries)
