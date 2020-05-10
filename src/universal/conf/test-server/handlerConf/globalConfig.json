@@ -1,7 +1,9 @@
 {
-	"cdrDir": "/var/yaas/cdr",
+	"sessionCDRDirectories": "/var/yaas/cdr/session-/var/yaas/cdr/session-hot",
+	"serviceCDRDirectories": "/var/yaas/cdr/service",
 	"writeSessionCDR": true,
 	"writeServiceCDR": true,
+	"cdrFilenamePattern": "cdr_%d{yyyyMMdd}.txt",
 	"provisionType": "database",
 	"authLocal": "provision",
 	"sendReject": "yes",
@@ -11,9 +13,12 @@
 	"proxyTimeoutMillis": 500,
 	"proxyRetries": 1,
 	"acceptOnProxyError": false,
+	"inlineProxyGroupName": "yaas-superserver-group",
+	"authProxyFilterOut": "standardProxyFilterOut.json",
+	"authProxyFilterIn": "standardProxyFilterIn.json",
+	"acctProxyFilterOut": "standardProxyFilterOut.json",
 	"radiusAttrs":[
 		{"Session-Timeout": 3600}
 	],
-	"nonOverridableRadiusAttrs": [],
-	"inlineProxyGroupName": "yaas-superserver-group"
+	"nonOverridableRadiusAttrs": []
 }

@@ -909,7 +909,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    */
   def putOrReplaceAll(avpList: List[RadiusAVP[Any]]) : RadiusPacket = <:< (avpList: List[RadiusAVP[Any]])
 
-  
   /**
    * Extracts the first AVP with the specified name from packet.
    * 
@@ -926,7 +925,6 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
    * Extracts the first AVP with the specified name from packet.
    */
   def get(attributeName: String): Option[RadiusAVP[Any]] = >> (attributeName: String)
-
   
   /**
    * Extracts all the AVPs with the specified name from packet.
@@ -1041,7 +1039,23 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         compact(render(RadiusConversions.radiusPacketToJson(this) \ "avps"))
     }
   }
-  
+
+  private val cookies = scala.collection.mutable.Map[String, String]()
+
+  /**
+   * Cookies are assigned to the radius packe to take processing decisions
+   * @param name of the cookie
+   * @param value of the cookie
+   */
+  def pushCookie(name: String, value: String): Unit = cookies(name) = value
+
+  /**
+   * Retrieves the value of a cookie
+   * @param name of the cookie
+   * @return
+   */
+  def getCookie(name: String): Option[String] = cookies.get(name)
+
   override def toString: String = {
     val codeString = code match {
       case RadiusPacket.ACCESS_REQUEST => "Access-Request"
@@ -1055,8 +1069,9 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     }
     
     val prettyAVPs = avps.foldRight("")((avp, acc) => acc + avp.pretty + "\n")
-    
-    s"\n$codeString\n$prettyAVPs"
+    val prettyCookies = "Cookies: " + cookies.map{case (k, v) => s"$k -> $v"}.mkString(",")
+
+    s"\n$codeString\n$prettyCookies\n$prettyAVPs"
   }
   
   /**

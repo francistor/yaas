@@ -1,27 +1,24 @@
 package yaas.test
 
-import akka.actor.ActorSystem
-import akka.util.{ByteStringBuilder, ByteString}
-import akka.testkit.{TestKit}
-import org.scalatest.{BeforeAndAfterAll, WordSpecLike, MustMatchers}
-import org.scalatest.FlatSpec
+import java.nio.ByteOrder
 
-import yaas.dictionary._
-import yaas.coding._
+import akka.actor.ActorSystem
+import akka.testkit.TestKit
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+import org.scalatest.{BeforeAndAfterAll, Matchers, MustMatchers, WordSpecLike}
 import yaas.coding.RadiusConversions._
+import yaas.coding._
+import yaas.dictionary._
+import yaas.handlers.RadiusPacketUtils
 import yaas.util.OctetOps
 
-import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization.{read, write, writePretty}
-
-class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
+class TestRadiusPacket extends TestKit(ActorSystem("AAATest"))
   with WordSpecLike with MustMatchers with BeforeAndAfterAll {
   
-  implicit val byteOrder = java.nio.ByteOrder.BIG_ENDIAN
+  implicit val byteOrder: ByteOrder = java.nio.ByteOrder.BIG_ENDIAN
   
-  val authenticator = RadiusPacket.newAuthenticator
+  private val authenticator = RadiusPacket.newAuthenticator
   
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -29,11 +26,12 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
   
   "Radius Dictionary has been correctly loaded" in {
     val avpNameMap = RadiusDictionary.avpMapByName
-    avpNameMap("User-Name") mustEqual RadiusAVPDictItem(1, 0, "User-Name", RadiusTypes.STRING, 0, false, None, None)
-    avpNameMap("PSA-CampaignData") mustEqual RadiusAVPDictItem(107, 21100, "PSA-CampaignData", RadiusTypes.STRING, 0, false, None, None)
+    avpNameMap("User-Name") mustEqual RadiusAVPDictItem(1, 0, "User-Name", RadiusTypes.STRING, 0, hasTag = false, None, None)
+    avpNameMap("PSA-CampaignData") mustEqual RadiusAVPDictItem(107, 21100, "PSA-CampaignData", RadiusTypes.STRING, 0, hasTag = false, None, None)
     
     val avpCodeMap = RadiusDictionary.avpMapByCode
-    avpCodeMap.get((21100, 102)) mustEqual Some(RadiusAVPDictItem(102, 21100, "PSA-Service-Name", RadiusTypes.STRING, 0, false, None, None))
+    //     avpCodeMap.get((21100, 102)) mustEqual Some(RadiusAVPDictItem(102, 21100, "PSA-Service-Name", RadiusTypes.STRING, 0, false, None, None))
+    avpCodeMap.get((21100, 102)) must contain(RadiusAVPDictItem(102, 21100, "PSA-Service-Name", RadiusTypes.STRING, 0, hasTag = false, None, None))
   }
   
   "OctetString serialization and deserialization" in {
@@ -101,11 +99,11 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
     
     // Response packet
     val passwordAVP = new OctetsRadiusAVP(2, 0, "This is the password for the test!".getBytes("UTF-8"))
-    val responsePacket = RadiusPacket.response(requestPacket, true)
+    val responsePacket = RadiusPacket.response(requestPacket)
     requestPacket.avps = requestPacket.avps :+ passwordAVP
     
     val decodedResponse = RadiusPacket(requestPacket.getResponseBytes("secret"), Some(requestAuthenticator), "secret")
-    decodedResponse >> "User-Password" mustEqual Some(passwordAVP)
+    decodedResponse >> "User-Password" must contain(passwordAVP)
   }
   
   "RadiusPacket serialization and deserialization" in {
@@ -147,6 +145,63 @@ class TestRadiusMessage extends TestKit(ActorSystem("AAATest"))
     * 
     */
     
-    
   }
+
+  "Apply filter" in {
+    val theFilter: JValue= parse("""{
+      "and": [
+        ["NAS-IP-Address", "present"],
+        ["User-Name", "contains", "copy"],
+        ["NAS-IP-Address", "isNot", "10.0.0.0"],
+        ["NAS-IP-Address", "matches", ".+"],
+        ["NAS-Port", "isNot", 2],
+        ["Framed-IP-Address", "notPresent"],
+        ["myCookie", "is", "true"]
+      ],
+      "or":[
+        ["Class", "contains", "not-the-class"],
+        ["Class", "is", "class!"],
+        ["NAS-Port", "is", 2]
+      ]
+    }""")
+
+    val packet = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST) <<
+      ("User-Name", "copy@me") <<
+      ("NAS-IP-Address", "1.1.1.1") <<
+      ("NAS-Port", 1) <<
+      ("Class", "class!")
+
+    packet.pushCookie("myCookie", "true")
+
+    RadiusPacketUtils.checkRadiusPacket(packet, Some(theFilter)) mustEqual true
+
+    packet.removeAll("Class")
+    RadiusPacketUtils.checkRadiusPacket(packet, Some(theFilter)) mustEqual false
+
+  }
+
+  "Attribute mapping" in {
+    val theMapA = """
+    {
+        "allow": ["NAS-IP-Address", "NAS-Port", "Class"],
+        "remove": ["Framed-IP-Address", "NAS-Port"],
+        "force": [
+          ["Class", "Modified Class"]
+        ]
+      }
+    """
+
+    val packet = RadiusPacket.request(RadiusPacket.ACCESS_REQUEST) <<
+      ("NAS-IP-Address", "1.1.1.1") <<
+      ("NAS-Port", 1) <<
+      ("Class", "class!") <<
+      ("Framed-IP-Address", "1.2.3.4")
+
+    RadiusPacketUtils.filterAttributes(packet, Some(parse(theMapA)))
+
+    (packet >>* "NAS-IP-Address") mustEqual "1.1.1.1"
+    (packet >> "NAS-Port") mustBe empty
+    (packet >>* "Class") mustEqual "Modified Class"
+  }
+
 }

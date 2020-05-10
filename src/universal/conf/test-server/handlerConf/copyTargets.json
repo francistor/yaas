@@ -1,0 +1,14 @@
+[
+  {
+    "targetName": "target-1",
+    "radiusProxyGroupName": "yaas-superserver-group",
+    "checker": "copyCheck.json",
+    "filter": "copyProxyFilterOut.json"
+  },
+  {
+    "targetName": "target-2",
+    "radiusProxyGroupName": "yaas-superserver-group",
+    "checker": "copyCheck.json",
+    "filter": "copyProxyFilterOut-Test.json"
+  }
+]

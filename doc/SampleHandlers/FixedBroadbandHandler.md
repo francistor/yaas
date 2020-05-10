@@ -51,40 +51,44 @@ provision behaviour. If the password is empty, the user is authorized. If the va
 search for the password is performed in the specialUser file using the User-Name as key, and the password is
 checked. If any other value, the validation is done by the remote server, and thus not validated if proxy is not performed.
 
+### Checkers and Filters
+
+`Checkers` and `Filters` are used for proxy configuration
+
+Checkers specify a set of conditions that have to be met in order for the packet to be proxied. The syntax is JSON
+with "and" and "or" set of checks of different types: "is", "isNot", "present", "notPresent", "contains" and 
+"matches" (for regular expression).
+
+Filters specify a set of actions to the packet that may be "allow", specifying a set of attributes that are
+sent in the proxy packet, removing all others, "remove", which deletes the named attributes, and "force", that
+sets the values as specified.
+
 ### Authorization Proxy
 
-Proxy is sent to the servers in the  variable. The types of packets to send are also specified there. If empty
+Proxy is sent to the servers in the `inlineProxyGroupName`. The types of packets to send are also specified there. If empty
 or "none", no proxy is performed.
 
-Filters applied are as specified in `inlineProxyAuthTransformer[In|Out]` [TODO]
-
+The filter applied is specified in `authProxyFilter[In|Out]`
 
 ## Accounting
 
 Configuration is initially done as in authentication, but may be overridden per service.
-
-### Filters and Transformers
-
-`Filters` and `Transformers` are used for CDRWriting and proxy. Filters specify a map that must return true for the corresponding
-processing to be executed. Transformers map the Radius attributes. Both are implemented as external Javascript functions
-receiving a list of Radius Attributes. Filters return true or false. Transformers return another list of Radius attributes.
 
 
 ### CDR Writing
 The variables enforcing the writing are `writeSessionCDR` and `writeServiceCDR`, which are boolean. The formats specified
 in `sessionCDRTransformer` and `serviceCDRTransformer`.
 
-The CDR are written in the directories specified in `sessionCDRDirectory` and `serviceCDRDirectory`, which are
-arrays. A copy is written on each array member.
+The CDR are written in the directories specified in `sessionCDRDirectories` and `serviceCDRDirectories`, which are
+comma separated lists. A copy is written on each array member.
 
 ### Accounting Proxy
 
 Proxy is performed to the `inlineProxyGroupName`, when the `proxySessionAccounting` or `proxySerivceAccounting`, as 
 appropriate, is `true`. Notice that normally `proxySessionAccounting` is true and `proxyServiceAccounting` is false.
 
-An unbounded number of copies may be sent to other proxyGroups, as specified in the `proxyCopy` section in the global
-configuration. It contains a set of entries composed of a proxyGroupName, a Filter and a Transformer. Copies are sent
-asynchronously, after the reply has been sent to the BNG.
+An unbounded number of copies may be sent to other proxyGroups, as specified in the `handlerConf/copyTargets.json"`
+file. It contains an array of entries specifying the proxyGroupNames, checkers and filters to apply.
 
 
 ### Global configuration for testing

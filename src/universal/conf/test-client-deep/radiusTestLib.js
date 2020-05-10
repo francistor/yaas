@@ -127,7 +127,6 @@ function executeNextTest(){
 
 	// Check finalization
 	if(j >= testIndexes.length){
-		print("");
 		Notifier.success("");
 		return;
 	}

@@ -127,7 +127,7 @@
 	},
 
 	"database.provision.p1.r0.bb": {
-		"__documentation": "Not found with permissive serivce",
+		"__documentation": "Not found with permissive service",
 		"permissiveServiceName": "permissive",
 		"radiusAttrs":[
 			{"Service-Type": "Framed"}

@@ -43,7 +43,7 @@
 	  {
         "name": "yaas-server-ne-group",
         "servers": ["non-existing-server", "yaas-superserver"],
-        # policy may be "fixed", "random", "fixed-withclear", "random-withclear"
+        // policy may be "fixed", "random", "fixed-withclear", "random-withclear"
         "policy": "fixed"
       },
       {

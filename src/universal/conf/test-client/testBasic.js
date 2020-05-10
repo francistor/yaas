@@ -209,7 +209,40 @@ var testItems = [
 			["attributeValueContains", "Class", "R:1"]
 			
 		]
-	}
+	},
+    {
+        "description": "Accounting with copy mode",
+        "type": "radiusRequest",
+        "request": {
+            "code": 4,
+            "avps": {
+			  "Acct-Session-Id": ["acctSessionId_copy"],
+			  "NAS-IP-Address": ["1.1.1.1"],
+			  "NAS-Port": [10],
+			  "User-Name": ["copy@database"],
+			  "Framed-IP-Address": ["200.0.0.10"],
+			  "Acct-Status-Type": ["Start"]
+            }
+        },
+        "radiusGroup": "yaas-server-group",
+        "timeout": 2000,
+        "retries": 0,
+        "validations":[
+			["code", 5]
+        ]
+    },
+    {
+        "description": "Copied session stored",
+        "type": "httpGetRequest",
+        "request": {
+            "url": sessionsURL,
+            "queryString": "ipAddress=CC-200.0.0.10",
+        },
+        "validations":[
+            ["jsonArray0PropertyValue", "ipAddress", "CC-200.0.0.10"],
+            ["jsonArray0PropertyValue", "acctSessionId", "CC-acctSessionId_copy"]
+        ]
+    }
 ];
 
 load(baseURL + "radiusTestLib.js");

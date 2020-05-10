@@ -15,7 +15,7 @@ import yaas.coding.DiameterConversions._
 import yaas.coding.RadiusConversions._
 import yaas.coding.RadiusPacket._
 import yaas.coding._
-import yaas.config.{ConfigManager, _}
+import yaas.config._
 import yaas.server.MessageHandler
 import yaas.util.OctetOps
 
@@ -321,14 +321,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    */
   
   /*
-   * The following set of methods are meant to be executed in order in the test class, since
+   * The following set of methods are meant to be executed in order in the test class.
    * nes = non existing server
    * 1 Access-Request with Accept. Retried by the client (timeout from nes)
    * 1 Access-Request with Reject. Retried by the client (timeout from nes)
    * 1 Access-Request dropped. Retried by the client and the server (timeout from nes, timeout from server)
    * 
-   * 1 Accounting with Response. Retried by the client (timeout from nes)
-   * 1 Accounting to be dropped. Retried by the client and the server (timeout server)
+   * 1 Accounting with retry from client (timeout from nes).
+   * 1 Accounting with retry from client (timeout from nes) and server (timeout from superserver)
+   * Both accounting packets get an answer from server, since response is sent before sending to superserver
    */
   
   /**
@@ -530,7 +531,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
   }
   
   def testAccountingRequestWithDrop(): Unit = {
-    println("[TEST] Accounting request with drop")
+    println("[TEST] Accounting request with drop in superserver")
     
     val accountingRequest= RadiusPacket.request(ACCOUNTING_REQUEST) << 
       ("NAS-IP-Address" -> "1.1.1.1") <<
@@ -669,7 +670,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       val jServerRequests = jsonFromGet(s"$superServerMetricsURL/radius/metrics/radiusServerRequest")
       // 1 accept, 1 reject, 2 drop
       checkMetric(jServerRequests, 4, Map("rh" -> "127.0.0.1", "rq" -> "1"), "Access-Request received")
-      // 1 acct ok, 2 acct drop
+      // 1 acct ok, 2 acct drop. Notice that interim test is done after getting the stats
       checkMetric(jServerRequests, 3, Map("rh" -> "127.0.0.1", "rq" -> "4"), "Accounting-Request received")
  
       // Responses sent
@@ -719,8 +720,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "2"), "Access-Accept sent")
       // 1 access reject
       checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "3"), "Access-Reject sent")
-      // 1 accounting respone
-      checkMetric(jServerResponses, 1, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
+      // 2 accounting responses (there is always a response)
+      checkMetric(jServerResponses, 2, Map("rh" -> "127.0.0.1", "rs" -> "5"), "Accounting-Response sent")
       
       // Packets dropped by the server (not the handler)
       val jServerDrops = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusServerDropped")
@@ -733,14 +734,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       checkMetric(jHandlerResponses, 1, Map("rs" -> "2"), "Access-Accept responses")
       // 1 access reject
       checkMetric(jHandlerResponses, 1, Map("rs" -> "3"), "Access-Reject responses")
-      // 1 accounting response
-      checkMetric(jHandlerResponses, 1, Map("rs" -> "5"), "Accounting responses")
+      // 2 accounting responses
+      checkMetric(jHandlerResponses, 2, Map("rs" -> "5"), "Accounting responses")
 
       // Packets dropped by handler
       val jHandlerDrops = jsonFromGet(s"$serverMetricsURL/radius/metrics/radiusHandlerDropped?agg=rq")
       // Server drops the packets for which it receives no response from non-existing-server
       checkMetric(jHandlerDrops, 1, Map("rq" -> "1"), "Access-Request dropped")
-      checkMetric(jHandlerDrops, 1, Map("rq" -> "4"), "Accounting-Request dropped")
+      // Accounting always sends an answer
+      checkMetric(jHandlerDrops, -1, Map("rq" -> "4"), "Accounting-Request dropped")
       
       nextTest()
   }
@@ -761,7 +763,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       val jResponsesReceived = jsonFromGet(s"$clientMetricsURL/radius/metrics/radiusClientResponse?agg=rs")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "2"), "Access-Accept received from server")
       checkMetric(jResponsesReceived, 1, Map("rs" -> "3"), "Access-Reject received from server")
-      checkMetric(jResponsesReceived, 1, Map("rs" -> "5"), "Accounting-Response received from server")
+      checkMetric(jResponsesReceived, 2, Map("rs" -> "5"), "Accounting-Response received from server")
       
       // Timeouts
       val jTimeouts = jsonFromGet(s"$clientMetricsURL/radius/metrics/radiusClientTimeout?agg=rh,rq")
@@ -771,8 +773,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
       checkMetric(jTimeouts, 1, Map("rq" -> "1", "rh" -> "127.0.0.1:1812"), "Access-Request timeouts from server")
       // Just one, in the first try
       checkMetric(jTimeouts, 1, Map("rq" -> "4", "rh" -> "1.1.1.1:1813"), "Accounting-Request timeouts from non existing server")
-      // The one explicitly dropped
-      checkMetric(jTimeouts, 1, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Accounting-Request timeouts from server")
+      // No timeouts for existing server for accounting
+      checkMetric(jTimeouts, -1, Map("rq" -> "4", "rh" -> "127.0.0.1:1813"), "Accounting-Request timeouts from server")
       
       nextTest()
   }

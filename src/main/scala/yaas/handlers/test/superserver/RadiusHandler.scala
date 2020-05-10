@@ -5,7 +5,7 @@ import org.json4s.JsonDSL._
 import yaas.coding.RadiusConversions._
 import yaas.coding._
 import yaas.database.{JSession, SessionDatabase}
-import yaas.handlers.RadiusAttrParser.getFromClass
+import yaas.handlers.RadiusPacketUtils.getFromClass
 import yaas.server.{MessageHandler, _}
 
 class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
@@ -69,6 +69,9 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
     val userNameComponents = userName.split("@")
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
 
+    // Requests with Service-Type = "Call-Check" are copy-mode targets
+    val prefix = if((request >>* "Service-Type").contains("Call-Check")) "CC-" else "SS-"
+
     // Will send a response depending on the contents of the User-Name
     if(userName.contains("drop")){
       dropRadiusPacket
@@ -79,8 +82,8 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
           // Store in sessionDatabase
           SessionDatabase.putSession(new JSession(
-            "SS-" + (request >> "Acct-Session-Id").get,
-            "SS-" + (request >> "Framed-IP-Address").getOrElse(""),
+            prefix + (request >> "Acct-Session-Id").get,
+            prefix + (request >> "Framed-IP-Address").getOrElse(""),
             getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
             getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
             List(nasIpAddress, realm),
@@ -91,7 +94,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         else if((request >> "Acct-Status-Type").contentEquals("Stop")){
 
           // Remove session
-          SessionDatabase.removeSession("SS-" + (request >>* "Acct-Session-Id"))
+          SessionDatabase.removeSession(prefix + (request >>* "Acct-Session-Id"))
         }
       }
 

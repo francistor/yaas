@@ -12,6 +12,7 @@ import yaas.server.Router._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future, Promise}
+import scala.io.Source
 import scala.util.{Failure, Success}
 
 // Diameter Exceptions
@@ -379,6 +380,18 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
         case Failure(error) =>
           callback.call(null, error)
       }
+    }
+
+    /**
+     * Helper to read the full contents of a file. Exceptions not treated
+     * @param fileName the name of the file to read.
+     * @return
+     */
+    def readFile(fileName: String): String = {
+      val source = Source.fromFile(fileName)
+      val contents = source.getLines.mkString
+      source.close()
+      contents
     }
   }
 }

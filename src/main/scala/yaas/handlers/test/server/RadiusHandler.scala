@@ -6,17 +6,17 @@ import yaas.coding.RadiusConversions._
 import yaas.coding._
 import yaas.config.ConfigManager._
 import yaas.database.{JSession, SessionDatabase}
-import yaas.handlers.RadiusAttrParser.{getFromCiscoAVPair, getFromClass}
+import yaas.handlers.RadiusPacketUtils.{getFromCiscoAVPair, getFromClass}
+import yaas.handlers.RadiusConfigUtils._
 import yaas.server.{MessageHandler, _}
 import yaas.util.OctetOps
-import yaas.handlers.RadiusAttrParser._
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
-
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.JsonDSL._
+import yaas.handlers.RadiusPacketUtils
 
 // Generic JDBC is deprecated. Use any profile
 import slick.jdbc.SQLiteProfile.api._
@@ -54,14 +54,14 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
    * Accounting Configuration
    */
   private val jGlobalConfig = getConfigObjectAsJson("handlerConf/globalConfig.json")
-  private val sessionCDRDir = (jGlobalConfig \ "cdrDir").extract[String] + "/session"
-  private val serviceCDRDir = (jGlobalConfig \ "cdrDir").extract[String] + "/service"
 
-  val sessionCDRWriter = new yaas.cdr.CDRFileWriter(sessionCDRDir, "cdr_%d{yyyyMMdd-HHmm}.txt")
-  val serviceCDRWriter = new yaas.cdr.CDRFileWriter(serviceCDRDir, "cdr_%d{yyyyMMdd-HHmm}.txt")
+  private val cdrFileNamePattern = (jGlobalConfig \ "cdrFilenamePattern").extract[Option[String]].getOrElse("cdr_%d{yyyyMMdd-HHmm}.txt")
+
+  private val sessionCDRWriters = (jGlobalConfig \ "sessionCDRDirectories").extract[Option[String]].map(_.split(",").toList).getOrElse(List()).map(new yaas.cdr.CDRFileWriter(_, cdrFileNamePattern))
+  private val serviceCDRWriters = (jGlobalConfig \ "serviceCDRDirectories").extract[Option[String]].map(_.split(",").toList).getOrElse(List()).map(new yaas.cdr.CDRFileWriter(_, cdrFileNamePattern))
 
   // Write all attributes
-  private val format = RadiusSerialFormat.newLivingstoneFormat(List())
+  private val cdrFormat = RadiusSerialFormat.newLivingstoneFormat(List())
   
   override def handleRadiusMessage(ctx: RadiusRequestContext): Unit = {
 
@@ -114,23 +114,16 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
       log.debug("jConfig: {}\\n", pretty(jConfig))
     }
 
-    ctx.requestPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST =>
-        try {
-          handleAccessRequest(ctx)
-        } catch {
-        case e: RadiusExtractionException =>
-          log.error(e, e.getMessage)
-          dropRadiusPacket(ctx)
-        }
-      case RadiusPacket.ACCOUNTING_REQUEST =>
-        try {
-          handleAccountingRequest(ctx)
-        } catch {
-          case e: RadiusExtractionException =>
-            log.error(e, e.getMessage)
-            dropRadiusPacket(ctx)
-        }
+    try {
+      request.code match {
+        case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(ctx)
+        case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(ctx)
+      }
+    }
+    catch {
+      case e: RadiusExtractionException =>
+        log.error(e, e.getMessage)
+        dropRadiusPacket(ctx)
     }
 
 
@@ -509,19 +502,78 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             .orElse(getFromCiscoAVPair(request, "service-name"))
         }
 
+      // Logic might be more complex than this. For instance, emulate service accounting with session accounting
+      val isServiceAccounting = serviceNameOption.nonEmpty
+      val isSessionAccounting = serviceNameOption.isEmpty
+
+      if(isSessionAccounting) request.pushCookie("isSessionAccounting", "true")
+      if(isServiceAccounting) request.pushCookie("isServiceAccounting", "true")
+
       // Write CDR to file
-      val writeSessionCDR = (jConfig \ "writeSessionCDR").extract[Option[Boolean]].getOrElse(false)
-      val writeServiceCDR = (jConfig \ "writeServiceCDR").extract[Option[Boolean]].getOrElse(false)
-      if(serviceNameOption.isDefined && writeServiceCDR)
-        serviceCDRWriter.writeCDR(ctx.requestPacket.getCDR(format))
-      else if(writeSessionCDR) sessionCDRWriter.writeCDR(ctx.requestPacket.getCDR(format))
+      val shouldWriteSessionCDR = (jConfig \ "writeSessionCDR").extract[Option[Boolean]].getOrElse(false)
+      val shouldWriteServiceCDR = (jConfig \ "writeServiceCDR").extract[Option[Boolean]].getOrElse(false)
+      if(isSessionAccounting && shouldWriteSessionCDR) sessionCDRWriters.foreach(_.writeCDR(ctx.requestPacket.getCDR(cdrFormat)))
+      if(isServiceAccounting && shouldWriteServiceCDR) serviceCDRWriters.foreach(_.writeCDR(ctx.requestPacket.getCDR(cdrFormat)))
+
+      val proxyTimeoutMillis = jGlobalConfig.jInt("proxyTimeoutMillis").getOrElse(3000)
+      val proxyRetries = jGlobalConfig.jInt("proxyRetries").getOrElse(1)
+
+      // Proxy to copy targets
+      // For the tests, copy is sent if UserName contains "copy", and the filter will force "Service-Type" to "Call-Check", so
+      // that the superserver stores the session with "CC" prefix for the AcctSessionId and the FramedIPAddress
+      val acctCopyTargets = getConfigObjectAsJson("handlerConf/copyTargets.json").extract[List[RadiusPacketUtils.CopyTarget]]
+
+      for(
+        acctCopyTarget <- acctCopyTargets if
+          RadiusPacketUtils.checkRadiusPacket(request, acctCopyTarget.checker.map(c => getConfigObjectAsJson("handlerConf/filters/" + c)))
+      ) {
+        sendRadiusGroupRequest(
+          acctCopyTarget.radiusProxyGroupName,
+          RadiusPacketUtils.filterAttributes(
+            request.proxyRequest,
+            acctCopyTarget.filter match {
+              case Some(filterName) => Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+              case _ => None
+            }),
+          proxyTimeoutMillis,
+          proxyRetries).
+        onComplete {
+          case Success(_) =>
+          case Failure(e) =>
+            log.error(e.getMessage)
+        }
+      }
+
+      // Inline proxy
+      jConfig.jStr("inlineProxyGroupName") match {
+        case None =>
+        case Some("none") =>
+        case Some(proxyGroupName) =>
+          sendRadiusGroupRequest(
+            proxyGroupName,
+            RadiusPacketUtils.filterAttributes(
+              request.proxyRequest,
+              jConfig.jStr("acctProxyFilterOut") match {
+                case Some(filterName) => Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+                case _ => None
+              }),
+            proxyTimeoutMillis,
+            proxyRetries).
+
+            onComplete {
+            case Success(_) =>
+
+            case Failure(e) =>
+              log.error(e.getMessage)
+          }
+      }
 
       // Store in session database
       if(!userName.contains("nosession") && serviceNameOption.isEmpty){
         if((request >> "Acct-Status-Type").contentEquals("Start")){
 
           // Store in sessionDatabase
-          SessionDatabase.putSession(new JSession(
+          SessionDatabase.putSessionAsync(new JSession(
             request >> "Acct-Session-Id",
             request >> "Framed-IP-Address",
             getFromClass(request, "C").getOrElse("<UNKNOWN>"),
@@ -534,7 +586,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         else if((request >> "Acct-Status-Type").contentEquals("Stop")){
 
           // Remove session
-          SessionDatabase.removeSession(request >>* "Acct-Session-Id")
+          SessionDatabase.removeSessionAsync(request >>* "Acct-Session-Id")
         } else if((request >> "Acct-Status-Type").contentEquals("Interim-Update")){
 
           // Update Session
@@ -542,33 +594,8 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         }
       }
 
-        jConfig.jStr("inlineProxyGroupName") match {
-        case None =>
-          // No proxy
-          sendRadiusResponse(request.response())
-
-        case Some(proxyGroup) =>
-          val proxyRequest = request.proxyRequest.
-            removeAll("NAS-IP-Address").
-            removeAll("NAS-Port").
-            removeAll("NAS-Identifier").
-            removeAll("NAS-Port-Id")
-
-          val proxyTimeoutMillis = jGlobalConfig.jInt("proxyTimeoutMillis").getOrElse(3000)
-          val proxyRetries = jGlobalConfig.jInt("proxyRetries").getOrElse(1)
-
-          sendRadiusGroupRequest(proxyGroup, request.proxyRequest, proxyTimeoutMillis, proxyRetries).onComplete {
-            case Success(response) =>
-              sendRadiusResponse(request.response())
-
-            case Failure(e) =>
-              log.error(e.getMessage)
-
-              // Only for testing purposes. In a production handler there should always be an answer, even
-              // before doing proxy
-              dropRadiusPacket
-          }
-      }
+      // Always sends answer.
+      sendRadiusResponse(request.response())
     }
   }
 
