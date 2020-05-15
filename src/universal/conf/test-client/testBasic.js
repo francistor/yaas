@@ -221,7 +221,8 @@ var testItems = [
 			  "NAS-Port": [10],
 			  "User-Name": ["copy@database"],
 			  "Framed-IP-Address": ["200.0.0.10"],
-			  "Acct-Status-Type": ["Start"]
+			  "Acct-Status-Type": ["Start"],
+			  "Class": ["C=legacy_10"]
             }
         },
         "radiusGroup": "yaas-server-group",
@@ -230,6 +231,12 @@ var testItems = [
         "validations":[
 			["code", 5]
         ]
+    },
+    {
+        "description": "wait",
+        "type": "wait",
+        "waitMillis": 1000,
+        "validations":[]
     },
     {
         "description": "Copied session stored",
@@ -241,6 +248,15 @@ var testItems = [
         "validations":[
             ["jsonArray0PropertyValue", "ipAddress", "CC-200.0.0.10"],
             ["jsonArray0PropertyValue", "acctSessionId", "CC-acctSessionId_copy"]
+        ]
+    },
+    {
+        "description": "CDR Found",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/session-hot/cdr_copied.txt",
+        "validations":[
+            ["contains", "acctSessionId_copy"],
+            ["contains", "PSA-LegacyClientId=\"legacy_10\""]
         ]
     }
 ];

@@ -341,6 +341,17 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
 
     private val http = Http(context.system)
 
+    // Test helping functions must invoke a callback of the form
+    // function(error, responseString)
+
+    /**
+     * Sends a Radius request
+     * @param serverGroupName server group name
+     * @param requestPacket stringified JSON with request packet
+     * @param timeoutMillis timeout
+     * @param retries retries
+     * @param callback of the form function(error, responseString). responseString contains the stringified JSON
+     */
     def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
         
       val responseFuture = sendRadiusGroupRequest(serverGroupName, parse(requestPacket), timeoutMillis, retries)
@@ -354,7 +365,13 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
           callback.call(null, error)
       }
     }
-    
+
+    /**
+     * Sends a Diameter request
+     * @param requestMessage stringified Diameter Request
+     * @param timeoutMillis timeout
+     * @param callback of the form function(error, responseString). responseString contains the stringified JSON
+     */
     def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
       val responseFuture = sendDiameterRequest(parse(requestMessage), timeoutMillis)
       responseFuture.onComplete{
@@ -367,7 +384,14 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
           callback.call(null, error)
       }
     }
-    
+
+    /**
+     * Invokes a URL that may return a JSON
+     * @param url URL to invoke
+     * @param method GET or POST
+     * @param json stringified JSON to POST
+     * @param callback of the form function(error, responseString). responseString contains the stringified JSON
+     */
     def httpRequest(url: String, method: String, json: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
       val responseFuture = http.singleRequest(HttpRequest(HttpMethods.getForKey(method).get, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
       (for {
@@ -383,15 +407,20 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
     }
 
     /**
-     * Helper to read the full contents of a file. Exceptions not treated
-     * @param fileName the name of the file to read.
-     * @return
+     * Reads the full contents of a file
+     * @param fileName file name
+     * @param callback of the form function(error, responseString). responseString contains the full file contents
      */
-    def readFile(fileName: String): String = {
-      val source = Source.fromFile(fileName)
-      val contents = source.getLines.mkString
-      source.close()
-      contents
+    def readFile(fileName: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
+
+      try {
+        val source = Source.fromFile(fileName)
+        callback.call(null, null, source.getLines.mkString)
+        source.close
+      } catch {
+        case error: Exception =>
+          callback.call(null, error)
+      }
     }
   }
 }

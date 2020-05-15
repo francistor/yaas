@@ -1,6 +1,21 @@
 {
-	"sessionCDRDirectories": "/var/yaas/cdr/session-/var/yaas/cdr/session-hot",
-	"serviceCDRDirectories": "/var/yaas/cdr/service",
+	"sessionCDRDirectories": [
+		{
+			"path": "/var/yaas/cdr/session",
+			"filenamePattern": "cdr_%d{yyyyMMdd}.txt"
+		},
+		{
+			"path": "/var/yaas/cdr/session-hot",
+			"filenamePattern": "cdr_copied.txt",
+			"checkerName": "cdrWriteCheck.json"
+		}
+	],
+	"serviceCDRDirectories": [
+		{
+			"path": "/var/yaas/cdr/service",
+			"filenamePattern": "cdr_%d{yyyyMMdd}.txt"
+		}
+	],
 	"writeSessionCDR": true,
 	"writeServiceCDR": true,
 	"cdrFilenamePattern": "cdr_%d{yyyyMMdd}.txt",

@@ -23,11 +23,12 @@ function jsonHasPropertyValue(json, propName, propValue){
 /**
  *
  * @param err the error object as returned by the Yaas.<request>
- * @param radiusResponse the response converted to JSON
+ * @param response the string returned as the resonse from the callback
  * @param validationItem the item to test, as one of the "validations" of a testItem
  * @returns
  */
 function validate(err, response, validationItem){
+
 	// code
 	if(validationItem[0] == "code"){
 		if(err) fail(err.message);
@@ -101,6 +102,13 @@ function validate(err, response, validationItem){
 			else jsonHasPropertyValue(jResponse[0], _attrName, _attrValue);
 		}
 	}
+	// contains
+	else if(validationItem[0] == "contains"){
+	    if(err) fail(err.message);
+	    else {
+	        if(response.indexOf(validationItem[1]) != -1) ok("Found <<" + validationItem[1] + ">>"); else fail("<<" + validationItem[1] + ">> not found")
+	    }
+	}
 }
 
 // Execute the tests specified in the "testItems" object
@@ -134,9 +142,15 @@ function executeNextTest(){
 	var testItem = testItems[testIndexes[j] - 1];
 	print("[TEST " + testIndexes[j] + "] " +  testItem["description"]);
 
-	if(testItem["type"] == "radiusRequest"){
+    if(testItem["type"] == "radiusRequest"){
 		Yaas.radiusRequest(testItem.radiusGroup, JSON.stringify(testItem.request), testItem.timeout, testItem.retries, callback);
 	} else if(testItem["type"] == "httpGetRequest"){
 		Yaas.httpRequest(testItem.request.url + "?" + testItem.request.queryString, "GET", "{}", callback);
-	}
+	} else if(testItem["type"] == "readFile"){
+        Yaas.readFile(testItem.fileName, callback);
+    } else if(testItem["type"] == "wait"){
+      var Timer = Java.type("java.util.Timer");
+      var thisTimer = new Timer("wait", true);
+      thisTimer.schedule(callback, testItem.waitMillis);
+    }
 }

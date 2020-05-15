@@ -328,7 +328,7 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
    * 1 Access-Request dropped. Retried by the client and the server (timeout from nes, timeout from server)
    * 
    * 1 Accounting with retry from client (timeout from nes).
-   * 1 Accounting with retry from client (timeout from nes) and server (timeout from superserver)
+   * 1 Accounting with retry from server (timeout from superserver)
    * Both accounting packets get an answer from server, since response is sent before sending to superserver
    */
   
@@ -483,53 +483,6 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     }
   }
 
-  /**
-   * Use the same values for ipAddress and acctSessionId as in the previous packet
-   */
-  def testAccountingInterim(): Unit = {
-    
-    // Accounting request
-    println("[TEST] Accounting Interim")
-    
-    val ipAddress = "199.0.0.1"
-    val acctSessionId = "radius-session-0"
-    
-    val sAccountingRequest = s"""
-      {
-        "code": 4,
-        "avps": {
-          "NAS-IP-Address": ["1.1.1.1"],
-          "NAS-Port": [0],
-          "User-Name": ["test@database"],
-          "Acct-Session-Id": ["$acctSessionId"],
-          "Framed-IP-Address": ["$ipAddress"],
-          "Acct-Status-Type": ["Interim-Update"]
-        }
-      }
-      """
-          
-    val accountingRequest: RadiusPacket = parse(sAccountingRequest)
-
-    // Will go directly to the server. Non existing server not used here
-    sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 2000, 1).onComplete {
-      case Success(response) => 
-        ok("Received response")
-        
-        // Find session. Wait a little if the update is async
-        Thread.sleep(500)
-        val session = jsonFromGet(sessionsURL + "/sessions/find?ipAddress=" + ipAddress)
-        if((session(0) \ "acctSessionId").extract[String] == acctSessionId) ok("Session found") else fail("Session not found")
-
-        if((session(0) \ "data" \ "interim").extract[Boolean]) ok("Updated data found")  else fail("Updated data not found")
-        if((session(0) \ "data" \ "b").extract[Int] == 2) ok("Old data found")  else fail("Old data not found")
-        nextTest()
-
-      case Failure(ex) => 
-        fail("Response not received")
-        nextTest()
-    }
-  }
-  
   def testAccountingRequestWithDrop(): Unit = {
     println("[TEST] Accounting request with drop in superserver")
     
@@ -544,6 +497,53 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     // Generate another request to be discarded by the superserver.
     // The servers re-sends the request to superserver
     sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 500, 0).onComplete(_ => nextTest())
+  }
+
+  /**
+   * Use the same values for ipAddress and acctSessionId as in the previous packet
+   */
+  def testAccountingInterim(): Unit = {
+
+    // Accounting request
+    println("[TEST] Accounting Interim")
+
+    val ipAddress = "199.0.0.1"
+    val acctSessionId = "radius-session-0"
+
+    val sAccountingRequest = s"""
+      {
+        "code": 4,
+        "avps": {
+          "NAS-IP-Address": ["1.1.1.1"],
+          "NAS-Port": [0],
+          "User-Name": ["test@database"],
+          "Acct-Session-Id": ["$acctSessionId"],
+          "Framed-IP-Address": ["$ipAddress"],
+          "Acct-Status-Type": ["Interim-Update"]
+        }
+      }
+      """
+
+    val accountingRequest: RadiusPacket = parse(sAccountingRequest)
+
+    // Will go directly to the server. Non existing server not used here
+    sendRadiusGroupRequest(allServersRadiusGroup, accountingRequest, 2000, 1).onComplete {
+      case Success(response) =>
+        ok("Received response")
+
+        // Find session. Wait a little if the update is async
+        Thread.sleep(500)
+        val session = jsonFromGet(sessionsURL + "/sessions/find?ipAddress=" + ipAddress)
+        if((session(0) \ "acctSessionId").extract[String] == acctSessionId) ok("Session found") else fail("Session not found")
+
+        if((session(0) \ "data" \ "interim").extract[Boolean]) ok("Updated data found")  else fail("Updated data not found")
+        if((session(0) \ "data" \ "b").extract[Int] == 2) ok("Old data found")  else fail("Old data not found")
+        nextTest()
+
+      case Failure(ex) =>
+        fail("Response not received")
+        nextTest()
+    }
   }
 
   /**

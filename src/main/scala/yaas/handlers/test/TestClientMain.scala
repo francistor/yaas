@@ -122,6 +122,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
         // RADIUS testing
         // The following tests must be executed as-is, since the following check* methods rely on those packets
         // being sent to succeed
+        /*
         testAccessRequestWithAccept _,
         testAccessRequestWithReject _,
         testAccessRequestWithDrop _,
@@ -132,6 +133,8 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
         checkServerRadiusStats _,
         checkClientRadiusStats _,
         testAccountingInterim _,
+
+         */
 
         js(configObject.get)
 

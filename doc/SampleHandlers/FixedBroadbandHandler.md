@@ -74,13 +74,15 @@ The filter applied is specified in `authProxyFilter[In|Out]`
 
 Configuration is initially done as in authentication, but may be overridden per service.
 
-
 ### CDR Writing
 The variables enforcing the writing are `writeSessionCDR` and `writeServiceCDR`, which are boolean. The formats specified
 in `sessionCDRTransformer` and `serviceCDRTransformer`.
 
 The CDR are written in the directories specified in `sessionCDRDirectories` and `serviceCDRDirectories`, which are
-comma separated lists. A copy is written on each array member.
+complex object which specify:
+* A path name
+* A file pattern
+* A checker to test whether to write this CDR or not
 
 ### Accounting Proxy
 
@@ -90,6 +92,8 @@ appropriate, is `true`. Notice that normally `proxySessionAccounting` is true an
 An unbounded number of copies may be sent to other proxyGroups, as specified in the `handlerConf/copyTargets.json"`
 file. It contains an array of entries specifying the proxyGroupNames, checkers and filters to apply.
 
+All accounting proxy is done in copy-mode with retries. That is, the answer is sent back to the requesting server
+without waiting for the answer and not taking into account the result.
 
 ### Global configuration for testing
 The global configuation is such that
@@ -133,14 +137,15 @@ proxy
 * If "noproxy", no radiusGroup is configured
 * If "reject", the request is rejected by the upstream server
 
-
-
 Special domain "none" with
 * Provision type "none"
 * Auth type "proxy"
 
-
-database.provision.p1p.r1b.ba
+As a facility for testing, the "superserver" stores the sessions with SS- prefix normally but with CC-prefix in the
+Accounting-Session-Id and the Framed-IP-Address if the Service-Type is "Call-Check". This way, all accounting
+may be sent to the same server and sessions received as inline proxy or additional proxy may be tracked. The
+standard copyCheck.json filter checks that "copy" is present in the User-Name to perform additional copy, and the
+associated filter forces the "Service-Type" to "Call-Check".
 
 
 

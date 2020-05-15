@@ -10,13 +10,17 @@ import yaas.handlers.RadiusPacketUtils.{getFromCiscoAVPair, getFromClass}
 import yaas.handlers.RadiusConfigUtils._
 import yaas.server.{MessageHandler, _}
 import yaas.util.OctetOps
+import yaas.cdr.CDRFileWriter
+import yaas.handlers.RadiusPacketUtils
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.JsonDSL._
-import yaas.handlers.RadiusPacketUtils
+
+import scala.io.Source
+
 
 // Generic JDBC is deprecated. Use any profile
 import slick.jdbc.SQLiteProfile.api._
@@ -25,6 +29,13 @@ import slick.jdbc.SQLiteProfile.api._
 class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
 
   private val pwNasPortIdRegex = "^([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+):(([0-9]+)-)?([0-9]+)$".r
+  private val classRegex = "([A-Z])=(.+)".r
+
+  // Helper to read configuration
+  case class CDRDirectory(path: String, filenamePattern: String, checkerName: Option[String])
+
+  // Helper
+  case class FilteredCDRWriter(writer: CDRFileWriter, checkerName: Option[String])
 
   /**
    * Sanity check before starting
@@ -55,10 +66,22 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
    */
   private val jGlobalConfig = getConfigObjectAsJson("handlerConf/globalConfig.json")
 
-  private val cdrFileNamePattern = (jGlobalConfig \ "cdrFilenamePattern").extract[Option[String]].getOrElse("cdr_%d{yyyyMMdd-HHmm}.txt")
+  private val sessionCDRWriters = for {
+    JArray(directories) <- (jGlobalConfig \ "sessionCDRDirectories")
+    jDirectory <- directories
+    path = (jDirectory \ "path").extract[String]
+    filenamePattern = (jDirectory \ "filenamePattern").extract[String]
+    checker = (jDirectory \ "checkerName").extract[Option[String]]
+  } yield FilteredCDRWriter(new CDRFileWriter(path, filenamePattern), checker)
 
-  private val sessionCDRWriters = (jGlobalConfig \ "sessionCDRDirectories").extract[Option[String]].map(_.split(",").toList).getOrElse(List()).map(new yaas.cdr.CDRFileWriter(_, cdrFileNamePattern))
-  private val serviceCDRWriters = (jGlobalConfig \ "serviceCDRDirectories").extract[Option[String]].map(_.split(",").toList).getOrElse(List()).map(new yaas.cdr.CDRFileWriter(_, cdrFileNamePattern))
+
+  private val serviceCDRWriters = for {
+    JArray(directories) <- (jGlobalConfig \ "serviceCDRDirectories")
+    jDirectory <- directories
+    path = (jDirectory \ "path").extract[String]
+    filenamePattern = (jDirectory \ "filenamePattern").extract[String]
+    checker = (jDirectory \ "checkerName").extract[Option[String]]
+  } yield FilteredCDRWriter(new CDRFileWriter(path, filenamePattern), checker)
 
   // Write all attributes
   private val cdrFormat = RadiusSerialFormat.newLivingstoneFormat(List())
@@ -352,12 +375,16 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                 Future(List[RadiusAVP[Any]]())
 
               case Some(group) =>
-                // Remove sensitive information
-                val proxyRequest = request.proxyRequest.
-                  removeAll("NAS-IP-Address").
-                  removeAll("NAS-Port").
-                  removeAll("NAS-Identifier").
-                  removeAll("NAS-Port-Id")
+                // Apply configured out filter in authProxyFilterOut
+                val proxyRequest = jConfig \ "authProxyFilterOut" match {
+                  case JString(filterName) =>
+                    RadiusPacketUtils.filterAttributes(
+                      request.proxyRequest,
+                      Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+                    )
+                  case _ =>
+                    request.proxyRequest
+                }
 
                 val proxyTimeoutMillis = jGlobalConfig.jInt("proxyTimeoutMillis").getOrElse(3000)
                 val proxyRetries = jGlobalConfig.jInt("proxyRetries").getOrElse(1)
@@ -372,13 +399,16 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   } else log.debug("received response")
 
                   // Filter the valid AVPs from proxy
-                  packet.avps.filter(avp =>
-                    avp.getName == "Class" ||
-                      avp.getName == "Framed-IP-Address" ||
-                      avp.getName == "Reply-Message" ||
-                      avp.getName == "User-Password" ||
-                      avp.getName == "Framed-Protocol"
-                  )
+                  jConfig \ "authProxyFilterIn" match {
+                    case JString(filterName) =>
+                      RadiusPacketUtils.filterAttributes(
+                        packet,
+                        Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+                      ).avps
+                    case _ =>
+                      packet.avps
+                  }
+
                 } recover {
                   case e: Exception if acceptOnProxyError =>
                     log.error(s"Timeout in ServerGroup $group. Will continue due to permissive proxy policy")
@@ -502,6 +532,20 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             .orElse(getFromCiscoAVPair(request, "service-name"))
         }
 
+      // Build synthetic attributes from class
+      for {
+        classAttr <- request >>+ "Class"
+      } classAttr.stringValue match {
+        case classRegex("C", value) => request << ("PSA-LegacyClientId", value)
+        case _ =>
+      }
+
+      serviceNameOption match {
+        case Some(serviceName) => request << ("PSA-ServiceName", serviceName)
+        case _ =>
+      }
+
+
       // Logic might be more complex than this. For instance, emulate service accounting with session accounting
       val isServiceAccounting = serviceNameOption.nonEmpty
       val isSessionAccounting = serviceNameOption.isEmpty
@@ -510,10 +554,21 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
       if(isServiceAccounting) request.pushCookie("isServiceAccounting", "true")
 
       // Write CDR to file
+      // Session
       val shouldWriteSessionCDR = (jConfig \ "writeSessionCDR").extract[Option[Boolean]].getOrElse(false)
+      if(isSessionAccounting && shouldWriteSessionCDR) sessionCDRWriters.foreach { filteredWriter =>
+        if(RadiusPacketUtils.checkRadiusPacket(request, filteredWriter.checkerName.map(fn => getConfigObjectAsJson("handlerConf/filters/" + fn)))
+        )
+          filteredWriter.writer.writeCDR(request.getCDR(cdrFormat))
+      }
+
+      // Service
       val shouldWriteServiceCDR = (jConfig \ "writeServiceCDR").extract[Option[Boolean]].getOrElse(false)
-      if(isSessionAccounting && shouldWriteSessionCDR) sessionCDRWriters.foreach(_.writeCDR(ctx.requestPacket.getCDR(cdrFormat)))
-      if(isServiceAccounting && shouldWriteServiceCDR) serviceCDRWriters.foreach(_.writeCDR(ctx.requestPacket.getCDR(cdrFormat)))
+      if(isServiceAccounting && shouldWriteServiceCDR) serviceCDRWriters.foreach { filteredWriter =>
+        if(RadiusPacketUtils.checkRadiusPacket(request, filteredWriter.checkerName.map(fn => getConfigObjectAsJson("handlerConf/filters/" + fn)))
+        )
+          filteredWriter.writer.writeCDR(request.getCDR(cdrFormat))
+      }
 
       val proxyTimeoutMillis = jGlobalConfig.jInt("proxyTimeoutMillis").getOrElse(3000)
       val proxyRetries = jGlobalConfig.jInt("proxyRetries").getOrElse(1)
@@ -594,7 +649,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         }
       }
 
-      // Always sends answer.
+      // Always sends answer
       sendRadiusResponse(request.response())
     }
   }

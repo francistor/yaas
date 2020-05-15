@@ -370,12 +370,37 @@
 			},
 			{
 				"code": 106,
-				"name": "Phone",
+				"name": "PHONE",
 				"type": "String"
 			},
 			{
 				"code": 107,
 				"name": "CampaignData",
+				"type": "String"
+			},
+			{
+				"code": 108,
+				"name": "Operation",
+				"type": "String"
+			},
+			{
+				"code": 109,
+				"name": "IndexName",
+				"type": "String"
+			},
+			{
+				"code": 110,
+				"name": "IndexValue",
+				"type": "String"
+			},
+			{
+				"code": 114,
+				"name": "BRAS-NAS-IP-Address",
+				"type": "String"
+			},
+			{
+				"code": 119,
+				"name": "LegacyClientId",
 				"type": "String"
 			},
 			{

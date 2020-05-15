@@ -17,25 +17,17 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
     .map(req => Integer.parseInt(req)).getOrElse(0)
 
   override def handleRadiusMessage(ctx: RadiusRequestContext): Unit = {
-    // Should always be an access-request anyway
-    ctx.requestPacket.code match {
-      case RadiusPacket.ACCESS_REQUEST =>
-        try {
-          handleAccessRequest(ctx)
-        } catch {
-          case e: RadiusExtractionException =>
-            log.error(e, e.getMessage)
-            dropRadiusPacket(ctx)
-        }
 
-      case RadiusPacket.ACCOUNTING_REQUEST =>
-        try {
-          handleAccountingRequest(ctx)
-        } catch {
-          case e: RadiusExtractionException =>
-            log.error(e, e.getMessage)
-            dropRadiusPacket(ctx)
-        }
+    try{
+      ctx.requestPacket.code match {
+        case RadiusPacket.ACCESS_REQUEST => handleAccessRequest(ctx)
+        case RadiusPacket.ACCOUNTING_REQUEST => handleAccountingRequest(ctx)
+      }
+    }
+    catch {
+      case e: RadiusExtractionException =>
+        log.error(e, e.getMessage)
+        dropRadiusPacket(ctx)
     }
   }
   
@@ -99,6 +91,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
       }
 
       if(nCPUOperations > 0) for(i <- 0 to nCPUOperations) Math.atan(Math.random())
+
       sendRadiusResponse(request.response() << ("User-Name" -> userName))
     }
   }
