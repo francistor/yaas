@@ -28,7 +28,8 @@ function jsonHasPropertyValue(json, propName, propValue){
  * @returns
  */
 function validate(err, response, validationItem){
-
+    // failure
+    if(err) ok(err.message); else fail("Got a response");
 	// code
 	if(validationItem[0] == "code"){
 		if(err) fail(err.message);
@@ -109,6 +110,12 @@ function validate(err, response, validationItem){
 	        if(response.indexOf(validationItem[1]) != -1) ok("Found <<" + validationItem[1] + ">>"); else fail("<<" + validationItem[1] + ">> not found")
 	    }
 	}
+    else if(validationItem[0] == "notContains"){
+        if(err) fail(err.message);
+        else {
+            if(response.indexOf(validationItem[1]) != -1) fail("Found <<" + validationItem[1] + ">>"); else ok("<<" + validationItem[1] + ">> not found")
+        }
+    }
 }
 
 // Execute the tests specified in the "testItems" object

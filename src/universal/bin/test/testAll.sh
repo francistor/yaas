@@ -8,8 +8,8 @@ BIN_DIR=..
 
 rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
-rm /var/yaas/cdr/session/*
-rm /var/yaas/cdr/service/*
+rm -rf /var/yaas/cdr/session
+rm -rf /var/yaas/cdr/service
 
 echo Preparing database
 # mongo --quiet $_THIS_FILE_DIRNAME/fillMongoDB.js

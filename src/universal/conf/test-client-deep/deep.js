@@ -462,6 +462,27 @@ var testItems = [
          ["code", 2],
          ["attributeValue", "Huawei-Remanent-Volume", 1000]
      ]
+    },
+    {
+        "description": "Accounting request",
+        "type": "radiusRequest",
+        "request": {
+            "code": 4,
+            "avps": {
+              "Acct-Session-Id": ["acctSessionId_0"],
+              "NAS-IP-Address": ["1.1.1.1"],
+              "NAS-Port": [0],
+              "User-Name": ["user_0@database.provision.p0.r0.bb"],
+              "Framed-IP-Address": ["200.0.0.0"],
+              "Acct-Status-Type": ["Start"]
+            }
+        },
+        "radiusGroup": "yaas-server-group",
+        "timeout": 2000,
+        "retries": 1,
+        "validations":[
+            ["code", 5]
+        ]
     }
 ];
 

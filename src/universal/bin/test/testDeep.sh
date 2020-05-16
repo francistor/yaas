@@ -7,6 +7,8 @@ BIN_DIR=..
 
 rm $_THIS_FILE_DIRNAME/log/*
 rm $_THIS_FILE_DIRNAME/cdr/*
+rm -rf /var/yaas/cdr/session
+rm -rf /var/yaas/cdr/service
 
 # echo launching superserver...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/nohup-superserver 2>&1

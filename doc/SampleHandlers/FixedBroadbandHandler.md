@@ -79,7 +79,7 @@ The variables enforcing the writing are `writeSessionCDR` and `writeServiceCDR`,
 in `sessionCDRTransformer` and `serviceCDRTransformer`.
 
 The CDR are written in the directories specified in `sessionCDRDirectories` and `serviceCDRDirectories`, which are
-complex object which specify:
+complex objects specifying:
 * A path name
 * A file pattern
 * A checker to test whether to write this CDR or not

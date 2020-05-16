@@ -525,11 +525,14 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
           Some(request >>* "Class")
         } else {
           (request >> "Redback-Service-Name")
-            .orElse(request >> "Huawei-Service-Info")
-            .orElse(request >> "Alu-Sub-Serv-Activate")
-            .map(_.stringValue)
-            .orElse(getFromCiscoAVPair(request, "echo-string-1"))
-            .orElse(getFromCiscoAVPair(request, "service-name"))
+          .orElse(request >> "Alu-Sub-Serv-Activate")
+          .map(_.stringValue)
+          .orElse((request >> "Huawei-Service-Info").map(_.stringValue.substring(1)))
+          .orElse(getFromCiscoAVPair(request, "serviceName") match {
+            case None => None
+            case Some("internet") => getFromCiscoAVPair(request, "echo-string-1")
+            case Some(sn) => Some(sn)
+          })
         }
 
       // Build synthetic attributes from class

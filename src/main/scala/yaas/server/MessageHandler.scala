@@ -412,7 +412,6 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
      * @param callback of the form function(error, responseString). responseString contains the full file contents
      */
     def readFile(fileName: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
-
       try {
         val source = Source.fromFile(fileName)
         callback.call(null, null, source.getLines.mkString)
