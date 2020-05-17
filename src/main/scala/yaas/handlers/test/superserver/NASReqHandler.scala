@@ -54,6 +54,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
           SessionDatabase.putSession(new JSession(
             request >> "Session-Id",
             request >> "Framed-IP-Address",
+            "NAS",
             "Client-Id",
             "0",
             List(),

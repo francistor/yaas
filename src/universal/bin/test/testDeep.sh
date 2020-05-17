@@ -16,8 +16,8 @@ nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-superserver > log/noh
 sleep 5
 
 # echo launching server...
-nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server > log/nohup-server 2>&1
-sleep 5
+# nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-server > log/nohup-server 2>&1
+# sleep 5
 
 echo launching client...
 nohup gnome-terminal -- $BIN_DIR/aaaserver -Dinstance=test-client-deep $* > log/nohup-client 2>&1

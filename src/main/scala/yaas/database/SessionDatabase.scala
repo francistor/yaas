@@ -37,6 +37,7 @@ import scala.util.control.Breaks
 class Session(
     @(QuerySqlField @field)(index = true) val acctSessionId: String,
     @(QuerySqlField @field)(index = true) val ipAddress: String,
+    @(QuerySqlField @field)(index = true) val nas: String,
     @(QuerySqlField @field)(index = true) val clientId: String,
     @(QuerySqlField @field)(index = true) val macAddress: String,
     @(QuerySqlField @field)(index = true) val groups: String,
@@ -49,7 +50,7 @@ class Session(
    * @param updatedJData the new jData
    * @return new JSession instance
    */
-  def copyUpdated(updatedJData: JValue): Session = new Session(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(updatedJData))
+  def copyUpdated(updatedJData: JValue): yaas.database.Session = new Session(acctSessionId, ipAddress, nas, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(updatedJData))
 
   /**
    * Creates a new Session instance in which the jData field is merged wit and a lastUpdatedTimestamp with the current time
@@ -57,7 +58,7 @@ class Session(
    * @return new JSession instance
    */
   def copyMerged(toMergeJData: JValue): Session = {
-    new Session(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(parse(jData).merge(toMergeJData)))
+    new Session(acctSessionId, ipAddress, clientId, nas, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(parse(jData).merge(toMergeJData)))
   }
 
 }
@@ -68,8 +69,9 @@ class Session(
 object JSession {
   def apply(session: Session) = new JSession(
       session.acctSessionId, 
-      session.ipAddress, 
-      session.clientId, 
+      session.ipAddress,
+      session.nas,
+      session.clientId,
       session.macAddress, 
       session.groups.split(",").toList,
       session.startTimestampUTC, 
@@ -83,7 +85,8 @@ object JSession {
  */
 class JSession(
     val acctSessionId: String, 
-    val ipAddress: String, 
+    val ipAddress: String,
+    val nas: String,
     val clientId: String,
     val macAddress: String,
     val groups: List[String],
@@ -97,7 +100,7 @@ class JSession(
    * @return
    */
   def toSession: Session = {
-    new Session(acctSessionId, ipAddress, clientId, macAddress, groups.mkString(","), startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
+    new Session(acctSessionId, ipAddress, nas, clientId, macAddress, groups.mkString(","), startTimestampUTC, lastUpdatedTimestampUTC, compact(render(jData)))
   }
 
   /**
@@ -105,14 +108,14 @@ class JSession(
    * @param updatedJData the new jData
    * @return new JSession instance
    */
-  def copyUpdated(updatedJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(updatedJData))
+  def copyUpdated(updatedJData: JValue) = new JSession(acctSessionId, ipAddress, nas, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(updatedJData))
 
   /**
    * Creates a new JSession instance in which the jData field is merged wit and a lastUpdatedTimestamp with the current time
    * @param toMergeJData the jData to be merged. The old fields remain the same and the new ones are replaced
    * @return new JSession instance
    */
-  def copyMerged(toMergeJData: JValue) = new JSession(acctSessionId, ipAddress, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(jData.merge(toMergeJData)))
+  def copyMerged(toMergeJData: JValue) = new JSession(acctSessionId, ipAddress, nas, clientId, macAddress, groups, startTimestampUTC, System.currentTimeMillis(), compact(jData.merge(toMergeJData)))
 }
 
 // Serializers for List of attributes. We sometimes want them not as JSON arrays, but as property sets
@@ -122,6 +125,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
       new JSession(
           (jv \ "acctSessionId").extract[String],
           (jv \ "ipAddress").extract[String],
+          (jv \ "nas").extract[String],
           (jv \ "clientId").extract[String],
           (jv \ "macAddress").extract[String],
           (jv \ "groups").extract[List[String]],
@@ -134,6 +138,7 @@ class JSessionSerializer extends CustomSerializer[JSession](implicit jsonFormats
     case jSession: JSession =>
       ("acctSessionId" -> jSession.acctSessionId) ~
       ("ipAddress" -> jSession.ipAddress) ~
+      ("nas" -> jSession.nas) ~
       ("clientId" -> jSession.clientId) ~
       ("macAddress" -> jSession.macAddress) ~
       ("groups" -> jSession.groups) ~
@@ -358,7 +363,6 @@ object SessionDatabase {
         kFinder.setServiceName(tokens(2))
         kFinder
       } else {
-        //(new TcpDiscoveryVmIpFinder).setAddresses(igniteAddresses.split(",").toList)
         (new TcpDiscoveryVmIpFinder).setAddresses(igniteAddresses.split(",").toList.asJava)
       }
       

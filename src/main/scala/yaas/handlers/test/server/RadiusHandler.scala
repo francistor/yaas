@@ -93,13 +93,6 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
      ***/
     val request = ctx.requestPacket
 
-    // Detect Client type
-    val radiusClientType =
-      if ((request >> "Unisphere-PPPoE-Description").isDefined) "HUAWEI"
-      else if ((request >> "Alc-Client-Hardware-Addr").isDefined) "ALU"
-      else if ((request >> "Unishpere-PPPoE-Description").isDefined) "MX"
-      else "DEFAULT"
-
     /**
      * Read configuration
      */
@@ -107,6 +100,18 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
     val jServiceConfig = getConfigObjectAsJson("handlerConf/serviceConfig.json")
     val jRadiusClientConfig = getConfigObjectAsJson("handlerConf/radiusClientConfig.json")
     val jSpecialUsersConfig = getConfigObjectAsJson("handlerConf/specialUserConfig.json")
+
+    if(request.code == RadiusPacket.COA_REQUEST) {
+      handleCoA(ctx)
+      return
+    }
+
+    // Detect Client type
+    val radiusClientType =
+      if ((request >> "Unisphere-PPPoE-Description").isDefined) "HUAWEI"
+      else if ((request >> "Alc-Client-Hardware-Addr").isDefined) "ALU"
+      else if ((request >> "Unishpere-PPPoE-Description").isDefined) "MX"
+      else "DEFAULT"
 
     // Get and normalize request data.
     val userName = request.S("User-Name").toLowerCase()
@@ -125,6 +130,12 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         case _ => (request >> "NAS-IP-Address", request >> "NAS-Port")
       }
     } else (request >> "NAS-IP-Address", request >> "NAS-Port")
+
+    // Add synthetic attribute with real NAS-IP-Address
+    (request >> "NAS-IP-Address") match {
+      case Some(nasIpAddress) => request << ("PSA-BRAS-NAS-IP-Address", nasIpAddress.stringValue)
+      case _ =>
+    }
 
     // Priorities Client --> Realm --> Global
     val jConfig = jGlobalConfig.merge(jRealmConfig.forKey(realm, "DEFAULT")).
@@ -245,7 +256,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             // if UserName and password, they have to be verified
             // Stored procedure example: val clientQuery = sql"""{call getClient($nasPort, $nasIpAddress)}""".as[(Option[String], Option[String], Option[String], Option[String])]
             log.debug(s"Executing query with $nasIpAddress : $nasPort")
-            val clientQuery = sql"""select UserName, Password, SERVICE_NAME as ServiceName, OPC_CL_INFO_09 as AddonServiceName, LEGACY_CLIENT_ID as LegacyClientId, BLOCKING_STATE as Status, OPC_CL_INFO_03 as overrideServiceName, OPC_CL_INFO_04 as overrideAddonServiceName, ip_address, ipv6_delegated_prefix, usability from ServicePlan SP, Client CLI, UserLine UL where CLI.CLIENT_ID=UL.CLIENT_ID AND UL.NASIP_ADDRESS=$nasIpAddress and UL.NASPORT=$nasPort AND CLI.PLAN_NAME=SP.PLAN_NAME""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Int, Option[String], Option[String], Option[String], Option[String])]
+            val clientQuery = sql"""select UserName, Password, SERVICE_NAME as ServiceName, OPC_CL_INFO_09 as AddonServiceName, LEGACY_CLIENT_ID as LegacyClientId, PHONE as Phone, BLOCKING_STATE as Status, OPC_CL_INFO_03 as overrideServiceName, OPC_CL_INFO_04 as overrideAddonServiceName, ip_address, ipv6_delegated_prefix, usability from ServicePlan SP, Client CLI, UserLine UL where CLI.CLIENT_ID=UL.CLIENT_ID AND UL.NASIP_ADDRESS=$nasIpAddress and UL.NASPORT=$nasPort AND CLI.PLAN_NAME=SP.PLAN_NAME""".as[(Option[String], Option[String], Option[String], Option[String], Option[String], Option[String], Int, Option[String], Option[String], Option[String], Option[String])]
             db.run(clientQuery)
 
           case "file" =>
@@ -259,6 +270,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   (subscriberEntry \ "basicServiceName").extract[Option[String]],
                   (subscriberEntry \ "addonServiceName").extract[Option[String]],
                   (subscriberEntry \ "legacyClientId").extract[Option[String]],
+                  (subscriberEntry \ "phone").extract[Option[String]],
                   (subscriberEntry \ "status").extract[Option[Integer]].getOrElse(0),
                   (subscriberEntry \ "overrideServiceName").extract[Option[String]],
                   (subscriberEntry \ "overrideAddonServiceName").extract[Option[String]],
@@ -268,7 +280,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             )
 
           case "none" =>
-            Future.successful(Vector((None, None, None, None, None, 0, None, None, None, None)))
+            Future.successful(Vector((None, None, None, None, None, None, 0, None, None, None, None)))
 
           case _ =>
             Future.failed(new Exception("Invalid provision type $provisionType"))
@@ -286,7 +298,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
             var rejectReason: Option[String] = None
 
-            val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, status, overrideServiceNameOption, overrideAddonServiceNameOption, ipAddressOption, delegatedIpv6PrefixOption) =
+            val (userNameOption, passwordOption, serviceNameOption, addonServiceNameOption, legacyClientIdOption, phoneOption, status, overrideServiceNameOption, overrideAddonServiceNameOption, ipAddressOption, delegatedIpv6PrefixOption) =
               // Client found
               if(queryResult.nonEmpty){
                 queryResult(0)
@@ -297,7 +309,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                 log.warning(s"Client not found $nasIpAddress : $nasPort - $userName")
                 if(permissiveServiceNameOption.isEmpty) rejectReason = Some("Client not provisioned")
                 // userName, password, serviceName, addonServiceName
-                (None, None, permissiveServiceNameOption, None, None, 0, None, None, None, None)
+                (None, None, permissiveServiceNameOption, None, None, None, 0, None, None, None, None)
               }
 
             if(log.isDebugEnabled) log.debug(s"legacyClientId: $legacyClientIdOption, serviceName: $serviceNameOption, addonServiceName: $addonServiceNameOption, overrideServiceName: $overrideServiceNameOption, overrideAddonServiceName: $overrideAddonServiceNameOption")
@@ -494,7 +506,8 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                     realmAVPList <<?
                     globalAVPList <<
                     ("Class" -> s"S:${fServiceNameOption.getOrElse("none")}") <<
-                    ("Class" -> s"C:${legacyClientIdOption.getOrElse("not-found")}")
+                    ("Class" -> s"C:${legacyClientIdOption.getOrElse("not-found")}") <<
+                    ("Class" -> s"P:${legacyClientIdOption.getOrElse("not-found")}")
 
                   if(fAddonServiceNameOption.isDefined) response << ("Class" -> s"A:${fAddonServiceNameOption.getOrElse("none")}")
                   if(ipAddressOption.isDefined) response <:< ("Framed-IP-Address" -> ipAddressOption.get)                           // With Override
@@ -548,6 +561,9 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         classAttr <- request >>+ "Class"
       } classAttr.stringValue match {
         case classRegex("C", value) => request << ("PSA-LegacyClientId", value)
+        case classRegex("P", value) => request << ("PSA-PHONE", value)
+        case classRegex("M", value) => request << ("PSA-MAC-Address", value)
+        case classRegex("S", value) => request << ("PSA-AutoactivatedBasicService", value)
         case _ =>
       }
 
@@ -638,7 +654,11 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
       // Store in session database
       if(!userName.contains("nosession") && serviceNameOption.isEmpty){
-        if((request >> "Acct-Status-Type").contentEquals("Start")){
+
+        val acctStatusType = request >>* "Acct-Status-Type"
+        if(!acctStatusType.contentEquals("Stop")){
+
+          val basicService = (request >> "PSA-BasicAutoactivatedService").map(_.stringValue).getOrElse("none")
 
           // Store in sessionDatabase
           SessionDatabase.putSessionAsync(new JSession(
@@ -646,16 +666,19 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             request >> "Framed-IP-Address",
             getFromClass(request, "C").getOrElse("<UNKNOWN>"),
             getFromClass(request, "M").getOrElse("<UNKNOWN>"),
+            request >> "PSA-BRAS-IP-Address",
             List(nasIpAddress, realm),
             System.currentTimeMillis,
             System.currentTimeMillis,
-            ("a" -> "aval") ~ ("b" -> 2)))
+            ("a" -> "aval") ~ ("b" -> 2) ~ ("BasicService" -> basicService)))
         }
-        else if((request >> "Acct-Status-Type").contentEquals("Stop")){
+        else if(acctStatusType.contentEquals("Stop")){
 
           // Remove session
           SessionDatabase.removeSessionAsync(request >>* "Acct-Session-Id")
-        } else if((request >> "Acct-Status-Type").contentEquals("Interim-Update")){
+        }
+
+        if(acctStatusType.contentEquals("Interim-Update")){
 
           // Update Session
           SessionDatabase.updateSessionAsync(request >> "Acct-Session-Id", Some("interim" -> true), merge = true)
@@ -666,6 +689,16 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
       sendRadiusResponse(request.response())
     }
   }
+
+  /**
+   * CoA Handler.
+   *
+   * @param ctx
+   */
+  def handleCoA(implicit ctx: RadiusRequestContext): Unit = {
+
+  }
+
 
   override def postStop: Unit = {
     db.close()

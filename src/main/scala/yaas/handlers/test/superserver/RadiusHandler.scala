@@ -90,6 +90,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
           SessionDatabase.putSession(new JSession(
             request >>* "Acct-Session-Id",
             prefix + (request >>* "Framed-IP-Address"),
+            nasIpAddress,
             getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
             getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
             List(nasIpAddress, realm),

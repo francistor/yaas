@@ -475,7 +475,7 @@ var testItems = [
               "User-Name": ["user_0@database.provision.p0.r0.bb"],
               "Framed-IP-Address": ["200.0.0.0"],
               "Acct-Status-Type": ["Start"],
-              "Class": ["C:legacy_0", "S:service_0"]
+              "Class": ["C:legacy_0", "S:service_0", "P:phone_0", "M:mac_0"]
             }
         },
         "radiusGroup": "server-group",
@@ -513,7 +513,10 @@ var testItems = [
         "fileName": "/var/yaas/cdr/session/cdr_%d{yyyyMMdd}.txt",
         "validations":[
             ["contains", "acctSessionId_0"],
-            ["contains", "\"legacy_0\""]
+            ["contains", "\"legacy_0\""],
+            ["contains", "\"phone_0\""],
+            ["contains", "PSA-BRAS-NAS-IP-Address"],
+            ["contains", "PSA-MAC-Address"]
         ]
     },
     {

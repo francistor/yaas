@@ -364,6 +364,11 @@
 				"type": "String"
 			},
 			{
+				"code": 104,
+				"name": "AutoactivatedBasicService",
+				"type": "String"
+			},
+			{
 				"code": 105,
 				"name": "AutoActivatedCampaignService",
 				"type": "String"
@@ -396,6 +401,11 @@
 			{
 				"code": 114,
 				"name": "BRAS-NAS-IP-Address",
+				"type": "String"
+			},
+			{
+				"code": 117,
+				"name": "MAC-Address",
 				"type": "String"
 			},
 			{
