@@ -104,7 +104,7 @@ Los atributos almacenados son
 		${uss.IPAMCluster}        := ${packet.IPAMCluster};
 		${uss.UsingIPAMRedundant} := ${packet.UsingIPAMRedundant};
 		${uss.Session-Id}         := ${request.Acct-Multi-Session-Id:request.Session-Id:request.Acct-Session-Id:"AUTH"};
-		${uss.PSA-ServiceName}    := ${request.Alc-MSAP-Policy:request.HW-Service-Info:request.PSA-ServiceName};
+		${uss.PSA-ServiceName}   := ${request.Alc-MSAP-Policy:request.HW-Service-Info:request.PSA-ServiceName};
 ```
 
 # Contabilidad

@@ -7,7 +7,7 @@
 		{
 			"path": "/var/yaas/cdr/session-hot",
 			"filenamePattern": "cdr_copied.txt",
-			"checkerName": "cdrWriteCheck.json"
+			"checkerName": "filters/copyCDRWriteCheck.json"
 		}
 	],
 	"serviceCDRDirectories": [
@@ -29,9 +29,11 @@
 	"proxyRetries": 1,
 	"acceptOnProxyError": false,
 	"inlineProxyGroupName": "yaas-superserver-group",
-	"authProxyFilterOut": "standardProxyFilterOut.json",
-	"authProxyFilterIn": "standardProxyFilterIn.json",
-	"acctProxyFilterOut": "standardProxyFilterOut.json",
+	"proxySessionAccounting": true,
+	"proxyServiceAccounting": false,
+	"authProxyFilterOut": "filters/standardProxyFilterOut.json",
+	"authProxyFilterIn": "filters/standardProxyFilterIn.json",
+	"acctProxyFilterOut": "filters/standardProxyFilterOut.json",
 	"radiusAttrs":[
 		{"Session-Timeout": 3600}
 	],

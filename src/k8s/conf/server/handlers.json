@@ -4,6 +4,5 @@
 	{"name": "NASReqHandler", "clazz": "yaas.handlers.test.server.NASReqHandler"},
 	
 	// Radius
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.test.server.AccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.test.server.AccountingRequestHandler"}
+	{"name": "RadiusHandler", "clazz": "yaas.handlers.test.server.RadiusHandler"}
 ]

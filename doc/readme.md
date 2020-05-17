@@ -256,7 +256,7 @@ to those, with a balancing policy that may be `fixed` or `random`.
 
 This file defines the handler (Actor class deriving from MessageHandler) to be used.
 
-For radius, the names are predefined: `AccessRequestHandler`, `AccountingRequestHandler` and `CoARequestHandler`
+For radius, the name is predefined as "RadiusHandler"
 
 
 
@@ -267,8 +267,7 @@ For radius, the names are predefined: `AccessRequestHandler`, `AccountingRequest
 	{"name": "TestServerNASReqHandler", "clazz": "yaas.handlers.test.server.NASReqHandler"},
 
 	// Radius
-	{"name": "AccessRequestHandler", "clazz": "yaas.handlers.test.DefaultAccessRequestHandler"},
-	{"name": "AccountingRequestHandler", "clazz": "yaas.handlers.test.DefaultAccountingRequestHandler"}	
+	{"name": "RadiusHandler", "clazz": "yaas.handlers.test.DefaultRadiusRequestHandler"}	
 ]
 ```
 

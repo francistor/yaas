@@ -30,8 +30,8 @@ class TestRadiusPacket extends TestKit(ActorSystem("AAATest"))
     avpNameMap("PSA-CampaignData") mustEqual RadiusAVPDictItem(107, 21100, "PSA-CampaignData", RadiusTypes.STRING, 0, hasTag = false, None, None)
     
     val avpCodeMap = RadiusDictionary.avpMapByCode
-    //     avpCodeMap.get((21100, 102)) mustEqual Some(RadiusAVPDictItem(102, 21100, "PSA-Service-Name", RadiusTypes.STRING, 0, false, None, None))
-    avpCodeMap.get((21100, 102)) must contain(RadiusAVPDictItem(102, 21100, "PSA-Service-Name", RadiusTypes.STRING, 0, hasTag = false, None, None))
+    //     avpCodeMap.get((21100, 102)) mustEqual Some(RadiusAVPDictItem(102, 21100, "PSA-ServiceName", RadiusTypes.STRING, 0, false, None, None))
+    avpCodeMap.get((21100, 102)) must contain(RadiusAVPDictItem(102, 21100, "PSA-ServiceName", RadiusTypes.STRING, 0, hasTag = false, None, None))
   }
   
   "OctetString serialization and deserialization" in {

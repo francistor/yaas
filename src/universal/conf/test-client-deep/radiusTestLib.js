@@ -23,13 +23,20 @@ function jsonHasPropertyValue(json, propName, propValue){
 /**
  *
  * @param err the error object as returned by the Yaas.<request>
- * @param radiusResponse the response converted to JSON
+ * @param response the string returned as the resonse from the callback
  * @param validationItem the item to test, as one of the "validations" of a testItem
  * @returns
  */
 function validate(err, response, validationItem){
+    // failure
+    if(validationItem[0] == "shouldFail"){
+        if(err) ok(err.message);
+        else {
+            if("!response" || response.length == 0) ok("Empty"); else fail("Got some content");
+        }
+    }
 	// code
-	if(validationItem[0] == "code"){
+	else if(validationItem[0] == "code"){
 		if(err) fail(err.message);
 		else{
 			var jResponse = JSON.parse(response);
@@ -65,7 +72,7 @@ function validate(err, response, validationItem){
 			var _attrName = validationItem[1];
 			var _attrValue = validationItem[2];
 			if(!jResponse["avps"][_attrName]) fail(_attrName + " not present");
-			else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) fail(_attrName + " does not contain << " + _attrValue + ">>");
+			else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) fail(_attrName + " does not contain <<" + _attrValue + ">>");
 			else ok("<<" + _attrValue + ">> found in " + _attrName);
 		}
 	}
@@ -101,6 +108,19 @@ function validate(err, response, validationItem){
 			else jsonHasPropertyValue(jResponse[0], _attrName, _attrValue);
 		}
 	}
+	// contains
+	else if(validationItem[0] == "contains"){
+	    if(err) fail(err.message);
+	    else {
+	        if(response.indexOf(validationItem[1]) != -1) ok("Found <<" + validationItem[1] + ">>"); else fail("<<" + validationItem[1] + ">> not found")
+	    }
+	}
+    else if(validationItem[0] == "notContains"){
+        if(err) fail(err.message);
+        else {
+            if(response.indexOf(validationItem[1]) != -1) fail("Found <<" + validationItem[1] + ">>"); else ok("<<" + validationItem[1] + ">> not found")
+        }
+    }
 }
 
 // Execute the tests specified in the "testItems" object
@@ -134,9 +154,15 @@ function executeNextTest(){
 	var testItem = testItems[testIndexes[j] - 1];
 	print("[TEST " + testIndexes[j] + "] " +  testItem["description"]);
 
-	if(testItem["type"] == "radiusRequest"){
+    if(testItem["type"] == "radiusRequest"){
 		Yaas.radiusRequest(testItem.radiusGroup, JSON.stringify(testItem.request), testItem.timeout, testItem.retries, callback);
 	} else if(testItem["type"] == "httpGetRequest"){
 		Yaas.httpRequest(testItem.request.url + "?" + testItem.request.queryString, "GET", "{}", callback);
-	}
+	} else if(testItem["type"] == "readFile"){
+        Yaas.readFile(testItem.fileName, callback);
+    } else if(testItem["type"] == "wait"){
+      var Timer = Java.type("java.util.Timer");
+      var thisTimer = new Timer("wait", true);
+      thisTimer.schedule(callback, testItem.waitMillis);
+    }
 }

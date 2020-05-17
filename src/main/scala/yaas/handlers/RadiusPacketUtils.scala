@@ -202,6 +202,6 @@ object RadiusPacketUtils {
     radiusPacket
   }
 
-  case class CopyTarget(targetName: String, radiusProxyGroupName: String, checker: Option[String], filter: Option[String])
+  case class CopyTarget(targetName: String, radiusProxyGroupName: String, checkerName: Option[String], filterName: Option[String])
   
 }

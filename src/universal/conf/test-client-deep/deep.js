@@ -1,6 +1,6 @@
 var sessionsURL = "http://localhost:19503/sessions/find";
 
-var TODO: "No proxy if group is <<none>>"
+var TODO = "No proxy if group is <<none>>, acs, betatester, speedy, usability 4, second copy target";
 	
 var testItems = [
     {
@@ -219,7 +219,7 @@ var testItems = [
             ["attributeValueContains", "Cisco-AVPair", "Hello=world"],
             ["attributeValueContains", "Unisphere-Service-Bundle", "Areject"],
             ["attributeValueContains", "Huawei-Account-Info", "Areject"],
-            ["attributeValueDoesNotContain", "Huawei-Account-Info", "online"]
+            ["attributeValueDoesNotContain", "Huawei-Account-Info", "online"],
             ["attributeValueContains", "Class", "C:legacy_0"],
             ["attributeValueContains", "Class", "S:reject"],
             ["attributeValueDoesNotContain", "Class", "A:"]
@@ -464,7 +464,7 @@ var testItems = [
      ]
     },
     {
-        "description": "Accounting request",
+        "description": "Session Accounting request. No copy",
         "type": "radiusRequest",
         "request": {
             "code": 4,
@@ -474,15 +474,185 @@ var testItems = [
               "NAS-Port": [0],
               "User-Name": ["user_0@database.provision.p0.r0.bb"],
               "Framed-IP-Address": ["200.0.0.0"],
-              "Acct-Status-Type": ["Start"]
+              "Acct-Status-Type": ["Start"],
+              "Class": ["C:legacy_0", "S:service_0"]
             }
         },
-        "radiusGroup": "yaas-server-group",
+        "radiusGroup": "server-group",
         "timeout": 2000,
         "retries": 1,
         "validations":[
             ["code", 5]
         ]
+    },
+    {
+        "description": "wait",
+        "type": "wait",
+        "waitMillis": 300,
+        "validations":[]
+    },
+    {
+        "description": ">> Copied CDR file has not been created",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/session-hot/cdr_copied.txt",
+        "validations":[
+            ["shouldFail"]
+        ]
+    },
+    {
+        "description": ">> Service CDR file has not been created",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/service/cdr_%d{yyyyMMdd}.txt",
+        "validations":[
+            ["shouldFail"]
+        ]
+    },
+    {
+        "description": ">> Inline CDR created with expected attributes",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/session/cdr_%d{yyyyMMdd}.txt",
+        "validations":[
+            ["contains", "acctSessionId_0"],
+            ["contains", "\"legacy_0\""]
+        ]
+    },
+    {
+        "description": "Session Accounting request. With copy",
+        "type": "radiusRequest",
+        "request": {
+            "code": 4,
+            "avps": {
+              "Acct-Session-Id": ["acctSessionId_1"],
+              "NAS-IP-Address": ["1.1.1.1"],
+              "NAS-Port": [1],
+              "User-Name": ["copy@database.provision.p0.r0.bb"],
+              "Framed-IP-Address": ["200.0.0.1"],
+              "Acct-Status-Type": ["Start"],
+              "Class": ["C:legacy_1", "S:service_1"]
+            }
+        },
+        "radiusGroup": "server-group",
+        "timeout": 2000,
+        "retries": 1,
+        "validations":[
+            ["code", 5]
+        ]
+    },
+    {
+        "description": "wait",
+        "type": "wait",
+        "waitMillis": 300,
+        "validations":[]
+    },
+    {
+        "description": ">> CDR in hot-copy created with expected attributes",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/session-hot/cdr_copied.txt",
+        "validations":[
+            ["contains", "200.0.0.1"]
+        ]
+    },
+    {
+        "description": ">> Service CDR file has not been created",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/service/cdr_%d{yyyyMMdd}.txt",
+        "validations":[
+            ["shouldFail"]
+        ]
+    },
+    {
+        "description": ">> CDR inline found with expected attributes",
+        "type": "readFile",
+        "fileName": "/var/yaas/cdr/session/cdr_%d{yyyyMMdd}.txt",
+        "validations":[
+            ["contains", "acctSessionId_1"],
+            ["contains", "\"legacy_1\""]
+        ]
+    },
+    {
+        "description": ">> CDR in proxy server found (Inline)",
+        "type": "readFile",
+        "fileName": "cdr/cdr_superserver.txt",
+        "validations":[
+            ["contains", "SS-acctSessionId_1"],
+            ["contains", "\"legacy_1\""]
+        ]
+    },
+    {
+        "description": ">> CDR in proxy server found (Copy)",
+        "type": "readFile",
+        "fileName": "cdr/cdr_superserver.txt",
+        "validations":[
+            ["contains", "CC-acctSessionId_1"],
+            ["contains", "\"legacy_1\""]
+        ]
+    },
+    {
+        "description": ">> Second CDR in proxy server found (Copy)",
+        "type": "readFile",
+        "fileName": "cdr/cdr_superserver.txt",
+        "validations":[
+            ["contains", "CC-acct-session-id-copied"]
+        ]
+    },
+    {
+        "description": "Service Accounting request",
+        "type": "radiusRequest",
+        "request": {
+            "code": 4,
+            "avps": {
+              "Acct-Session-Id": ["acctSessionId_2"],
+              "NAS-IP-Address": ["1.1.1.1"],
+              "NAS-Port": [2],
+              "User-Name": ["user_2@database.provision.p0.r0.bb"],
+              "Framed-IP-Address": ["200.0.0.2"],
+              "Acct-Status-Type": ["Start"],
+              "Class": ["C:legacy_2", "S:service_2"],
+              "Huawei-Service-Info": ["Aservice_2"]
+            }
+        },
+        "radiusGroup": "server-group",
+        "timeout": 2000,
+        "retries": 1,
+        "validations":[
+            ["code", 5]
+        ]
+    },
+    {
+        "description": "wait",
+        "type": "wait",
+        "waitMillis": 300,
+        "validations":[]
+    },
+    {
+      "description": ">> Service CDR created",
+      "type": "readFile",
+      "fileName": "/var/yaas/cdr/service/cdr_%d{yyyyMMdd}.txt",
+      "validations":[
+          ["contains", "acctSessionId_2"],
+          ["contains", "\"legacy_2\""],
+          ["contains", "PSA-ServiceName"],
+          ["contains", "PSA-LegacyClientId"]
+      ]
+    },
+    {
+      "description": ">> Session CDR not created",
+      "type": "readFile",
+      "fileName": "/var/yaas/cdr/session/cdr_%d{yyyyMMdd}.txt",
+      "validations":[
+          ["notContains", "acctSessionId_2"],
+          ["notContains", "\"legacy_2\""],
+          ["notContains", "PSA-ServiceName"]
+      ]
+    },
+    {
+      "description": ">> Service CDR not found in proxy server",
+      "type": "readFile",
+      "fileName": "cdr/cdr_superserver.txt",
+      "validations":[
+          ["notContains", "acctSessionId_2"],
+          ["notContains", "legacy_2"]
+      ]
     }
 ];
 

@@ -408,12 +408,24 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
 
     /**
      * Reads the full contents of a file
-     * @param fileName file name
+     * @param fileName file name. May contain %d{date-format}
      * @param callback of the form function(error, responseString). responseString contains the full file contents
      */
     def readFile(fileName: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
+
+      val datePartRegex = """%d\{.+}""".r
+      val fileNamePatternRegex = """.*%d\{(.+)}.*""".r
+
+      // Build a Java SimpleDateFormat if necessary
+      val parsedFileName = fileName match {
+        case fileNamePatternRegex(p) =>
+          datePartRegex.replaceAllIn(fileName, (new java.text.SimpleDateFormat(p)).format(new java.util.Date))
+
+        case _ => fileName
+      }
+
       try {
-        val source = Source.fromFile(fileName)
+        val source = Source.fromFile(parsedFileName)
         callback.call(null, null, source.getLines.mkString)
         source.close
       } catch {

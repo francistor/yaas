@@ -14,7 +14,7 @@ class JSHandler(statsServer: ActorRef, configObject: Option[String]) extends Mes
   configObject match {
     case Some(scriptResource) =>
       runJS(scriptResource).onComplete{
-        case Success(_) => print("Handler finished with success")
+        case Success(_) => print("\nHandler finished with success")
         case Failure(e) => print("Error: " + e.getMessage)
       }
     case None =>

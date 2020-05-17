@@ -10,7 +10,13 @@ import yaas.server.{MessageHandler, _}
 
 class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
   
-  log.info("Instantiated AccessRequestHandler")
+  log.info("Instantiated Superserver RadiusHandler")
+
+  private val writer = new yaas.cdr.CDRFileWriter("cdr", "cdr_superserver.txt")
+
+  // May use another format using
+  // val format = RadiusSerialFormat.newCSVFormat(List("User-Name", "Acct-Session-Id"))
+  private val format: LivingstoneRadiusSerialFormat = RadiusSerialFormat.newLivingstoneFormat(List())
   
   private val nCPUOperations = Option(System.getenv("YAAS_CPU_OPERATIONS"))
     .orElse(Option(System.getProperty("YAAS_CPU_OPERATIONS")))
@@ -56,13 +62,21 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
   def handleAccountingRequest(implicit ctx: RadiusRequestContext): Unit = {
 
     val request = ctx.requestPacket
+
     val nasIpAddress = request.S("NAS-IP-Address")
     val userName = request.S("User-Name")
     val userNameComponents = userName.split("@")
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
+    val acctSessionId = request.S("Acct-Session-Id")
 
     // Requests with Service-Type = "Call-Check" are copy-mode targets
     val prefix = if((request >>* "Service-Type").contains("Call-Check")) "CC-" else "SS-"
+
+    // Modify packet for testing. Framed-IP-Address is patched when writing the session (radius cannot store an invalid address)
+    request <:< ("Acct-Session-Id", prefix + acctSessionId)
+
+    // Write the CDR for the benefit of the testing
+    writer.writeCDR(request.getCDR(format))
 
     // Will send a response depending on the contents of the User-Name
     if(userName.contains("drop")){
@@ -74,8 +88,8 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
           // Store in sessionDatabase
           SessionDatabase.putSession(new JSession(
-            prefix + (request >> "Acct-Session-Id").get,
-            prefix + (request >> "Framed-IP-Address").getOrElse(""),
+            request >>* "Acct-Session-Id",
+            prefix + (request >>* "Framed-IP-Address"),
             getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
             getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
             List(nasIpAddress, realm),

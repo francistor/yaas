@@ -101,9 +101,9 @@ The global configuation is such that
 * SendReject=yes, preset RejectService is "reject", not addon
 * permissiveService is "permissive"
 
-### Domains for testing
+### Facilities for testing
 
-Naming convention is <provision type>.<auth type>.<permissive behaviour>.<reject behaviour>.<blocking behaviour>[.<proxy>]
+Domain naming convention is <provision type>.<auth type>.<permissive behaviour>.<reject behaviour>.<blocking behaviour>[.noproxy|reject]
 
 provision type
 * "database"

@@ -222,7 +222,7 @@ var testItems = [
 			  "User-Name": ["copy@database"],
 			  "Framed-IP-Address": ["200.0.0.10"],
 			  "Acct-Status-Type": ["Start"],
-			  "Class": ["C=legacy_10"]
+			  "Class": ["C:legacy_10"]
             }
         },
         "radiusGroup": "yaas-server-group",
@@ -235,7 +235,7 @@ var testItems = [
     {
         "description": "wait",
         "type": "wait",
-        "waitMillis": 1000,
+        "waitMillis": 500,
         "validations":[]
     },
     {
@@ -256,7 +256,7 @@ var testItems = [
         "fileName": "/var/yaas/cdr/session-hot/cdr_copied.txt",
         "validations":[
             ["contains", "acctSessionId_copy"],
-            ["contains", "PSA-LegacyClientId=\"legacy_10\""]
+            ["contains", "\"legacy_10\""]
         ]
     }
 ];

@@ -29,7 +29,7 @@ import slick.jdbc.SQLiteProfile.api._
 class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
 
   private val pwNasPortIdRegex = "^([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+):(([0-9]+)-)?([0-9]+)$".r
-  private val classRegex = "([A-Z])=(.+)".r
+  private val classRegex = "([A-Z]):(.+)".r
 
   // Helper to read configuration
   case class CDRDirectory(path: String, filenamePattern: String, checkerName: Option[String])
@@ -380,7 +380,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   case JString(filterName) =>
                     RadiusPacketUtils.filterAttributes(
                       request.proxyRequest,
-                      Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+                      Some(getConfigObjectAsJson("handlerConf/" + filterName))
                     )
                   case _ =>
                     request.proxyRequest
@@ -403,7 +403,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                     case JString(filterName) =>
                       RadiusPacketUtils.filterAttributes(
                         packet,
-                        Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+                        Some(getConfigObjectAsJson("handlerConf/" + filterName))
                       ).avps
                     case _ =>
                       packet.avps
@@ -535,6 +535,14 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
           })
         }
 
+      // Read and merge service attributes
+      val jAcctConfig = serviceNameOption match {
+        case Some(serviceName) =>
+          jConfig.merge(getConfigObjectAsJson("handlerConf/serviceConfig.json").forKey(serviceName, "DEFAULT"))
+
+        case _ => jConfig
+      }
+
       // Build synthetic attributes from class
       for {
         classAttr <- request >>+ "Class"
@@ -547,28 +555,29 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
         case Some(serviceName) => request << ("PSA-ServiceName", serviceName)
         case _ =>
       }
-
-
+      
       // Logic might be more complex than this. For instance, emulate service accounting with session accounting
       val isServiceAccounting = serviceNameOption.nonEmpty
       val isSessionAccounting = serviceNameOption.isEmpty
+      val proxySessionAccounting = (jAcctConfig \ "proxySessionAccounting").extract[Option[Boolean]].getOrElse(true)
+      val proxyServiceAccounting = (jAcctConfig \ "proxyServiceAccounting").extract[Option[Boolean]].getOrElse(false)
 
       if(isSessionAccounting) request.pushCookie("isSessionAccounting", "true")
       if(isServiceAccounting) request.pushCookie("isServiceAccounting", "true")
 
       // Write CDR to file
       // Session
-      val shouldWriteSessionCDR = (jConfig \ "writeSessionCDR").extract[Option[Boolean]].getOrElse(false)
+      val shouldWriteSessionCDR = (jAcctConfig \ "writeSessionCDR").extract[Option[Boolean]].getOrElse(false)
       if(isSessionAccounting && shouldWriteSessionCDR) sessionCDRWriters.foreach { filteredWriter =>
-        if(RadiusPacketUtils.checkRadiusPacket(request, filteredWriter.checkerName.map(fn => getConfigObjectAsJson("handlerConf/filters/" + fn)))
+        if(RadiusPacketUtils.checkRadiusPacket(request, filteredWriter.checkerName.map(fn => getConfigObjectAsJson("handlerConf/" + fn)))
         )
           filteredWriter.writer.writeCDR(request.getCDR(cdrFormat))
       }
 
       // Service
-      val shouldWriteServiceCDR = (jConfig \ "writeServiceCDR").extract[Option[Boolean]].getOrElse(false)
+      val shouldWriteServiceCDR = (jAcctConfig \ "writeServiceCDR").extract[Option[Boolean]].getOrElse(false)
       if(isServiceAccounting && shouldWriteServiceCDR) serviceCDRWriters.foreach { filteredWriter =>
-        if(RadiusPacketUtils.checkRadiusPacket(request, filteredWriter.checkerName.map(fn => getConfigObjectAsJson("handlerConf/filters/" + fn)))
+        if(RadiusPacketUtils.checkRadiusPacket(request, filteredWriter.checkerName.map(fn => getConfigObjectAsJson("handlerConf/" + fn)))
         )
           filteredWriter.writer.writeCDR(request.getCDR(cdrFormat))
       }
@@ -583,14 +592,14 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
       for(
         acctCopyTarget <- acctCopyTargets if
-          RadiusPacketUtils.checkRadiusPacket(request, acctCopyTarget.checker.map(c => getConfigObjectAsJson("handlerConf/filters/" + c)))
+          RadiusPacketUtils.checkRadiusPacket(request, acctCopyTarget.checkerName.map(c => getConfigObjectAsJson("handlerConf/" + c)))
       ) {
         sendRadiusGroupRequest(
           acctCopyTarget.radiusProxyGroupName,
           RadiusPacketUtils.filterAttributes(
             request.proxyRequest,
-            acctCopyTarget.filter match {
-              case Some(filterName) => Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
+            acctCopyTarget.filterName match {
+              case Some(filterName) => Some(getConfigObjectAsJson("handlerConf/" + filterName))
               case _ => None
             }),
           proxyTimeoutMillis,
@@ -603,28 +612,29 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
       }
 
       // Inline proxy
-      jConfig.jStr("inlineProxyGroupName") match {
-        case None =>
-        case Some("none") =>
-        case Some(proxyGroupName) =>
-          sendRadiusGroupRequest(
-            proxyGroupName,
-            RadiusPacketUtils.filterAttributes(
-              request.proxyRequest,
-              jConfig.jStr("acctProxyFilterOut") match {
-                case Some(filterName) => Some(getConfigObjectAsJson("handlerConf/filters/" + filterName))
-                case _ => None
-              }),
-            proxyTimeoutMillis,
-            proxyRetries).
+      if((isSessionAccounting && proxySessionAccounting) || (isServiceAccounting && proxyServiceAccounting))
+        jAcctConfig.jStr("inlineProxyGroupName") match {
+          case None =>
+          case Some("none") =>
+          case Some(proxyGroupName) =>
+            sendRadiusGroupRequest(
+              proxyGroupName,
+              RadiusPacketUtils.filterAttributes(
+                request.proxyRequest,
+                jAcctConfig.jStr("acctProxyFilterOut") match {
+                  case Some(filterName) => Some(getConfigObjectAsJson("handlerConf/" + filterName))
+                  case _ => None
+                }),
+              proxyTimeoutMillis,
+              proxyRetries).
 
-            onComplete {
-            case Success(_) =>
+              onComplete {
+              case Success(_) =>
 
-            case Failure(e) =>
-              log.error(e.getMessage)
-          }
-      }
+              case Failure(e) =>
+                log.error(e.getMessage)
+            }
+        }
 
       // Store in session database
       if(!userName.contains("nosession") && serviceNameOption.isEmpty){

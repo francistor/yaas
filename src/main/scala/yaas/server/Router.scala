@@ -404,14 +404,9 @@ class Router() extends Actor with ActorLogging {
 		 * Requests received by server socket
 		 */
 		case RadiusServerRequest(packet, actorRef, origin, secret) =>
-			(packet.code match {
-				case RadiusPacket.ACCESS_REQUEST => handlerMap.get("AccessRequestHandler")
-				case RadiusPacket.ACCOUNTING_REQUEST  => handlerMap.get("AccountingRequestHandler")
-				case RadiusPacket.COA_REQUEST => handlerMap.get("CoARequestHandler")
-				case _ => None
-			}) match {
+			handlerMap.get("RadiusHandler") match {
 				case Some(handlerActor) => handlerActor ! RadiusServerRequest(packet, actorRef, origin, secret)
-				case None => log.warning(s"No handler defined for packet type ${packet.code}")
+				case None => log.warning(s"No RADIUS handler defined")
 			}
 
 		/**

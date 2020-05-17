@@ -355,12 +355,12 @@
 		[
 			{
 				"code": 101,
-				"name": "Service-Type",
+				"name": "ServiceType",
 				"type": "String"
 			},
 			{
 				"code": 102,
-				"name": "Service-Name",
+				"name": "ServiceName",
 				"type": "String"
 			},
 			{

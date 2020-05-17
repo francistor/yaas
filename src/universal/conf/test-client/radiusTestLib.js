@@ -29,9 +29,14 @@ function jsonHasPropertyValue(json, propName, propValue){
  */
 function validate(err, response, validationItem){
     // failure
-    if(err) ok(err.message); else fail("Got a response");
+    if(validationItem[0] == "shouldFail"){
+        if(err) ok(err.message);
+        else {
+            if("!response" || response.length == 0) ok("Empty"); else fail("Got some content");
+        }
+    }
 	// code
-	if(validationItem[0] == "code"){
+	else if(validationItem[0] == "code"){
 		if(err) fail(err.message);
 		else{
 			var jResponse = JSON.parse(response);
@@ -67,7 +72,7 @@ function validate(err, response, validationItem){
 			var _attrName = validationItem[1];
 			var _attrValue = validationItem[2];
 			if(!jResponse["avps"][_attrName]) fail(_attrName + " not present");
-			else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) fail(_attrName + " does not contain << " + _attrValue + ">>");
+			else if(JSON.stringify(jResponse["avps"][_attrName]).indexOf(_attrValue) == -1) fail(_attrName + " does not contain <<" + _attrValue + ">>");
 			else ok("<<" + _attrValue + ">> found in " + _attrName);
 		}
 	}

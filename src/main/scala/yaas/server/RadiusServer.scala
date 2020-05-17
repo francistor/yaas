@@ -53,7 +53,7 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
             val requestPacket = RadiusPacket(data, None, radiusClientConfig.secret)
             context.parent ! RadiusActorMessages.RadiusServerRequest(requestPacket, self, origin, radiusClientConfig.secret)
             MetricsOps.pushRadiusServerRequest(statsServer, origin, requestPacket.code)
-            if(log.isDebugEnabled) log.debug(s">> Received radius request $requestPacket")
+            if(log.isDebugEnabled) log.debug(s"<< Receiving radius request $requestPacket")
           } catch {
             case e: Exception =>
               log.warning(s"Error decoding packet from $remoteIPAddress :{}", e.getMessage)
@@ -72,6 +72,6 @@ class RadiusServer(bindIPAddress: String, bindPort: Int, statsServer: ActorRef) 
       val responseBytes = responsePacket.getResponseBytes(secret)
       udpEndPoint ! Udp.Send(responseBytes, new InetSocketAddress(origin.ipAddress, origin.port))
       MetricsOps.pushRadiusServerResponse(statsServer, origin, responsePacket.code)
-      if(log.isDebugEnabled) log.debug(s"<< Sending radius response $responsePacket")
+      if(log.isDebugEnabled) log.debug(s">> Sending radius response $responsePacket")
   }
 }
