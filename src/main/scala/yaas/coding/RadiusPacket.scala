@@ -8,7 +8,6 @@ import org.json4s._
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods._
 import org.slf4j.LoggerFactory
-import yaas.config.ConfigManager
 import yaas.util.UByteString
 import yaas.util.OctetOps
 import yaas.dictionary._
@@ -713,7 +712,8 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
         
         // Authenticator is md5(code+identifier+zeroed authenticator+request attributes+secret)
         // patch authenticator
-        bytes.patch(4, RadiusPacket.md5(bytes.concat(ByteString.fromString(secret, "UTF-8")).toArray), 16)
+        authenticator = RadiusPacket.md5(bytes.concat(ByteString.fromString(secret, "UTF-8")).toArray)
+        bytes.patch(4, authenticator, 16)
     }
   }
 
@@ -1123,6 +1123,18 @@ object RadiusConversions {
    */
   implicit def RadiusAVP2LongOption(avpOption: Option[RadiusAVP[Any]]): Option[Long] = {
       avpOption.map(_.longValue)
+  }
+
+  /**
+   * Implicit conversion
+   * @param avpOption the Radius attribute
+   * @return
+   */
+  implicit def RadiusAVP2Long(avpOption: Option[RadiusAVP[Any]]): Long = {
+    avpOption match {
+      case Some(avp) => avp.longValue
+      case None => throw new RadiusExtractionException(s"Radius Attribute not found")
+    }
   }
   
   /**

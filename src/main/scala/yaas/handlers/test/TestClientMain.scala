@@ -47,7 +47,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
   
   // _ is needed to promote the method (no arguments) to a function
   
-  val tests: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
+  val tests1: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
       // Diameter Peer connections
       checkClientConnectedPeer("server.yaasserver"),
       checkClientNotConnectedPeer("non-existing-server.yaasserver"),
@@ -64,6 +64,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       testAccountingRequest _,
       testAccountingRequestWithDrop _,
       sleep(6000),
+      testCoA _,
       checkSuperserverRadiusStats _,
       checkServerRadiusStats _,
       checkClientRadiusStats _,
@@ -118,25 +119,26 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
       unavailableLease _
   )
 
-    val tests2: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
+    val tests: IndexedSeq[() => Unit] = IndexedSeq[() => Unit](
         // RADIUS testing
         // The following tests must be executed as-is, since the following check* methods rely on those packets
         // being sent to succeed
-        /*
+
         testAccessRequestWithAccept _,
         testAccessRequestWithReject _,
         testAccessRequestWithDrop _,
         testAccountingRequest _,
         testAccountingRequestWithDrop _,
         sleep(6000),
+        testCoA _,
         checkSuperserverRadiusStats _,
         checkServerRadiusStats _,
         checkClientRadiusStats _,
         testAccountingInterim _,
 
-         */
 
-        js(configObject.get)
+
+        //  js(configObject.get)
 
     )
 

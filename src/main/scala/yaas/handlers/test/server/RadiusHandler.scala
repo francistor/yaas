@@ -19,11 +19,63 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.JsonDSL._
 
-import scala.io.Source
-
 
 // Generic JDBC is deprecated. Use any profile
 import slick.jdbc.SQLiteProfile.api._
+
+object HandlerCodes {
+
+  val clientNotFoundRejectCode= 9
+  val clientNotFoundMessage = "Client not found"
+
+  // ISP Rejected
+  val remoteRejectCode = 17
+
+  val blackListRejectCode = 5
+  val blackListRejectedMessage = "Service not allowed"
+
+  // User/password found as not correct locally
+  val localRejectCode = 25
+  val localCheckRejectedMessage = "Connection not allowed"
+
+  //
+  val configurationRejectCode = 90
+  val configurationRejectedMessage = "Configuration error"
+
+  // Error due to Server Error
+  val serverErrorRejectCode = 7
+  val serverErrorRejectedMessage = "Rejecting request due to Server Error"
+
+  // Remote proxy failed
+  val proxyErrorCode = 15
+  val proxyErrorMessage = "Proxy failure"
+
+  // Exclusive usability error
+  val exclusiveUsabilityRejectCode = 41
+  val exclusiveUsabilityRejectMessage = "Invalid user access"
+
+  val systemFailureErrorCode = 1
+
+  val serviceNotFoundErrorCode = 2
+  val serviceNotFoundMessage = "Service not Found"
+
+  val sessionNotFoundErrorCode = 3
+  val sessionNotFoundMessage = "Session not Found"
+
+  val operationNotSupportedErrorCode = 4
+  val operationNotSupportedMessage = "Operation not supported"
+
+  val activationErrorCode = 5
+  val activationErrorMessage = "Error activating service"
+
+  val deactivationErrorCode = 6
+  val deactivationErrorMessage = "Error deactivating service"
+
+  val sessionUpdateErrorCode= 7
+
+  val notAuthorizedErrorCode = 8
+  val notAuthorizedErrorMessage = "Not Authorized"
+}
 
 
 class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
@@ -67,7 +119,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
   private val jGlobalConfig = getConfigObjectAsJson("handlerConf/globalConfig.json")
 
   private val sessionCDRWriters = for {
-    JArray(directories) <- (jGlobalConfig \ "sessionCDRDirectories")
+    JArray(directories) <- jGlobalConfig \ "sessionCDRDirectories"
     jDirectory <- directories
     path = (jDirectory \ "path").extract[String]
     filenamePattern = (jDirectory \ "filenamePattern").extract[String]
@@ -76,7 +128,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
 
   private val serviceCDRWriters = for {
-    JArray(directories) <- (jGlobalConfig \ "serviceCDRDirectories")
+    JArray(directories) <- jGlobalConfig \ "serviceCDRDirectories"
     jDirectory <- directories
     path = (jDirectory \ "path").extract[String]
     filenamePattern = (jDirectory \ "filenamePattern").extract[String]
@@ -132,8 +184,8 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
     } else (request >> "NAS-IP-Address", request >> "NAS-Port")
 
     // Add synthetic attribute with real NAS-IP-Address
-    (request >> "NAS-IP-Address") match {
-      case Some(nasIpAddress) => request << ("PSA-BRAS-NAS-IP-Address", nasIpAddress.stringValue)
+    request >> "NAS-IP-Address" match {
+      case Some(nasIpAddressAVP) => request << ("PSA-BRAS-NAS-IP-Address", nasIpAddressAVP.stringValue)
       case _ =>
     }
 
@@ -358,7 +410,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
               jConfig \ "overrideServiceName" match {
                   // First priority is override service in the domain, which does not allow an addon
                 case JString(overrideServiceName) => (Some(overrideServiceName), None)
-                case _ if(status == 2) =>
+                case _ if status == 2 =>
                   // Second priority is blocked user, which may change the basic service or assign an addon
                   if (blockingIsAddon) (serviceNameOption, blockingServiceNameOption)
                   else (blockingServiceNameOption, None)
@@ -422,7 +474,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                   }
 
                 } recover {
-                  case e: Exception if acceptOnProxyError =>
+                  case _: Exception if acceptOnProxyError =>
                     log.error(s"Timeout in ServerGroup $group. Will continue due to permissive proxy policy")
                     // Permissive policy. Return empty list of attributes
                     List[RadiusAVP[Any]]()
@@ -664,9 +716,10 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
           SessionDatabase.putSessionAsync(new JSession(
             request >> "Acct-Session-Id",
             request >> "Framed-IP-Address",
+            request >> "PSA-BRAS-NAS-IP-Address",
+            request >> "NAS-Port",
             getFromClass(request, "C").getOrElse("<UNKNOWN>"),
             getFromClass(request, "M").getOrElse("<UNKNOWN>"),
-            request >> "PSA-BRAS-IP-Address",
             List(nasIpAddress, realm),
             System.currentTimeMillis,
             System.currentTimeMillis,
@@ -696,6 +749,39 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
    * @param ctx
    */
   def handleCoA(implicit ctx: RadiusRequestContext): Unit = {
+
+    val request = ctx.requestPacket
+
+    val response = request >>* "PSA-Operation" match {
+      case "queryByIP" =>
+        val requestedIPAddress = request >>* "Framed-IP-Address"
+        val sessions = SessionDatabase.findSessionsByIPAddress(requestedIPAddress)
+        sessions match {
+          case List() =>
+            request.response(false) <<
+              ("Reply-Message" -> s"${HandlerCodes.sessionNotFoundErrorCode}|${HandlerCodes.sessionNotFoundMessage}")
+          case session :: Nil =>
+            request.response(true) <<
+              ("Acct-Session-Id" -> session.acctSessionId) <<
+              ("PSA-LegacyClientId" -> session.clientId) <<
+              ("NAS-IP-Address" -> session.nas) <<
+              ("NAS-Port" -> session.port)
+          case _ =>
+            request.response(false) <<
+              ("Reply-Message" -> "Found more than one session")
+        }
+    }
+
+    sendRadiusResponse(response)
+
+    /*
+    	Branch-SearchKey=${request.PSA-Operation}
+	Branch-Case="queryByIP SessionQueryByIPAddr"
+	Branch-Case="queryByPhone SessionQueryByPhone"
+	Branch-Case="queryByIndex SessionQueryByIndex"
+	Branch-Case="activate GetState"
+	Branch-Case="deactivate GetState"
+     */
 
   }
 

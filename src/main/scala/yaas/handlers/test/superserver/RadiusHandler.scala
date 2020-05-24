@@ -88,9 +88,10 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
 
           // Store in sessionDatabase
           SessionDatabase.putSession(new JSession(
-            request >>* "Acct-Session-Id",
-            prefix + (request >>* "Framed-IP-Address"),
+            request >> "Acct-Session-Id",
+            prefix + (request >> "Framed-IP-Address"),
             nasIpAddress,
+            request >> "NAS-Port",
             getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),
             getFromClass(request, "M").getOrElse("<SS-UNKNOWN>"),
             List(nasIpAddress, realm),

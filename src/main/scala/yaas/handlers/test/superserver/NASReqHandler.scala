@@ -55,6 +55,7 @@ class NASReqHandler(statsServer: ActorRef, configObject: Option[String]) extends
             request >> "Session-Id",
             request >> "Framed-IP-Address",
             "NAS",
+            0,
             "Client-Id",
             "0",
             List(),

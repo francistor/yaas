@@ -456,7 +456,8 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
           "User-Name": ["test@database"],
           "Acct-Session-Id": ["$acctSessionId"],
           "Framed-IP-Address": ["$ipAddress"],
-          "Acct-Status-Type": ["Start"]
+          "Acct-Status-Type": ["Start"],
+          "Class": ["C:legacy"]
         }
       }
       """
@@ -471,10 +472,15 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         
         // Find session
         val session = jsonFromGet(sessionsURL + s"/sessions/find?ipAddress=$ipAddress")
-        if((session \ "acctSessionId")(0).extract[String] == acctSessionId){
-          ok("Session found")
+        if(
+          (session \ "acctSessionId")(0).extract[String] == acctSessionId &&
+          (session \ "nas")(0).extract[String] == "1.1.1.1" &&
+          (session \ "port")(0).extract[Long] == 0
+        ){
+          ok("acctSessionId, nas and port found for Session")
         }
         else fail("Session not found")
+
         nextTest()
 
       case Failure(_) =>
@@ -540,7 +546,30 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         if((session(0) \ "data" \ "b").extract[Int] == 2) ok("Old data found")  else fail("Old data not found")
         nextTest()
 
-      case Failure(ex) =>
+      case Failure(_) =>
+        fail("Response not received")
+        nextTest()
+    }
+  }
+
+  /**
+   * CoA to get an existing session
+   */
+  def testCoA(): Unit = {
+
+    println("[TEST] CoA queryByIP")
+
+    val coaRequest =
+      RadiusPacket.request(COA_REQUEST) <<
+        ("PSA-Operation" -> "queryByIP") <<
+        ("Framed-IP-Address" -> "199.0.0.1")
+
+    sendRadiusGroupRequest(allServersRadiusGroup, coaRequest, 2000, 0).onComplete {
+      case Success(response) =>
+        if(response >>* "NAS-IP-Address" == "1.1.1.1") ok("Session found") else fail("Bad NAS-IP-Address")
+        nextTest()
+
+      case Failure(_) =>
         fail("Response not received")
         nextTest()
     }
