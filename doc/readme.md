@@ -7,7 +7,7 @@ Yet another AAA server
 Yaas is a Diameter an Radius Engine, capable of acting as a server or client.
 
 Diameter and Radius are protocols used by telcos for signalling, that is, exchanging control
-information (not user traffic) between network nodes, and is used because it offers high
+information (not user traffic) between network nodes. Both of them offer high
 performance due to its asyncronous nature. A single connection (there is even no such a thing
 as "connection" in the case of Radius) may multiplex requests and responses comming out or order,
 avoiding wait times between request and response. This multiplex feature over the same connection
