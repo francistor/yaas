@@ -16,7 +16,7 @@ is implemented in http2, and probably Diameter and Radius will become slowly out
 Yaas is built in scala and Akka.
 
 Yaas starts up as a process with multiple "Handlers", each one being an Akka Actor, which may be
-registered to receive certain types of Diameter/Radius messages and also send Diameter/Radius
+registered to receive certain types of Diameter/Radius messages and also are capabe to send Diameter/Radius
 messages. Handlers inherit from the "yaas.server.MessageHandler", but may include any code and
 of course thus perform any action, such as connecting to a database, invoke REST services or
 whatever.
@@ -25,11 +25,11 @@ The advantage of this approach to build the logic internal to Diameter/Radius se
 developer has the same freedom as in any programming language, and using a strongly typed one such
 as scala. The disadvantage is that this may be too much freedom to be practical for very simple
 algorigthms. Nevertheless, the author has never seen a simple Radius/Diameter algorithm, except
-during the first day of development (mankind tends to make things complicated), and in the end,
+during the first day of development (people tend to make things complicated), and in the end,
 the result in Yaas is typically much more compact, readable and maintainable than algorithms built
 on Nokia TAL, pre-post-blah hooks in Radiator, etc., not to mention performance.
 
-Yaas makes use of embedded Apache ignite as a database for storing active sessions, IP address
+Yaas makes use of embedded Apache Ignite as a database for storing active sessions, IP address
 assginments and, incidentally, for storing client data for internal tests.
 
 ## Installation
@@ -46,14 +46,14 @@ Execute `testAll` in the `bin` directory.
 
 This will launch several instances:
 
-- A "superserver" instance, which acts as a Diameter and Radius server plus an ignite database server.
+- A "superserver" instance, which acts as a Diameter and Radius server plus an ignite database server. It stores sessions with a prefix in the Acct-Sesion-Id and IP-Address
 - A "superserver-mirror" instance, which will act as an ignite replica.
 - A "server" instance, which receives the client requests, looks for clients in the ignite database, stores sessions and proxies the requests to the superserver.
 - A "client" instance, which generates the requests and performs the tests.
 
 ## Configuration
 
-Yaas is not ashamed to be configured via files, although they can be stored locally in the executing
+Yaas is not ashamed to be configured via files. They can be stored locally in the executing
 server or in a remote location (accesible via http). Some files may be reloaded without restarting, and
 some other cannot.
 
@@ -66,9 +66,7 @@ If no parameter is specified, Yaas will bootstrap using a local file in the "con
 A specific bootstrap file may be forced using `-Dconfig.resource`, `-Dconfig.file` or `-Dconfig.url` parameters, the last one allowing for the file to be stored in a remote/centralized location.
 
 In this bootstrap file, there is a section called "aaa.configSearchRules" that specifies where to look
-for other configuration files based on the name of the file. That location may be a URL, whose base location is specified, or it will be assumed to be the location of the bootstrap file. It may be also specified as a
-resource, that will be looked for in the classpath: first in the "conf" directory and then in the resources
-embedded in the packaged .jar file.
+for other configuration files based on the name of the file. That location may be a URL, whose base location is specified, or it will be assumed to be the location of the bootstrap file. It may be also specified as a resource, that will be looked for in the classpath: first in the "conf" directory and then in the resources embedded in the packaged .jar file.
 
 	# Locations where to search for other configuration files
 	# if "base" is not specified, the parent URL of this file is used as base
@@ -78,21 +76,23 @@ embedded in the packaged .jar file.
 
 The location of the logging configuration file is, by default, logback-<instance_name>.xml as a resource in the classpath, but may be overriden by including -Dlogback.configurationfile pointing to any URL (typically should match the location of the bootstrap file). If not found, the logback.xml in the classpath will be used.
 
-Each configuration file, irrespective o whether it is located in a URL or in a resource, will be tried first
-in the expected location with the <instance_name/> string appended, and then in the raw expected location.
+Each configuration file, irrespective o whether it is located in a URL or in a resource, will be tried first in the expected location with the `instance_name` string appended, and then in the raw expected location.
 
-The embedded `aaa-reference.conf` must be always included, and defines all the possible configuration
-parameters with some documentation. 
+The embedded `aaa-reference.conf` must be always included in the boostrap file, and defines all the possible configuration parameters with some documentation. 
+```
+# Reference configuration by default
+include "aaa-reference.conf"
+```
 
-The most important parameter is `aaa.sessionsDatabase.role`, which defines whether to launch an ignite client or server ignite instance (values may be `client`, `server` and `none`). The ignite configuration parameters (memory, ip addresses and ports) may be configured in this file, or an `ignite.xml` file may be used. See comments inline `aaa-reference.conf` for details.
+The most important parameter is `aaa.sessionsDatabase.role`, which defines whether to launch an ignite client or server instance (values may be `client`, `server` and `none`). The ignite configuration parameters (memory, ip addresses and ports) may be configured in this file, or an `ignite.xml` file may be used. See comments inline `aaa-reference.conf` for details.
 
 This looks complicated but usage should be simple and flexible. Here are some examples
 
 #### Configuration in local files without instance name
 
-The server is launched as `aaaserver`, without parameters.
+The server is launched as `aaaserver`, without parameters. 
 
-The files are looked for first in the configuration file and then in the embedded resources. The main configuration file should be `aaa-default.conf`. The files in the embedded resources will be used unless overriden by a file with the same name in the `conf` directory.
+The configuration file is looked for as `conf/aaa-default.conf`, or the default values in the embedded `aaa-reference.conf` will be used. The other configuration files will be looked for also in the `conf` directory. If not found there, the defaults embedded as application resources will be used.
 
 #### Configuration in local file. Multiple instance names
 
