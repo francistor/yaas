@@ -53,15 +53,11 @@ This will launch several instances:
 
 ## Configuration
 
-Yaas is not ashamed to be configured via files. They can be stored locally in the executing
-server or in a remote location (accesible via http). Some files may be reloaded without restarting, and
-some other cannot.
+Yaas is not ashamed to be configured via files. They can be stored locally in the executing server or in a remote location (accesible via http). Some files may be reloaded without restarting, and some other cannot.
 
 ### Bootstrap
 
-If no parameter is specified, Yaas will bootstrap using a local file in the "conf" directory with the name
-`aaa-<instance_name>.conf`. <instance_name> is passed as a parameter in the command line as 
-`-Dinstance=<instance_name>`, and "default" with be used if nothing is specified.
+If no parameter is specified, Yaas will bootstrap using a local file in the "conf" directory with the name `aaa-<instance_name>.conf`. <instance_name> is passed as a parameter in the command line as  `-Dinstance=<instance_name>`, and "default" with be used if nothing is specified.
 
 A specific bootstrap file may be forced using `-Dconfig.resource`, `-Dconfig.file` or `-Dconfig.url` parameters, the last one allowing for the file to be stored in a remote/centralized location.
 
@@ -90,24 +86,27 @@ This looks complicated but usage should be simple and flexible. Here are some ex
 
 #### Configuration in local files without instance name
 
-The server is launched as `aaaserver`, without parameters. 
+The server is launched as `aaaserver`, without parameters. The instance name is thus `default`.
 
-The configuration file is looked for as `conf/aaa-default.conf`, or the default values in the embedded `aaa-reference.conf` will be used. The other configuration files will be looked for also in the `conf` directory. If not found there, the defaults embedded as application resources will be used.
+The configuration file is looked for as `conf/aaa-default.conf`. The name `conf/aaa.conf` may also be used (only for `default`instance). The other configuration files will be looked for also in the `conf` directory. If not found there, the defaults embedded as application resources will be used.
+
+If no `conf/aaa-default.conf` or `conf/aaa.conf` is specified, the application will use the values in the embedded `reference.conf` and will be able to start. This is useful only for simple smoke testing.
 
 #### Configuration in local file. Multiple instance names
 
 The server is launched as `aaaserver -Dinstance=<instance_name>`
 
-The bootstrap file will be located in `conf/aaa-<instance_name>.conf`. Other files will be looked for in this order:
+The bootstrap file loaded is then `conf/aaa-<instance_name>.conf`. Other files will be looked for in this order:
 
-1. first in the `/conf/<instance_name>` directory, 
-2. then in the `conf` directory, then as an embedded resource. 
+1. First in the `/conf/<instance_name>` directory, 
+2. Then in the `conf` directory
+3. Then as an embedded resource. 
 
 The logging configuration file will be `conf/logback-<instance_name>.xml` if found, or `conf/logback.xml` 
 
 #### Configuration in http location, using instance name, but some files using defaults in embedded resources
 
-For instance, the radius and diameter dictionaries used will be those delivered with the software.
+For instance, the radius and diameter dictionaries used will be those embedded as application resources.
 
 The server is launched as `aaaserver -Dinstance=<instance_name> -Dconfig.url=http://config.server/conf/aaa-<instance_name>.conf -Dlogback.configurationFile=http://config.server/conf/logback.xml`
 
@@ -139,7 +138,7 @@ If `clientBasePort` is not a number > 0, the radius client functionality is not 
 Radius requests use `clientBasePort` and up to `numClientPorts` as origin ports. For instance, if
 `clientBasePort` is 45000 and `numClientPorts` is 2, the ports used will be 45000 and 45001. Ports
 are used in a round-robin fashion, to facilitate load distribution to upstream servers (for instance,
-Kubernetes will send all request from the same origin port to the same destination).
+Kubernetes will send all requests from the same origin port to the same destination).
 
 ```
 {
@@ -154,15 +153,11 @@ Kubernetes will send all request from the same origin port to the same destinati
 
 #### radiusClients.json
 
-The radius protocol assumes there is a shared secret between the server and the client, and clients
-can only be identified by its IP address. This is a problem for Kubernetes, where the origin address
-is NATed if the process is accessed by means of a Service. NodePorts may be configured to not use NAT,
-but this usually is not a practical solution. For Kubernetes, the solution is to have a single secret
-shared among all clients and do
+The radius protocol assumes there is a shared secret between the server and the client, and clients can only be identified by its IP address. This is a problem for Kubernetes, where the origin address is NATed if the process is accessed by means of a Service. NodePorts may be configured to not use NAT, but this usually is not a practical solution. For Kubernetes, the solution is to have a service for each radius, with single secret shared among all clients by doing
 
 ```
 {
-	"name": "allClientes",
+	"name": "allClients",
 	"IPAddress": "0.0.0.0/0",
 	"secret": "the_only_secret"
 }
@@ -174,11 +169,7 @@ Note the plural in the name.
 
 This file specifies the radius server groups for balancing and the individual radius servers.
 
-A single radius request to a group produces retries to different servers. The policy may be `random`, 
-`random-clear`, `fixed` or `fixed-clear`. If `fixed*` the requests are sent preferentially
-to the first member of the group that is available, and to the other ones in order in case of errors. 
-The suffix "clear" specifies what to do if all server in the group are in quarantine. If "clear" is in
-the name, in that case the quarantine status is ignored and all the servers are tried anyway.
+A single radius request to a group produces retries to different servers. The policy may be `random`,  `random-clear`, `fixed` or `fixed-clear`. If `fixed*` the requests are sent preferentially to the first member of the group that is available, and to the other ones in order in case of errors.  The suffix "clear" specifies what to do if all server in the group are in quarantine. If present, the quarantine status is ignored and all the servers are tried anyway.
 
 #### Diameter
 
@@ -201,18 +192,16 @@ If "bindAddress" has no dots, the Diameter protocol is disabled
 }
 ```
 
-
-
 #### diameterPeers.json
 
-The "diameterHost` must match what is reported by the Peer in the CER/CEA message exchange.
+The `diameterHost` must match what is reported by the Peer in the CER/CEA message exchange.
 
 Diameter is also an unfriendly protocol for Kubernetes, due to the masking of origin IP addresses
 that takes place when using services. For that reason, when accepting connections the `IPAddress`
 value is not checked, but only the `originNetwork`, that may be set to `0.0.0.0/0` to accept any
 value.
 
-The `connectionPolicy` may be `active` or passive`. If `active`, the server will try to establish
+The `connectionPolicy` may be `active` or `passive`. If `active`, the server will try to establish
 a connection to the specified IPAddress and then send a CER message. If `passive`, the server will
 not try to establish a connection but wait for the other Peer to do it.
 
@@ -234,7 +223,6 @@ not try to establish a connection but wait for the other Peer to do it.
 This file specifies what to do when receiving messages from a pair realm/applicationId. If a handler is
 specified, the message is treated locally. If only a `peers` array is specified, the message is forwarded
 to those, with a balancing policy that may be `fixed` or `random`.
-
 
 ```
 [	
@@ -258,8 +246,6 @@ This file defines the handler (Actor class deriving from MessageHandler) to be u
 
 For radius, the name is predefined as "RadiusHandler"
 
-
-
 ```
 [
 	// Diameter
@@ -273,8 +259,8 @@ For radius, the name is predefined as "RadiusHandler"
 
 ## Development of Diameter handlers
 
-Create a class that inherits from MessageHandler. The statsServer parameter is only used normally by the parent
-class, and the configObject is any configuration object that may have been specified in the `config` parameter
+Create a class that inherits from MessageHandler. The `statsServer` parameter is only used normally by the parent
+class, and the `configObject` is any configuration object name that may have been specified in the `config` parameter
 in the `handlers.json` file, to be used as required by the developer.
 
 ```
@@ -296,12 +282,13 @@ A new DiameterMessage may be created using
 DiameterMessage.request(applicationName : String, commandName: String)
 ```
 
-The Diameter message may be used to generate a derived one
-- `copy` generates another message with the same attributes and AVP, but different E2EId and HopByHopId
-- `proxy` generates another message with the same attributes and AVP, but removing all AVP related to
+The Diameter message may be used to generate a derived one with the following methods:
+
+* `copy` generates another message with the same attributes and AVP, but different E2EId and HopByHopId
+* `proxy` generates another message with the same attributes and AVP, but removing all AVP related to
 routing (Destination Host and Realm), and adding new routing attributes defining the origin (Origin Host
 and Realm)
-- `answer` generates another message with the required attributes to be signaled as an answer to the 
+* `answer` generates another message with the required attributes to be signaled as an answer to the 
 original one, that is, same applicationId, commandCode, Ids but with the "isRequest" to false flag. 
 
 There is one DiameterAVP parametrized class for each type of Diameter AVP. They can be created the hard
