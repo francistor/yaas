@@ -1,9 +1,2 @@
-// For testing
-
-[	
-	// Handle Credit-Control locally
-	{"realm": "yaasserver", "applicationId": "Credit-Control", "handler": "TestServerCCHandler"},
-	
-	// Send to superserver
-	{"realm": "yaassuperserver", "applicationId": "*", "peers": ["superserver.yaassuperserver"], "policy": "fixed"}
+[
 ]

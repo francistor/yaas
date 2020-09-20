@@ -5,7 +5,7 @@ var TODO = "No proxy if group is <<none>>, acs, betatester, speedy, usability 4,
 var testItems = [
     {
         "description": "Basic Access-Request of standard user in database",
-        "documentation": "Attributes from different sources. Session-Timeout from global config, Service-Type anc Ciso-AAPair from domain config, Framed-Protocol from Proxy, Unishpere-Service-Bundle and Huawei-Account-Info from service config",
+        "documentation": "Attributes from different sources. Session-Timeout from global config, Service-Type anc Cisco-AAPair from domain config, Framed-Protocol from Proxy, Unishpere-Service-Bundle and Huawei-Account-Info from service config",
         "type": "radiusRequest",
         "request": {
             "code": 1,

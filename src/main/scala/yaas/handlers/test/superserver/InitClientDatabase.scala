@@ -17,7 +17,6 @@ import yaas.server.MessageHandler
  */
 class InitClientDatabase(statsServer: ActorRef, configObject: Option[String]) extends MessageHandler(statsServer, configObject) {
 
-
   if(!Ignition.ignite.cacheNames().contains("CLIENTS")){
 
     log.info("Creating Clients database")

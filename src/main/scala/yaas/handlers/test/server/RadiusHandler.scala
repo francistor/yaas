@@ -704,13 +704,13 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
             }
         }
 
-      // Store in session database
+      // Store in session database (only session accounting)
       if(!userName.contains("nosession") && serviceNameOption.isEmpty){
 
-        val acctStatusType = request >>* "Acct-Status-Type"
+        val acctStatusType = request.S("Acct-Status-Type", "Stop")
         if(!acctStatusType.contentEquals("Stop")){
 
-          val basicService = (request >> "PSA-BasicAutoactivatedService").map(_.stringValue).getOrElse("none")
+          val basicService = request.S("PSA-BasicAutoactivatedService", "none")
 
           // Store in sessionDatabase
           SessionDatabase.putSessionAsync(new JSession(

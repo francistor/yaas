@@ -6,7 +6,6 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{RejectionHandler, Route}
-import akka.stream.ActorMaterializer
 import com.typesafe.config._
 import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.Formats

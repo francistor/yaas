@@ -2,25 +2,8 @@
 {
 	"servers" : 
 	[
-		{
-        "name": "test-superserver",
-        "IPAddress": "127.0.0.1",
-        "secret": "secret",
-        "ports": {
-          "auth": 11812,
-          "acct": 11813,
-          "coA": 13799
-        },
-        "errorLimit": 20,
-        "quarantineTimeMillis": 4000
-      }
 	],
 	"serverGroups" :
 	[
-	  {
-        "name": "superServer",
-        "servers": ["test-superserver"],
-        "policy": "random"
-      }
 	]
 }

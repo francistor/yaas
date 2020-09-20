@@ -1,9 +1,2 @@
 [
-	// Diameter
-	{"name": "TestServerCCHandler", "clazz": "yaas.handlers.test.DefaultCCHandler"},
-	
-	// Radius
-	{"name": "RadiusHandler", "clazz": "yaas.handlers.test.DefaultRadiusHandler"}
-	
-	// CoARequestHandler not defined
 ]

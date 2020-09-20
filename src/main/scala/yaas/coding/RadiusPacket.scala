@@ -983,11 +983,14 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
     }
     this
   }
-  
+
   /**
-   * Tries to extract a single attribute with String type, throwing exception if unable.
+   * Tries to extract a single attribute with String type, throwing exception if unable and no default specified
+   * @param attributeName the name of the attribute to extract
+   * @param defaultValue a default value. If not specified, an exception will be thrown if the attribute is not present
+   * @return
    */
-  def S(attributeName: String): String = {
+  def S(attributeName: String, defaultValue: String*): String = {
     getAll(attributeName) match {
       case _ :: List(_) =>
         throw new RadiusExtractionException(s"Multiple $attributeName found")
@@ -995,14 +998,18 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
       case List(avp) => avp.stringValue
         
       case Nil =>
-        throw new RadiusExtractionException(s"attribute $attributeName not found")
+        if(defaultValue.isEmpty) throw new RadiusExtractionException(s"attribute $attributeName not found")
+        else defaultValue.head
     }
   }
-  
-   /**
-   * Tries to extract a single attribute with Long type, throwing exception if unable.
+
+  /**
+   * Tries to extract a single attribute with Long type, throwing exception if unable and no default specified
+   * @param attributeName the name of the attribute to extract
+   * @param defaultValue a default value. If not specified, an exception will be thrown if the attribute is not present
+   * @return
    */
-  def L(attributeName: String): Long = {
+  def L(attributeName: String, defaultValue: Long*): Long = {
     getAll(attributeName) match {
       case _ :: List(_) =>
         throw new RadiusExtractionException(s"Multiple $attributeName found")
@@ -1010,7 +1017,8 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
       case List(avp) => avp.longValue
         
       case Nil =>
-        throw new RadiusExtractionException(s"attribute $attributeName not found")
+        if(defaultValue.isEmpty) throw new RadiusExtractionException(s"attribute $attributeName not found")
+        else defaultValue.head
         
     }
   }

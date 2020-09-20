@@ -79,7 +79,6 @@ object ConfigManager {
 			}
 		)).toList
 
-
 	case class ConfigObject(url: URL, value: String)
 	case class ParsedConfigObject(url: URL, value: String, jValue: JValue)
 

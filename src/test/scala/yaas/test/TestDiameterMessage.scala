@@ -17,7 +17,7 @@ class TestDiameterMessage extends TestKit(ActorSystem("AAATest"))
   private implicit val byteOrder: ByteOrder = java.nio.ByteOrder.BIG_ENDIAN
 
   override def beforeAll {
-    System.setProperty("config.resource", "aaa-default.conf")
+    System.setProperty("config.resource", "reference.conf")
   }
   
   override def afterAll {
