@@ -6,8 +6,9 @@ Diameter and Radius are protocols used by telcos for signalling, that is, exchan
 information (not user traffic) between network nodes. Both of them offer high
 performance due to its asyncronous nature. A single connection (there is even no such a thing
 as "connection" in the case of Radius) may multiplex requests and responses comming out or order,
-avoiding wait times between request and response. This multiplex feature over the same connection
-is implemented in http2, and probably Diameter and Radius will become slowly out of favor when http2 gains traction in telcos.
+avoiding wait times. This multiplex feature over the same connection is implemented in http2, and 
+probably Diameter and Radius will become slowly out of favor when http2 gains traction in telcos, as is
+already happening in 5G.
 
 Yaas is built in scala and Akka.
 
@@ -27,3 +28,4 @@ on Nokia TAL, pre-post-blah hooks in Radiator, etc., not to mention performance.
 
 Yaas makes use of embedded Apache Ignite as a database for storing active sessions, IP address
 assginments and, incidentally, for storing client data for internal tests.
+
