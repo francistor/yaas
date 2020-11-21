@@ -4,7 +4,7 @@ Clone the repository and use sbt. The Universal packager is used, so that rpm or
 may be created with the appropriate command.
 
 If incorporating external handlers (which will usually be the case), those must be made available in the
-classpath (XXXXX how to do this).
+classpath.
 
 ## Smoke testing
 
