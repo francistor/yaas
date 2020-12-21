@@ -254,7 +254,9 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
         tests(lastTestIdx)()
       }
       catch{
-        case t: Throwable => println(s">> ERROR ${t.getMessage}")
+        case t: Throwable =>
+          println(s">> ERROR ${t.getMessage}")
+          t.printStackTrace()
       }
     else {
       if(doLoop){

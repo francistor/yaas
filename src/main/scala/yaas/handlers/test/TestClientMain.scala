@@ -136,10 +136,7 @@ class TestClientMain(statsServer: ActorRef, configObject: Option[String]) extend
         checkClientRadiusStats _,
         testAccountingInterim _,
 
-
-
-        //  js(configObject.get)
-
+        js(configObject.get)
     )
 
 }

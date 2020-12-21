@@ -26,7 +26,9 @@ libraryDependencies ++=
     "org.apache.ignite" % "ignite-kubernetes" % "2.8.0",
     "com.typesafe.slick" %% "slick" % "3.3.0",
     "com.typesafe.slick" %% "slick-hikaricp" % "3.3.0",
-    "org.mongodb.scala" %% "mongo-scala-driver" % "4.0.2"
+    "org.mongodb.scala" %% "mongo-scala-driver" % "4.0.2",
+    "org.graalvm.js" % "js" % "20.3.0",
+    "org.graalvm.js" % "js-scriptengine" % "20.3.0"
   )
 
 scriptClasspath += "../conf"
@@ -34,9 +36,9 @@ scriptClasspath += "../handlers"
   
 // --add-exports needed for Ignite compatibility with java 9
 javaOptions in Universal ++= Seq(
-    "-J-server"
-	  //"-J--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
-	  //"-J--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+    "-J-server",
+	  "-J--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED",
+	  "-J--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
 )
   
 

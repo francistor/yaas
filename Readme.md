@@ -48,13 +48,13 @@ This will launch several instances:
 - A "server" instance, which receives the client requests, looks for clients in the ignite database, stores sessions and proxies the requests to the superserver.
 - A "client" instance, which generates the requests and performs the tests.
 
-## Default configuration
+### Default configuration
 
 After building Yaas, the server may be started using the command `aaaserver`, *without parameters at all*, to launch an instance named "default" with a reference configuration, using the files stored internally as resources. It includes RadiusAuth and RadiusAcct handler that simply do proxy to an upstream server, and a Diameter Credit Control Application server that also forwards the requests to a Diameter peer. 
 
 The upstream server may be configured according to the files in `src/test/3rd_party`, listening to 11812 and 11813 ports for Radius and 3867 for Diameter, and simple test cases launched using the test scripts under the `bin/test` directory.
 
-## Multiserver test scenario
+### Multiserver test scenario
 
 The off-the-shelf installation creates configuration for three instances which may be launched on a single machine to execute a somewhat complex testing scenario.
 
@@ -64,7 +64,7 @@ The off-the-shelf installation creates configuration for three instances which m
 
 The full smoke test may be executed by launching the `testAll` script in the test directory under bin. The tests executed may be customized by editing the source code in `yaas.handlers.test.TestClientMain.scala`
 
-## Kubernetes test scenario
+### Kubernetes test scenario
 
 The Kubernetes test scenario includes four instances, all of them (except "client") are StatefulSets:
 

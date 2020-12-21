@@ -161,8 +161,6 @@ function executeNextTest(){
 	} else if(testItem["type"] == "readFile"){
         Yaas.readFile(testItem.fileName, callback);
     } else if(testItem["type"] == "wait"){
-      var Timer = Java.type("java.util.Timer");
-      var thisTimer = new Timer("wait", true);
-      thisTimer.schedule(callback, testItem.waitMillis);
+        Yaas.setTimeout(callback, testItem.waitMillis)
     }
 }

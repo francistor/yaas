@@ -302,28 +302,34 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
       def failure(message: String): Unit = promise.failure(new Exception(message))
     }
 
-    // Instantiate
-    val engine = new ScriptEngineManager().getEngineByName("nashorn")
+    import org.graalvm.polyglot.Context
+    val jsContext = Context.newBuilder("js")
+      .allowAllAccess(true)
+      .allowExperimentalOptions(true)
+      .option("js.nashorn-compat", "true").build
 
-    // Put objects in scope
-    // Radius/Diameter/HTTP helper
-    engine.put("Yaas", YaasJS)
+    val bindings = jsContext.getBindings("js")
 
-    // Base location of the script
+    // Put some object in the Javascript Context
+    // Yaas object with helper methods for implementing radius/diameter/http client and others
+    bindings.putMember("Yaas", YaasJS)
+
+    // For configurability
+    // The baseURL of the script is passed as a variable, so that loading of scripts in the same
+    // directory can be done with "load(baseURL + "<resource-name>);"
     val scriptURL = ConfigManager.getConfigObjectURL(scriptResource).getPath
-    engine.put("baseURL", scriptURL.substring(0, scriptURL.indexOf(scriptResource)))
+    bindings.putMember("baseURL", scriptURL.substring(0, scriptURL.indexOf(scriptResource)))
 
-    // To signal finalization
-    // JScript will invoke Notifier.end
-    engine.put("Notifier", new Notifier())
+    // The command line used to invoke Yaas is passed transparently to the Javascript also
+    bindings.putMember("commandLine", ConfigManager.popCommandLine.toList)
 
-    // Publish command line
-    engine.put("commandLine", ConfigManager.popCommandLine.toList)
+    // This will be invoked when finishing script execution
+    bindings.putMember("Notifier", new Notifier())
 
-    // Execute Javascript
-    engine.eval(s"load(baseURL + '$scriptResource');")
+    // Bootstrap the Javascript
+    jsContext.eval("js", s"load(baseURL + '$scriptResource');")
 
-    // Return the promise
+    // Return the promise. The Notifier will resolve it later
     promise.future
   }
 
@@ -352,17 +358,18 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
      * @param retries retries
      * @param callback of the form function(error, responseString). responseString contains the stringified JSON
      */
-    def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
+    def radiusRequest(serverGroupName: String, requestPacket: String, timeoutMillis: Int, retries: Int, callback: org.graalvm.polyglot.Value): Unit = {
         
       val responseFuture = sendRadiusGroupRequest(serverGroupName, parse(requestPacket), timeoutMillis, retries)
       responseFuture.onComplete{
         case Success(response) =>
+
           // Force conversion
           val jResponse: JValue = response
-          callback.call(null, null, compact(render(jResponse)))
+          callback.execute(null, compact(render(jResponse)))
           
         case Failure(error) =>
-          callback.call(null, error)
+          callback.execute(error)
       }
     }
 
@@ -372,16 +379,16 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
      * @param timeoutMillis timeout
      * @param callback of the form function(error, responseString). responseString contains the stringified JSON
      */
-    def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
+    def diameterRequest(requestMessage: String, timeoutMillis: Int, callback: org.graalvm.polyglot.Value): Unit = {
       val responseFuture = sendDiameterRequest(parse(requestMessage), timeoutMillis)
       responseFuture.onComplete{
         case Success(response) =>
           // Force conversion
           val jResponse: JValue = response
-          callback.call(null, null, compact(render(jResponse)))
+          callback.execute(null, compact(render(jResponse)))
           
         case Failure(error) =>
-          callback.call(null, error)
+          callback.execute(error)
       }
     }
 
@@ -392,17 +399,17 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
      * @param json stringified JSON to POST
      * @param callback of the form function(error, responseString). responseString contains the stringified JSON
      */
-    def httpRequest(url: String, method: String, json: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
+    def httpRequest(url: String, method: String, json: String, callback: org.graalvm.polyglot.Value): Unit = {
       val responseFuture = http.singleRequest(HttpRequest(HttpMethods.getForKey(method).get, uri = url, entity = HttpEntity(ContentTypes.`application/json`, json)))
       (for {
         re <- responseFuture
         r <- Unmarshal(re.entity).to[String]
       } yield r ) onComplete {
         case Success(response) =>
-          callback.call(null, null, response)
+          callback.execute(null, response)
           
         case Failure(error) =>
-          callback.call(null, error)
+          callback.execute(error)
       }
     }
 
@@ -411,7 +418,7 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
      * @param fileName file name. May contain %d{date-format}
      * @param callback of the form function(error, responseString). responseString contains the full file contents
      */
-    def readFile(fileName: String, callback: jdk.nashorn.api.scripting.JSObject): Unit = {
+    def readFile(fileName: String, callback: org.graalvm.polyglot.Value): Unit = {
 
       val datePartRegex = """%d\{.+}""".r
       val fileNamePatternRegex = """.*%d\{(.+)}.*""".r
@@ -426,11 +433,22 @@ class MessageHandler(statsServer: ActorRef, configObject: Option[String]) extend
 
       try {
         val source = Source.fromFile(parsedFileName)
-        callback.call(null, null, source.getLines.mkString)
+        callback.execute(null, source.getLines.mkString)
         source.close
       } catch {
         case error: Exception =>
-          callback.call(null, error)
+          callback.execute(error)
+      }
+    }
+
+    /**
+     * Helper to implement timeouts (equivalent to Javascript setTimeout) in the GraalVM
+     * @param timeoutMillis millisencods to wait
+     * @param callback function to be called
+     */
+    def setTimeout(callback:org.graalvm.polyglot.Value, timeoutMillis: Long): Unit = {
+      context.system.scheduler.scheduleOnce(timeoutMillis milliseconds) {
+        callback.executeVoid()
       }
     }
   }
