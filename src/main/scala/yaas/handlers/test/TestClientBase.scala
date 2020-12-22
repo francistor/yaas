@@ -301,12 +301,12 @@ abstract class TestClientBase(metricsServer: ActorRef, configObject: Option[Stri
     nextTest()
   }
 
-  def checkClientConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(clientMetricsURL, peer, shouldBeConnected = true, "Client")
-  def checkClientNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(clientMetricsURL, peer, shouldBeConnected = false, "Client")
-  def checkServerConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(serverMetricsURL, peer, shouldBeConnected = true, "Server")
-  def checkServerNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(serverMetricsURL, peer, shouldBeConnected = false, "Server")
-  def checkSuperServerConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(superServerMetricsURL, peer, shouldBeConnected = true, "SuperServer")
-  def checkSuperServerNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(superServerMetricsURL, peer, shouldBeConnected = false, "SuperServer")
+  def checkClientConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(clientMetricsURL, peer, shouldBeConnected = true, "Client")()
+  def checkClientNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(clientMetricsURL, peer, shouldBeConnected = false, "Client")()
+  def checkServerConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(serverMetricsURL, peer, shouldBeConnected = true, "Server")()
+  def checkServerNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(serverMetricsURL, peer, shouldBeConnected = false, "Server")()
+  def checkSuperServerConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(superServerMetricsURL, peer, shouldBeConnected = true, "SuperServer")()
+  def checkSuperServerNotConnectedPeer(peer: String)(): Unit = checkPeerConnectionStatus(superServerMetricsURL, peer, shouldBeConnected = false, "SuperServer")()
 
   /*
    * User-Name coding will determine the actions taken by the upstream servers

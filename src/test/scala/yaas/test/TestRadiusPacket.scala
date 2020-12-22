@@ -139,11 +139,9 @@ class TestRadiusPacket extends TestKit(ActorSystem("AAATest"))
       """
     val packet: RadiusPacket = parse(sRadiusPacket)
     val jPacket: JValue = packet
-    /**
-    (jPacket \ "avps" \ "NAS-Port").extract[Int] mustEqual 1
-    (jPacket \ "avps" \ "Acct-Status-Type").extract[String] mustEqual "Start"
-    * 
-    */
+
+    (jPacket \ "avps" \ "NAS-Port")(0).extract[Int] mustEqual 1
+    (jPacket \ "avps" \ "Acct-Status-Type")(0).extract[String] mustEqual "Start"
     
   }
 

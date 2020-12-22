@@ -428,14 +428,14 @@ object SessionDatabase {
   }
   
   /**
-   * Removes the session with the specified acctSessionId
+   * Removes the session with the specified AcctSessionId
    */
   def removeSession(acctSessionId: String): Boolean = {
     sessionsCache.remove(acctSessionId)
   }
   
   /**
-   * Removes the session with the specified acctSessionId
+   * Removes the session with the specified AcctSessionId
    */
   def removeSessionAsync(acctSessionId: String): IgniteFuture[lang.Boolean] = {
     sessionsCache.removeAsync(acctSessionId)

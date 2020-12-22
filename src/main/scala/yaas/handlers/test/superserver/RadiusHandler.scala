@@ -69,13 +69,20 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
     val realm = if(userNameComponents.length > 1) userNameComponents(1) else "NONE"
     val acctSessionId = request.S("Acct-Session-Id")
 
-    // Requests with Service-Type = "Call-Check" are copy-mode targets
-    val prefix = if((request >>* "Service-Type").contains("Call-Check")) "CC-" else "SS-"
+    // Requests with Service-Type = "Call-Check" or "Callback-Administrative" are copy-mode targets
+    val prefix = request >>* "Service-Type" match {
+      case "Call-Check" =>
+        "CC-"              // Used for first carbon-copy
+      case "Callback-Administrative" =>
+        "CC2-"             // Used for second carbon-copy
+      case _ =>
+        "SS-"              // Regular request
+    }
 
     // Modify packet for testing. Framed-IP-Address is patched when writing the session (radius cannot store an invalid address)
     request <:< ("Acct-Session-Id", prefix + acctSessionId)
 
-    // Write the CDR for the benefit of the testing
+    // Write the CDR for the benefit of testing
     writer.writeCDR(request.getCDR(format))
 
     // Will send a response depending on the contents of the User-Name
@@ -89,7 +96,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
           // Store in sessionDatabase
           SessionDatabase.putSession(new JSession(
             request >> "Acct-Session-Id",
-            prefix + (request >> "Framed-IP-Address"),
+            prefix + (request >>* "Framed-IP-Address"),    // Prefix added here because radius packet cannot be modified
             nasIpAddress,
             request >> "NAS-Port",
             getFromClass(request, "C").getOrElse("<SS-UNKNOWN>"),

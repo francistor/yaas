@@ -131,7 +131,7 @@ var testIndexes = [];
 if(commandLine.length() > 0) testIndexes = commandLine.head().split(",");
 else for(i = 0; i < testItems.length; i++) testIndexes[i] = i + 1;
 
-// This index run from 0 to number of tests to be executed (size of testIndexes)
+// This index runs from 0 to number of tests to be executed (size of testIndexes)
 var j = 0;
 executeNextTest();
 
@@ -161,8 +161,6 @@ function executeNextTest(){
 	} else if(testItem["type"] == "readFile"){
         Yaas.readFile(testItem.fileName, callback);
     } else if(testItem["type"] == "wait"){
-      var Timer = Java.type("java.util.Timer");
-      var thisTimer = new Timer("wait", true);
-      thisTimer.schedule(callback, testItem.waitMillis);
+        Yaas.setTimeout(callback, testItem.waitMillis)
     }
 }

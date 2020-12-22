@@ -268,7 +268,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
        * Rejects if there is a reject-reason and the reject service is not configured
        * Otherwise sets the service to reject or to the assigned one and merges attributes
        *
-       * *@param ctx Radius Context
+       * @param ctx
        **/
       def handleStdAccessRequest(implicit ctx: RadiusRequestContext): Unit = {
 
@@ -558,8 +558,7 @@ class RadiusHandler(statsServer: ActorRef, configObject: Option[String]) extends
                     realmAVPList <<?
                     globalAVPList <<
                     ("Class" -> s"S:${fServiceNameOption.getOrElse("none")}") <<
-                    ("Class" -> s"C:${legacyClientIdOption.getOrElse("not-found")}") <<
-                    ("Class" -> s"P:${legacyClientIdOption.getOrElse("not-found")}")
+                    ("Class" -> s"C:${legacyClientIdOption.getOrElse("not-found")}")
 
                   if(fAddonServiceNameOption.isDefined) response << ("Class" -> s"A:${fAddonServiceNameOption.getOrElse("none")}")
                   if(ipAddressOption.isDefined) response <:< ("Framed-IP-Address" -> ipAddressOption.get)                           // With Override

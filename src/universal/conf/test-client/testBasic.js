@@ -107,6 +107,7 @@ var testItems = [
 			["code", 2],
 			["attributeValue", "Session-Timeout", 2400],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aacs"],
+			["attributeValueContains", "Huawei-Account-Info", "Aacs"],
 			["attributeValueContains", "Class", "C:legacy_12"],
 			["attributeValueContains", "Class", "S:acs"]
 		]
@@ -157,6 +158,7 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 300],
 			["attributeValue", "Framed-Protocol", "PPP"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Aservice_3"],
+			["attributeValueContains", "Huawei-Account-Info", "Aservice_3"],
 			["attributeValueContains", "Huawei-Account-Info", "Aaddon_1"],
 			["attributeValueContains", "Class", "C:legacy_3"],
 			["attributeValueContains", "Class", "S:service_3"]
@@ -205,6 +207,7 @@ var testItems = [
 			["attributeValue", "Session-Timeout", 3600],
 			["attributeNotPresent", "Framed-Protocol"],
 			["attributeValueContains", "Unisphere-Service-Bundle", "Areject"],
+			["attributeValueContains", "Huawei-Account-Info", "Areject"],
 			["attributeValueContains", "Class", "C:legacy_0"],
 			["attributeValueContains", "Class", "R:1"]
 			
@@ -239,15 +242,27 @@ var testItems = [
         "validations":[]
     },
     {
-        "description": "Copied session stored",
+        "description": "Copied session 1 stored",
         "type": "httpGetRequest",
         "request": {
             "url": sessionsURL,
-            "queryString": "ipAddress=CC-200.0.0.10",
+            "queryString": "acctSessionId=CC-acctSessionId_copy",
         },
         "validations":[
             ["jsonArray0PropertyValue", "ipAddress", "CC-200.0.0.10"],
             ["jsonArray0PropertyValue", "acctSessionId", "CC-acctSessionId_copy"]
+        ]
+    },
+    {
+        "description": "Copied session 2 stored",
+        "type": "httpGetRequest",
+        "request": {
+            "url": sessionsURL,
+            "queryString": "ipAddress=CC2-200.0.0.10",
+        },
+        "validations":[
+            ["jsonArray0PropertyValue", "ipAddress", "CC2-200.0.0.10"],
+            ["jsonArray0PropertyValue", "acctSessionId", "CC2-acctSessionId_copy"]
         ]
     },
     {

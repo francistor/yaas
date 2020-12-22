@@ -1051,7 +1051,7 @@ class RadiusPacket(val code: Int, var identifier: Int, var authenticator: Array[
   private val cookies = scala.collection.mutable.Map[String, String]()
 
   /**
-   * Cookies are assigned to the radius packe to take processing decisions
+   * Cookies are assigned to the radius packet to take processing decisions
    * @param name of the cookie
    * @param value of the cookie
    */

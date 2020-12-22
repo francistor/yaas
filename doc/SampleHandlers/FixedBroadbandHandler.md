@@ -1,20 +1,31 @@
 # Fixed Broadband Handler
 
-Config variables may be set globally, per realm or per radius clients, each one overriding the previous one.
+# Configuration
+
+The configuration files are in the `hanlderConf` folder. The configuation variables that apply to a specific
+request may be set in various places, the final value used depends on the precedence.
+
+From lower to higher priority, properties are taken from:
+* globalConfig.json
+* realmConfig.json
+* radiusClientConfig.json
 
 ## Authentication
 
 ### Provision Type
+Determines where the user is looked for. The behaviour is defined in config variable `provisionType`, with values:
 
-Defined in config variable `provisionType`, with values
 * `database`. User is looked for in database, using NAS-Port and NAS-IP-Address
 * `file`. User is looked for in file, using User-Name
 * `none`. Do not look for the user. Mainly for testing
 
-The look up returns
+The look up returns:
+
 * legacyClientId
 * basicServiceName
 * addonServiceName
+* overrideServiceName
+* overrideAddonServiceName
 * status
 * userName of the line
 * password of the line
@@ -69,6 +80,26 @@ Proxy is sent to the servers in the `inlineProxyGroupName`. The types of packets
 or "none", no proxy is performed.
 
 The filter applied is specified in `authProxyFilter[In|Out]`
+
+### Response
+
+The attributes sent back in the reply may be classified in two categories. 
+
+The regular attributes have a single instance of each type, with the following precedence:
+* Received from proxy
+* Those in the addon service
+* Those in the basic service
+* The ones specified in the realm
+* The global ones
+
+The attributes under "nonOverridableAttributes" in the realmConfig or serviceConfig are not overriden, as
+the name implies, but are added, that is, multiple attributes may be sent in the response.
+
+In addition, mutliple Class attributes are sent, with values:
+
+* C=<legacy_client_id>
+* S=<service_name>
+* A=<addon_service>
 
 ## Accounting
 

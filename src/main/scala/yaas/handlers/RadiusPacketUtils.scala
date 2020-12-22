@@ -51,7 +51,6 @@ object RadiusPacketUtils {
    * @return a list of values
    */
   def getListFromPair(radiusPacket: RadiusPacket, keyName: String, attrName: String): List[String] = {
-    
   (radiusPacket >>+ attrName).flatMap{attr =>
       val kv = attr.stringValue.split("""=""")
       if(kv.length > 1 && kv(0) == keyName ) List(kv(1)) else List()
@@ -59,7 +58,9 @@ object RadiusPacketUtils {
   }
 
   /**
+   * Like <code>getListFromPair</code> but getting only the first one or None.
    *
+   * Gets the first value of the <code>attrName</code> with key <code>keyName</code> or None
    * @param radiusPacket the radius packet
    * @param keyName the inner attribute name
    * @param attrName the outer attribute name
@@ -86,11 +87,7 @@ object RadiusPacketUtils {
    * @param keyName the inner attribute name
    * @return
    */
-  def getFromClass(radiusPacket: RadiusPacket, keyName: String): Option[String] = getFromPair(radiusPacket, keyName, "Class")  /**
-   * Like <code>getListFromPair</code> but getting only the first one or None.
-   *
-   * Gets the first value of the <code>attrName</code> with key <code>keyName</code> or None
-   */
+  def getFromClass(radiusPacket: RadiusPacket, keyName: String): Option[String] = getFromPair(radiusPacket, keyName, "Class")
 
   /**
    * Evaluates the specified filter.
@@ -122,11 +119,11 @@ object RadiusPacketUtils {
     checkSpec match {
       case None => true
 
-      // Evaluate the inner filter objects
+      // The spec is composite. Evaluate the inner filter objects
       case Some(JObject(propValues)) => propValues.map { case (op, f) => checkRadiusPacket(radiusPacket, Some(f), op) }.reduce {
         (r1, r2) => if (operation == "and") r1 && r2 else r1 || r2
       }
-      // Evaluate the specification items
+      // The spec is final. Evaluate the specification items
       case Some(JArray(arr)) => (for {
         JArray(elems) <- arr
         attrNameOrCookie = elems.head.extract[String]
@@ -183,12 +180,11 @@ object RadiusPacketUtils {
         }
 
         // Remove section
-        val removeAttributes =  for {
+        for {
           JArray(removeAttrs) <- map \ "remove"
           JString(removeAttr) <- removeAttrs
-        } yield removeAttr
-
-        removeAttributes.map(radiusPacket.removeAll)
+          _ = radiusPacket.removeAll(removeAttr)
+        }
 
         // Force Section
         for {
